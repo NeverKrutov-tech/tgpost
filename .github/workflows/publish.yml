@@ -1,0 +1,40 @@
+name: TG AutoPost
+
+on:
+  schedule:
+    - cron: '0 8,10,12,14,16,18,20,22 * * *'
+  workflow_dispatch:
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Restore DB from cache
+        id: cache-db
+        uses: actions/cache@v4
+        with:
+          path: data/jokes.db
+          key: jokes-db-v1
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env from secrets
+        run: |
+          echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" >> .env
+          echo "CHANNEL_ID=${{ secrets.CHANNEL_ID }}" >> .env
+          echo "ADMIN_ID=${{ secrets.ADMIN_ID }}" >> .env
+          echo "CHANNEL_LINK=${{ secrets.CHANNEL_LINK }}" >> .env
+
+      - name: Ingest jokes
+        run: python -m src.tg_autopost ingest
+
+      - name: Publish joke
+        run: python -m src.tg_autopost publish

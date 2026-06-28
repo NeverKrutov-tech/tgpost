@@ -1,0 +1,40 @@
+from dataclasses import dataclass
+import os
+from dotenv import load_dotenv
+
+
+@dataclass(frozen=True)
+class Settings:
+    bot_token: str
+    channel_id: str
+    admin_id: int | None = None
+    channel_link: str = ""
+    post_interval_hours: int = 2
+    fetch_limit: int = 30
+    database_path: str = "data/jokes.db"
+    http_timeout: int = 20
+
+
+def load_settings() -> Settings:
+    load_dotenv()
+    bot_token = os.getenv("BOT_TOKEN", "").strip()
+    channel_id = os.getenv("CHANNEL_ID", "").strip()
+
+    if not bot_token:
+        raise ValueError("BOT_TOKEN is not set")
+    if not channel_id:
+        raise ValueError("CHANNEL_ID is not set")
+
+    raw_admin = os.getenv("ADMIN_ID", "").strip()
+    admin_id = int(raw_admin) if raw_admin else None
+
+    return Settings(
+        bot_token=bot_token,
+        channel_id=channel_id,
+        admin_id=admin_id,
+        channel_link=os.getenv("CHANNEL_LINK", "").strip(),
+        post_interval_hours=int(os.getenv("POST_INTERVAL_HOURS", "2")),
+        fetch_limit=int(os.getenv("FETCH_LIMIT", "30")),
+        database_path=os.getenv("DATABASE_PATH", "data/jokes.db"),
+        http_timeout=int(os.getenv("HTTP_TIMEOUT", "20")),
+    )
