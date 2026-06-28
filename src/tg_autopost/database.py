@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .models import Joke
+from .utils import build_hash
 
 
 CREATE_TABLE_SQL = """
