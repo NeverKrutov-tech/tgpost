@@ -180,6 +180,36 @@ class Database:
             ).fetchone()
             return int(row["count"])
 
+    def get_recent_published(self, limit: int = 3, days: int = 7) -> list[Joke]:
+        cutoff = datetime.now(timezone.utc).isoformat()
+        with self.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT text, source_name, source_url, external_id, content_hash, created_at, published_at
+                FROM jokes
+                WHERE published_at IS NOT NULL
+                ORDER BY published_at DESC
+                LIMIT ?
+                """,
+                (limit * 3,),
+            ).fetchall()
+        seen = set()
+        result = []
+        for row in rows:
+            text = row["text"]
+            if text not in seen:
+                seen.add(text)
+                result.append(Joke(
+                    text=text,
+                    source_name=row["source_name"],
+                    source_url=row["source_url"],
+                    external_id=row["external_id"],
+                    content_hash=row["content_hash"],
+                ))
+            if len(result) >= limit:
+                break
+        return result
+
     def save_pending_part(self, part1_hash: str, text: str, source_name: str, external_id: str, content_hash: str) -> None:
         now = datetime.now(timezone.utc).isoformat()
         with self.connect() as connection:

@@ -17,9 +17,10 @@ IMAGE_RATIO = 0.2
 DICE_RATIO = 0.15
 BATTLE_EVERY = 5
 OBSERVATION_RATIO = 0.1
-REPOST_CARD_RATIO = 0.15
+REPOST_CARD_RATIO = 0.3
 REACTION_PROMPT_RATIO = 0.4
 FRIDAY_PROMPT_DAYS = [4]
+SUNDAY_DIGEST_DAYS = [6]
 
 
 def _split_two_part(text: str) -> tuple[str, str] | None:
@@ -323,6 +324,29 @@ class TelegramPublisher:
         logger.info("Published reaction summary #%s", reaction["id"])
         return True
 
+    def _send_weekly_digest(self, post_number: int) -> bool:
+        jokes = self.db.get_recent_published(limit=3, days=7)
+        if not jokes:
+            return False
+        lines = []
+        for i, joke in enumerate(jokes, 1):
+            text = joke.text.replace("\n", " ")[:200].rstrip() + "\u2026" if len(joke.text) > 200 else joke.text
+            lines.append(f"<b>{i}.</b> {html.escape(text)}")
+        text = (
+            f"\U0001F4C5 <b>\u041B\u0443\u0447\u0448\u0435\u0435 \u0437\u0430 \u043D\u0435\u0434\u0435\u043B\u044E</b>\n\n"
+            f"{chr(10).join(lines)}\n\n"
+            f"#\u0434\u0430\u0439\u0434\u0436\u0435\u0441\u0442 #\u043B\u0443\u0447\u0448\u0435\u0435\n"
+            f"\u2500\u2500\u2500\n"
+            f"\u0412\u044B\u043F\u0443\u0441\u043A #{post_number}"
+        )
+        self._post_message({
+            "chat_id": self.settings.channel_id,
+            "text": text,
+            "parse_mode": "HTML",
+        })
+        logger.info("Published weekly digest #%s", post_number)
+        return True
+
     def publish_next(self) -> bool:
         today = datetime.datetime.today()
         rubric = get_today_rubric()
@@ -337,6 +361,10 @@ class TelegramPublisher:
             return self._send_subscriber_joke()
 
         post_number = self.db.count_published() + 1
+
+        if today.weekday() in SUNDAY_DIGEST_DAYS and self.db.count_published_today() == 0:
+            if self._send_weekly_digest(post_number):
+                return True
 
         if today.weekday() in FRIDAY_PROMPT_DAYS and self.db.count_published_today() == 0:
             return self._send_friday_prompt()
