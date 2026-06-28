@@ -68,7 +68,7 @@ def run_scheduler() -> None:
 
     scheduler = BlockingScheduler()
 
-    for hour in range(8, 23, settings.post_interval_hours):
+    for hour in range(6, 24, settings.post_interval_hours):
         scheduler.add_job(run_ingest_and_publish, "cron", hour=hour, minute=0, jitter=900)
 
     logging.getLogger(__name__).info(
