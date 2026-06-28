@@ -3,10 +3,14 @@ import re
 
 
 WHITESPACE_RE = re.compile(r"\s+")
+PUNCTUATION_RE = re.compile(r"[\u2010-\u2015]")
+QUOTES_RE = re.compile(r"[\u00AB\u00BB\u2018\u2019\u201A\u201B\u201C\u201D\u201E]")
 
 
 def normalize_text(text: str) -> str:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = PUNCTUATION_RE.sub("-", text)
+    text = QUOTES_RE.sub("\u0022", text)
     lines = text.split("\n")
     result = []
     prev_empty = False

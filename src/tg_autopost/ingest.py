@@ -22,4 +22,7 @@ class JokeIngestor:
                         inserted += 1
             except Exception:
                 logger.exception("Failed to ingest jokes from source: %s", source.name)
+        removed = self.db.dedup_unpublished()
+        if removed:
+            logger.info("Deduplicated %s duplicate jokes", removed)
         return inserted

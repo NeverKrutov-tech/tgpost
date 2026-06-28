@@ -157,6 +157,23 @@ class Database:
                 (published_at, content_hash),
             )
 
+    def dedup_unpublished(self) -> int:
+        now = datetime.now(timezone.utc).isoformat()
+        removed = 0
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT content_hash, text FROM jokes WHERE published_at IS NULL ORDER BY created_at"
+            ).fetchall()
+            seen: set[str] = set()
+            for row in rows:
+                key = build_hash(row["text"])
+                if key in seen:
+                    connection.execute("UPDATE jokes SET published_at = ? WHERE content_hash = ?", (now, row["content_hash"]))
+                    removed += 1
+                else:
+                    seen.add(key)
+        return removed
+
     def count_unpublished(self) -> int:
         with self.connect() as connection:
             row = connection.execute(
