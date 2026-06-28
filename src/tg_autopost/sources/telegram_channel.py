@@ -1,0 +1,97 @@
+import logging
+import re
+import time
+from typing import Iterable
+
+import requests
+from bs4 import BeautifulSoup
+
+from ..models import Joke
+from ..utils import build_hash, normalize_text
+from .base import JokeSource
+
+logger = logging.getLogger(__name__)
+
+TME_URL = "https://t.me/s/{channel}"
+
+SKIP_PATTERNS = [
+    re.compile(r"https?://", re.I),
+    re.compile(r"@\w+"),
+    re.compile(r"tg://"),
+    re.compile(r"t\.me/"),
+    re.compile(r"^\d+$"),
+]
+
+MIN_LENGTH = 30
+MAX_LENGTH = 3000
+
+
+class TelegramChannelSource(JokeSource):
+    name = "telegram"
+
+    def __init__(self, channels: list[str], timeout: int = 20) -> None:
+        self.channels = [ch.lstrip("@") for ch in channels if ch.strip()]
+        self.timeout = timeout
+
+    def fetch(self, limit: int) -> Iterable[Joke]:
+        for channel in self.channels:
+            url = TME_URL.format(channel=channel)
+            try:
+                response = requests.get(
+                    url,
+                    timeout=self.timeout,
+                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+                )
+                response.raise_for_status()
+            except Exception:
+                logger.warning("Failed to fetch t.me/s/%s", channel)
+                continue
+
+            soup = BeautifulSoup(response.text, "html.parser")
+            messages = soup.select("div.tgme_widget_message_wrap")
+            if not messages:
+                logger.info("No messages found on t.me/s/%s", channel)
+                continue
+
+            yielded = 0
+            for msg_wrap in messages:
+                msg = msg_wrap.select_one("div.tgme_widget_message")
+                if msg is None:
+                    continue
+
+                if msg.select_one("div.tgme_widget_message_photo_wrap, div.tgme_widget_message_video_wrap"):
+                    continue
+                if msg.select_one("a.tgme_widget_message_link_preview"):
+                    continue
+
+                text_div = msg.select_one("div.tgme_widget_message_text")
+                if text_div is None:
+                    continue
+
+                raw_text = text_div.get_text("\n", strip=True)
+                if not raw_text or len(raw_text) < MIN_LENGTH or len(raw_text) > MAX_LENGTH:
+                    continue
+                if any(p.search(raw_text) for p in SKIP_PATTERNS):
+                    continue
+
+                text = normalize_text(raw_text)
+                if not text or len(text) < MIN_LENGTH:
+                    continue
+
+                external_id = f"tg_{channel}_{abs(hash(text)) % 10_000_000}"
+
+                yield Joke(
+                    text=text,
+                    source_name=f"tg/{channel}",
+                    source_url=url,
+                    external_id=external_id,
+                    content_hash=build_hash(text),
+                )
+                yielded += 1
+                if yielded >= limit:
+                    break
+
+            if yielded == 0:
+                logger.info("No jokes parsed from t.me/s/%s", channel)
+
+            time.sleep(1)

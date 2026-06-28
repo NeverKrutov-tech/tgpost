@@ -12,6 +12,7 @@ from .ingest import JokeIngestor
 from .publisher import TelegramPublisher
 from .sources.anekdot_ru import AnekdotRuSource
 from .sources.anekdotov_net import AnekdotovNetSource
+from .sources.telegram_channel import TelegramChannelSource
 
 
 def configure_logging() -> None:
@@ -29,10 +30,12 @@ def configure_logging() -> None:
 def build_services() -> tuple[object, Database, JokeIngestor, TelegramPublisher]:
     settings = load_settings()
     db = Database(settings.database_path)
-    sources = [
+    sources: list = [
         AnekdotRuSource(timeout=settings.http_timeout),
         AnekdotovNetSource(timeout=settings.http_timeout),
     ]
+    if settings.telegram_sources:
+        sources.append(TelegramChannelSource(list(settings.telegram_sources), timeout=settings.http_timeout))
     ingestor = JokeIngestor(db, sources)
     publisher = TelegramPublisher(settings, db)
     return settings, db, ingestor, publisher

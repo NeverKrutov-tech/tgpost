@@ -9,6 +9,7 @@ class Settings:
     channel_id: str
     admin_id: int | None = None
     channel_link: str = ""
+    telegram_sources: tuple[str, ...] = ()
     post_interval_hours: int = 2
     fetch_limit: int = 30
     database_path: str = "data/jokes.db"
@@ -28,11 +29,15 @@ def load_settings() -> Settings:
     raw_admin = os.getenv("ADMIN_ID", "").strip()
     admin_id = int(raw_admin) if raw_admin else None
 
+    raw_tg_sources = os.getenv("TELEGRAM_SOURCES", "").strip()
+    telegram_sources = tuple(ch.strip() for ch in raw_tg_sources.split(",") if ch.strip())
+
     return Settings(
         bot_token=bot_token,
         channel_id=channel_id,
         admin_id=admin_id,
         channel_link=os.getenv("CHANNEL_LINK", "").strip(),
+        telegram_sources=telegram_sources,
         post_interval_hours=int(os.getenv("POST_INTERVAL_HOURS", "2")),
         fetch_limit=int(os.getenv("FETCH_LIMIT", "30")),
         database_path=os.getenv("DATABASE_PATH", "data/jokes.db"),
