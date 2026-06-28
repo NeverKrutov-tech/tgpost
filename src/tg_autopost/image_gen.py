@@ -1,11 +1,29 @@
 import colorsys
+import os
 import random
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-FONT_PATH = "C:\\Windows\\Fonts\\Arial.ttf"
-FONT_BOLD_PATH = "C:\\Windows\\Fonts\\Arialbd.ttf"
+if os.name == "nt":
+    _FONT_CANDIDATES = [
+        ("C:\\Windows\\Fonts\\Arial.ttf", "C:\\Windows\\Fonts\\Arialbd.ttf"),
+    ]
+else:
+    _FONT_CANDIDATES = [
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        ("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
+    ]
+
+FONT_PATH: str | None = None
+FONT_BOLD_PATH: str | None = None
+for regular, bold in _FONT_CANDIDATES:
+    if Path(regular).exists():
+        FONT_PATH = regular
+        FONT_BOLD_PATH = bold if Path(bold).exists() else regular
+        break
+if FONT_PATH is None:
+    raise RuntimeError("No suitable font found on this system")
 OUTPUT_DIR = Path("data/images")
 WIDTH = 1080
 HEIGHT = 1080
