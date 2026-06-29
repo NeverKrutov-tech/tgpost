@@ -1,10 +1,8 @@
 # Environment
 .env
 
-# Temp scripts (contain secrets)
-scripts/*.py
-scripts/*.txt
-scripts/*.json
+# Temp logs
+logs_output.txt
 
 # Database
 data/*.db
