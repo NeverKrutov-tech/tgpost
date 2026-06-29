@@ -8,18 +8,25 @@ import requests
 
 from .config import Settings
 from .database import Database
+from .levels import get_level
 
 logger = logging.getLogger(__name__)
 
 POLL_TIMEOUT = 60
 CB_APPROVE = "approve"
 CB_REJECT = "reject"
+TIP_STARS = 10
 
 START_TEXT = (
     "\U0001F44B <b>Привет!</b>\n\n"
     "Я бот для сбора анекдотов. Хочешь поделиться смешной историей?\n"
     "Просто отправь мне текст анекдота — и он уйдёт на модерацию.\n"
-    "Лучшие публикуются в канале с указанием автора!"
+    "Лучшие публикуются в канале с указанием автора!\n\n"
+    "Команды:\n"
+    "/submit — прислать анекдот\n"
+    "/register — стать автором\n"
+    "/my_stats — моя статистика\n"
+    "/author @username — профиль автора"
 )
 
 SUBMIT_TEXT = (
@@ -109,7 +116,7 @@ class PollingHandler:
         payload: dict[str, Any] = {
             "offset": self._offset,
             "timeout": POLL_TIMEOUT,
-            "allowed_updates": ["message", "callback_query"],
+            "allowed_updates": ["message", "callback_query", "pre_checkout_query"],
         }
         data = _api_call(self.settings.bot_token, "getUpdates", payload, timeout=POLL_TIMEOUT + 10)
         if data is None:
@@ -134,19 +141,151 @@ class PollingHandler:
             return
 
         chat_id = chat["id"]
-        text = msg.get("text", "")
         user = msg.get("from", {})
         uid, username, full_name = _get_author_link(user)
 
+        payment = msg.get("successful_payment")
+        if payment:
+            payload = payment.get("invoice_payload", "")
+            try:
+                _, sub_id_str, author_id_str = payload.split(":")
+                sub_id = int(sub_id_str)
+                author_id = int(author_id_str)
+                amount = payment["total_amount"]
+            except (ValueError, KeyError):
+                return
+            self.db.save_tip(sub_id, author_id, amount, uid)
+            label, emoji = get_level(self.db.get_author_published_count(author_id))
+            _send_message(
+                self.settings.bot_token, chat_id,
+                f"\u2B50 Спасибо! {amount} \u2B50 отправлены автору.\n"
+                f"Твой донат помогает развивать канал! \U0001F389",
+            )
+            logger.info("Tip: %s stars from user %s to author %s for submission %s", amount, uid, author_id, sub_id)
+            return
+
+        text = msg.get("text", "")
         if not text.strip():
             return
 
         if text.startswith("/start"):
+            if text.startswith("/start tip_"):
+                try:
+                    sub_id = int(text.split("tip_", 1)[1].split()[0])
+                except (ValueError, IndexError):
+                    _send_message(self.settings.bot_token, chat_id, START_TEXT)
+                    return
+                sub = self.db.get_submission_author(sub_id)
+                if sub is None:
+                    _send_message(self.settings.bot_token, chat_id, "\u274C Анекдот не найден.")
+                    return
+                author_display = _author_display(sub["author_username"], sub["author_name"])
+                invoice = _api_call(
+                    self.settings.bot_token, "sendInvoice",
+                    {
+                        "chat_id": chat_id,
+                        "title": "\u041F\u043E\u0434\u0434\u0435\u0440\u0436\u043A\u0430 \u0430\u0432\u0442\u043E\u0440\u0430",
+                        "description": f"\u041E\u0442\u043F\u0440\u0430\u0432\u044C {TIP_STARS} \u2B50 {author_display} \u0437\u0430 \u0430\u043D\u0435\u043A\u0434\u043E\u0442",
+                        "payload": f"tip:{sub_id}:{sub['author_id']}",
+                        "currency": "XTR",
+                        "prices": [{"label": f"\u0410\u0432\u0442\u043E\u0440\u0443 {author_display}", "amount": TIP_STARS}],
+                    },
+                )
+                if invoice is None:
+                    _send_message(
+                        self.settings.bot_token, chat_id,
+                        "\u26A0\uFE0F Не удалось создать платёж. Попробуй позже.",
+                    )
+                return
             _send_message(self.settings.bot_token, chat_id, START_TEXT)
             return
 
         if text.startswith("/submit"):
             _send_message(self.settings.bot_token, chat_id, SUBMIT_TEXT)
+            return
+
+        if text.startswith("/register"):
+            args = text[len("/register"):].strip()
+            if args:
+                ok = self.db.register_author(uid, username, args)
+                if ok:
+                    _send_message(
+                        self.settings.bot_token, chat_id,
+                        f"\u2705 Ты зарегистрирован как автор <b>{html.escape(args)}</b>!\n"
+                        "Твои анекдоты будут публиковаться с этим именем.",
+                    )
+                else:
+                    existing = self.db.get_author_by_telegram_id(uid)
+                    if existing:
+                        self.db.update_author_name(uid, args)
+                        _send_message(
+                            self.settings.bot_token, chat_id,
+                            f"\u2705 Имя обновлено на <b>{html.escape(args)}</b>!",
+                        )
+                    else:
+                        _send_message(
+                            self.settings.bot_token, chat_id,
+                            "\u26A0\uFE0F Ошибка регистрации. Попробуй позже.",
+                        )
+            else:
+                _send_message(
+                    self.settings.bot_token, chat_id,
+                    "\u270F\uFE0F <b>Регистрация автора</b>\n\n"
+                    "Чтобы зарегистрироваться, напиши:\n"
+                    "<code>/register Имя Фамилия</code>\n\n"
+                    "Например: <code>/register Иван Петров</code>\n\n"
+                    "После регистрации твои анекдоты будут выходить с твоим именем.",
+                )
+            return
+
+        if text.startswith("/my_stats"):
+            author = self.db.get_author_by_telegram_id(uid)
+            if author is None:
+                self.db.register_author(uid, username, full_name or f"User {uid}")
+                author = self.db.get_author_by_telegram_id(uid)
+            count = self.db.get_author_published_count(uid)
+            label, emoji = get_level(count)
+            top = self.db.get_top_authors(limit=50)
+            rank = next((i + 1 for i, a in enumerate(top) if a["telegram_id"] == uid), None)
+            display = author["name"]
+            msg = (
+                f"\U0001F4CA <b>Моя статистика</b>\n\n"
+                f"Имя: <b>{html.escape(display)}</b>\n"
+                f"Уровень: {emoji} <b>{label}</b>\n"
+                f"Опубликовано: <b>{count}</b>\n"
+            )
+            if rank:
+                msg += f"Место в топе: <b>{rank}</b> из {len(top)}\n"
+            msg += f"\nПрисылай ещё — /submit"
+            _send_message(self.settings.bot_token, chat_id, msg)
+            return
+
+        if text.startswith("/author"):
+            target = text[len("/author"):].strip().lstrip("@")
+            if not target:
+                _send_message(
+                    self.settings.bot_token, chat_id,
+                    "\u2139\uFE0F Напиши: /author @username\nНапример: /author @ivanov",
+                )
+                return
+            author = self.db.get_author_by_username(target)
+            if author is None:
+                _send_message(
+                    self.settings.bot_token, chat_id,
+                    f"\u274C Автор @{html.escape(target)} не найден.",
+                )
+                return
+            count = self.db.get_author_published_count(author["telegram_id"])
+            label, emoji = get_level(count)
+            msg = (
+                f"{emoji} <b>{html.escape(author['name'])}</b>\n"
+                f"@{author['username']}\n\n"
+                f"\U0001F3C5 Уровень: <b>{label}</b>\n"
+                f"\U0001F4DD Опубликовано: <b>{count}</b> анекдотов\n"
+            )
+            if author["bio"]:
+                msg += f"\n\uD83D\uDCDD {html.escape(author['bio'])}"
+            _send_message(self.settings.bot_token, chat_id, msg)
             return
 
         if self._is_reaction(text):
@@ -240,6 +379,21 @@ class PollingHandler:
             else:
                 _answer_callback_query(self.settings.bot_token, cb_id, "\u26A0\uFE0F Уже обработано")
 
+    def _handle_pre_checkout_query(self, query: dict) -> None:
+        query_id = query.get("id", "")
+        payload = query.get("invoice_payload", "")
+        if payload.startswith("tip:"):
+            _api_call(self.settings.bot_token, "answerPreCheckoutQuery", {
+                "pre_checkout_query_id": query_id,
+                "ok": True,
+            })
+        else:
+            _api_call(self.settings.bot_token, "answerPreCheckoutQuery", {
+                "pre_checkout_query_id": query_id,
+                "ok": False,
+                "error_message": "Неизвестный платёж",
+            })
+
     def _notify_author(self, joke_id: int, approved: bool) -> None:
         author = self.db.get_submission_author(joke_id)
         if author is None:
@@ -265,6 +419,8 @@ class PollingHandler:
 
             if "callback_query" in update:
                 self._handle_callback(update["callback_query"])
+            elif "pre_checkout_query" in update:
+                self._handle_pre_checkout_query(update["pre_checkout_query"])
             elif "message" in update:
                 self._handle_message(update["message"])
 

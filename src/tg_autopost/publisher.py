@@ -9,7 +9,9 @@ import requests
 from .config import Settings
 from .database import Database
 from .image_gen import fits_in_image, generate_joke_image, generate_repost_card
+from .levels import get_level
 from .rubrics import classify_emoji, get_hashtags, get_preamble, get_today_rubric, is_jubilee
+from .youtube import get_channel_stats, get_latest_videos
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,7 @@ BATTLE_EVERY = 5
 OBSERVATION_RATIO = 0.1
 REPOST_CARD_RATIO = 0.3
 REACTION_PROMPT_RATIO = 0.4
+QUIZ_RATIO = 0.08
 FRIDAY_PROMPT_DAYS = [4]
 SUNDAY_DIGEST_DAYS = [6]
 
@@ -106,17 +109,8 @@ class TelegramPublisher:
 
     def _welcome_new_members(self) -> None:
         try:
-            resp = requests.post(
-                f"https://api.telegram.org/bot{self.settings.bot_token}/getChatMemberCount",
-                json={"chat_id": self.settings.channel_id},
-                timeout=self.settings.http_timeout,
-            )
-            data = resp.json()
-            if not data.get("ok"):
-                return
-            current = int(data["result"])
-            prev_str = self.db.get_meta("member_count", "0")
-            prev = int(prev_str) if prev_str else 0
+            current = self._get_member_count()
+            prev = int(self.db.get_meta("member_count", "0"))
             self.db.set_meta("member_count", str(current))
             diff = current - prev
             if diff >= 3 and prev > 0:
@@ -186,18 +180,34 @@ class TelegramPublisher:
         sub = self.db.get_next_approved_submission()
         if sub is None:
             return False
+        self.db.register_author(sub["author_id"], sub["author_username"], sub["author_name"] or f"User {sub['author_id']}")
         author = _author_display(sub["author_username"], sub["author_name"])
+        count = self.db.get_author_published_count(sub["author_id"]) + 1
+        label, emoji = get_level(count)
         safe_text = html.escape(sub["text"])
         hashtags = get_hashtags(sub["text"])
+        author_line = f"{emoji} <b>\u0410\u0432\u0442\u043E\u0440:</b> {author}"
+        author_line += f" \u2022 {label}"
+        if count >= 5:
+            author_line += f" \u2022 {count} \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432"
         text = (
             f"\U0001F4EC <b>\u0410\u0432\u0442\u043E\u0440\u0441\u043A\u0438\u0439 \u0430\u043D\u0435\u043A\u0434\u043E\u0442</b>\n\n"
-            f"{safe_text}\n\n{hashtags}\n"
-            f"\u041F\u0440\u0438\u0441\u043B\u0430\u043B(\u0430): {author}"
+            f"{safe_text}\n\n{author_line}\n{hashtags}"
         )
+        bot_username = self._get_bot_username()
+        tip_url = f"https://t.me/{bot_username}?start=tip_{sub['id']}"
+        share = self._share_button()
+        buttons = []
+        if share:
+            buttons.extend(share["inline_keyboard"])
+        buttons.append([
+            {"text": "\u2B50 \u041F\u043E\u0431\u043B\u0430\u0433\u043E\u0434\u0430\u0440\u0438\u0442\u044C \u0430\u0432\u0442\u043E\u0440\u0430", "url": tip_url}
+        ])
         self._post_message({
             "chat_id": self.settings.channel_id,
             "text": text,
             "parse_mode": "HTML",
+            "reply_markup": {"inline_keyboard": buttons},
         })
         self.db.mark_submission_published(sub["id"])
         logger.info("Published subscriber joke #%s from %s", sub["id"], author)
@@ -216,6 +226,54 @@ class TelegramPublisher:
         )
         self._post_message({"chat_id": self.settings.channel_id, "text": text, "parse_mode": "HTML"})
         logger.info("Published Friday prompt")
+        return True
+
+    def _send_quiz_answer(self) -> bool:
+        quiz = self.db.get_pending_quiz()
+        if quiz is None:
+            return False
+        safe_text = html.escape(quiz["full_text"])
+        text = (
+            f"\U0001F44F <b>\u0410 \u0432\u043E\u0442 \u043A\u0430\u043A \u0437\u0430\u043A\u0430\u043D\u0447\u0438\u0432\u0430\u043B\u0441\u044F \u0442\u043E\u0442 \u0430\u043D\u0435\u043A\u0434\u043E\u0442</b>\n\n"
+            f"{safe_text}\n\n#\u043A\u0432\u0438\u0437 #\u043E\u0442\u0432\u0435\u0442"
+        )
+        self._post_message({
+            "chat_id": self.settings.channel_id,
+            "text": text,
+            "parse_mode": "HTML",
+        })
+        self.db.delete_pending_quiz(quiz["id"])
+        logger.info("Published quiz answer")
+        return True
+
+    def _try_make_quiz(self, joke, rubric: dict) -> bool | None:
+        if random.random() >= QUIZ_RATIO:
+            return None
+        lines = joke.text.strip().split("\n")
+        if len(lines) < 3:
+            return None
+        last_line = lines[-1].strip()
+        if not last_line.startswith("-") and not last_line.startswith("\u2014"):
+            return None
+        truncated = "\n".join(lines[:-1]).strip()
+        if len(truncated) < 60:
+            return None
+        bot_username = self._get_bot_username()
+        safe_truncated = html.escape(truncated)
+        text = (
+            f"\u2753 <b>\u0417\u0430\u043A\u043E\u043D\u0447\u0438 \u0430\u043D\u0435\u043A\u0434\u043E\u0442</b>\n\n"
+            f"{safe_truncated}\n\n"
+            f"\u2193 \u041F\u0438\u0448\u0438 \u0441\u0432\u043E\u0439 \u0432\u0430\u0440\u0438\u0430\u043D\u0442 \u0431\u043E\u0442\u0443 @{bot_username}\n"
+            f"\u041B\u0443\u0447\u0448\u0438\u0435 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u043C \u0432 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u043C \u0432\u044B\u043F\u0443\u0441\u043A\u0435!"
+        )
+        self._post_message({
+            "chat_id": self.settings.channel_id,
+            "text": text,
+            "parse_mode": "HTML",
+        })
+        self.db.save_quiz(truncated, joke.text, last_line)
+        self.db.mark_published(joke.content_hash)
+        logger.info("Published quiz prompt for joke: %s", joke.external_id)
         return True
 
     def _send_text(self, joke, rubric: dict, preamble_override: str = "", is_part2: bool = False) -> bool:
@@ -292,6 +350,8 @@ class TelegramPublisher:
         joke2 = self.db.get_next_unpublished()
         if joke2 is None:
             return False
+        self.db.add_shorts_candidate(joke1.text)
+        self.db.add_shorts_candidate(joke2.text)
         post_number = self.db.count_published() + 1
         battle_text = (
             f"\u2694\uFE0F <b>\u0411\u0430\u0442\u0442\u043B \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432!</b>\n\n"
@@ -352,31 +412,106 @@ class TelegramPublisher:
         logger.info("Published reaction summary #%s", reaction["id"])
         return True
 
+    def _get_member_count(self) -> int:
+        try:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{self.settings.bot_token}/getChatMemberCount",
+                json={"chat_id": self.settings.channel_id},
+                timeout=self.settings.http_timeout,
+            )
+            data = resp.json()
+            if data.get("ok"):
+                return int(data["result"])
+        except Exception:
+            pass
+        prev = self.db.get_meta("member_count", "0")
+        return int(prev) if prev else 0
+
     def _send_weekly_digest(self) -> bool:
         jokes = self.db.get_recent_published(limit=3, days=7)
         if not jokes:
             return False
+        members = self._get_member_count()
+        self.db.set_meta("member_count", str(members))
         lines = []
         for i, joke in enumerate(jokes, 1):
             text = joke.text.replace("\n", " ")[:200].rstrip() + "\u2026" if len(joke.text) > 200 else joke.text
             lines.append(f"<b>{i}.</b> {html.escape(text)}")
-        text = (
+        result = (
             f"\U0001F4C5 <b>\u041B\u0443\u0447\u0448\u0435\u0435 \u0437\u0430 \u043D\u0435\u0434\u0435\u043B\u044E</b>\n\n"
-            f"{chr(10).join(lines)}\n\n"
-            f"#\u0434\u0430\u0439\u0434\u0436\u0435\u0441\u0442 #\u043B\u0443\u0447\u0448\u0435\u0435"
+            f"\U0001F389 \u041D\u0430\u0441 \u0443\u0436\u0435 <b>{members}</b>!\n\n"
+            f"{chr(10).join(lines)}"
         )
+        yt_stats = get_channel_stats(self.settings.youtube_api_key, self.settings.youtube_channel_id)
+        if yt_stats:
+            result += (
+                f"\n\n\U0001F3A5 <b>YouTube</b>\n"
+                f"\U0001F4CA {yt_stats['subscribers']} \u043F\u043E\u0434\u043F\u0438\u0441\u0447\u0438\u043A\u043E\u0432\n"
+                f"\U0001F3AC {yt_stats['videos']} \u0432\u0438\u0434\u0435\u043E"
+            )
+        top_authors = self.db.get_top_authors(limit=3)
+        if top_authors:
+            author_lines = []
+            for i, a in enumerate(top_authors, 1):
+                display = f"@{a['username']}" if a["username"] else a["name"]
+                author_lines.append(f"<b>{i}.</b> {html.escape(display)} \u2014 {a['jokes_count']}")
+            result += (
+                f"\n\n\U0001F3C6 <b>\u0422\u043E\u043F \u0430\u0432\u0442\u043E\u0440\u043E\u0432</b>\n"
+                f"{chr(10).join(author_lines)}"
+            )
+        result += "\n\n#\u0434\u0430\u0439\u0434\u0436\u0435\u0441\u0442 #\u043B\u0443\u0447\u0448\u0435\u0435"
         self._post_message({
             "chat_id": self.settings.channel_id,
-            "text": text,
+            "text": result,
             "parse_mode": "HTML",
         })
         return True
+
+    def _handle_youtube(self) -> bool:
+        api_key = self.settings.youtube_api_key
+        channel_id = self.settings.youtube_channel_id
+        if not api_key or not channel_id:
+            return False
+
+        stats = get_channel_stats(api_key, channel_id)
+        if stats is None:
+            return False
+
+        last_id = self.db.get_youtube_last_video_id()
+        videos = get_latest_videos(api_key, channel_id, limit=3)
+        new_videos = [v for v in videos if v["id"] != last_id] if last_id else []
+
+        if new_videos and last_id:
+            v = new_videos[0]
+            self.db.set_youtube_last_video_id(v["id"])
+            text = (
+                f"\U0001F3A5 <b>\u041D\u043E\u0432\u043E\u0435 \u0432\u0438\u0434\u0435\u043E \u043D\u0430 YouTube!</b>\n\n"
+                f"{html.escape(v['title'])}\n\n"
+                f"\uD83D\uDC49 https://youtu.be/{v['id']}\n\n"
+                f"#youtube #\u0448\u043E\u0440\u0442\u0441"
+            )
+            self._post_message({
+                "chat_id": self.settings.channel_id,
+                "text": text,
+                "parse_mode": "HTML",
+            })
+            logger.info("Published YouTube video announcement: %s", v["id"])
+            return True
+
+        if not last_id:
+            self.db.set_youtube_last_video_id(videos[0]["id"] if videos else "")
+            return False
+
+        return False
 
     def publish_next(self) -> bool:
         today = datetime.datetime.today()
         rubric = get_today_rubric()
 
         self._welcome_new_members()
+
+        if self.db.count_pending_quiz() > 0:
+            return self._send_quiz_answer()
 
         pending = self.db.get_pending_part()
         if pending:
@@ -402,6 +537,9 @@ class TelegramPublisher:
         if self.db.count_unpublished_reactions() > 0:
             return self._send_reaction_summary()
 
+        if self._handle_youtube():
+            return True
+
         if rubric["keywords"]:
             if random.random() < 0.8:
                 joke = self.db.get_next_unpublished_matching(rubric["keywords"])
@@ -415,6 +553,9 @@ class TelegramPublisher:
                     result = self._handle_two_part(joke, rubric)
                     if result:
                         return result
+                quiz = self._try_make_quiz(joke, rubric)
+                if quiz is True:
+                    return True
                 if random.random() < REPOST_CARD_RATIO and fits_in_image(joke.text):
                     return self._send_repost_card(joke)
                 if random.random() < IMAGE_RATIO and fits_in_image(joke.text):
@@ -439,6 +580,10 @@ class TelegramPublisher:
             result = self._handle_two_part(joke, rubric)
             if result:
                 return result
+
+        quiz = self._try_make_quiz(joke, rubric)
+        if quiz is True:
+            return True
 
         if random.random() < REPOST_CARD_RATIO and fits_in_image(joke.text):
             return self._send_repost_card(joke)

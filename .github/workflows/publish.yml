@@ -31,6 +31,8 @@ jobs:
           echo "ADMIN_ID=${{ secrets.ADMIN_ID }}" >> .env
           echo "CHANNEL_LINK=${{ secrets.CHANNEL_LINK }}" >> .env
           echo "TELEGRAM_SOURCES=${{ secrets.TELEGRAM_SOURCES }}" >> .env
+          echo "YOUTUBE_API_KEY=${{ secrets.YOUTUBE_API_KEY }}" >> .env
+          echo "YOUTUBE_CHANNEL_ID=${{ secrets.YOUTUBE_CHANNEL_ID }}" >> .env
 
       - name: Ingest jokes
         run: python -m src.tg_autopost ingest

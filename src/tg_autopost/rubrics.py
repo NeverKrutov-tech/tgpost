@@ -65,15 +65,38 @@ RUBRICS = [
 
 HOLIDAYS = [
     (1, 1, "Новый год", "🎄"),
+    (1, 14, "Старый Новый год", "🎉"),
+    (2, 14, "День влюблённых", "❤️"),
     (2, 23, "День защитника", "🎖️"),
     (3, 8, "Женский день", "🌷"),
+    (4, 1, "День смеха", "😂"),
     (5, 1, "Первое мая", "🎉"),
     (5, 9, "День Победы", "🏅"),
+    (6, 1, "День детей", "🍭"),
     (6, 12, "День России", "🇷🇺"),
     (9, 1, "День знаний", "🎓"),
     (10, 5, "День учителя", "📚"),
+    (10, 31, "Хэллоуин", "🎃"),
     (12, 31, "Новый год", "🎄"),
 ]
+
+SEASONAL_KEYWORDS = {
+    "зима": ["мороз", "снег", "лёд", "новый год", "ёлка", "санк"],
+    "весна": ["весн", "солнц", "тепл", "капел", "март"],
+    "лето": ["отпуск", "море", "жара", "пляж", "дача", "солнц", "отдых"],
+    "осень": ["осен", "дожд", "слякот", "школ"],
+}
+
+
+def get_season_keywords() -> list[str]:
+    month = datetime.datetime.today().month
+    if month in (12, 1, 2):
+        return SEASONAL_KEYWORDS["зима"]
+    if month in (3, 4, 5):
+        return SEASONAL_KEYWORDS["весна"]
+    if month in (6, 7, 8):
+        return SEASONAL_KEYWORDS["лето"]
+    return SEASONAL_KEYWORDS["осень"]
 
 PREAMBLES = [
     (["жен", "муж", "дет", "дочк", "тещ", "свекров", "семь"], [
@@ -158,11 +181,13 @@ def get_today_rubric() -> dict:
     md = (today.month, today.day)
     for month, day, name, emoji in HOLIDAYS:
         if (month, day) == md:
-            return {"name": name, "emoji": emoji, "keywords": []}
+            return {"name": name, "emoji": emoji, "keywords": get_season_keywords()}
     dow = today.weekday()
     for rubric in RUBRICS:
         if dow in rubric["days"]:
-            return rubric
+            result = dict(rubric)
+            result["keywords"] = rubric["keywords"] + get_season_keywords()
+            return result
     return RUBRICS[-1]
 
 

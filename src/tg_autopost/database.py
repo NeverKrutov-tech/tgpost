@@ -70,6 +70,47 @@ CREATE TABLE IF NOT EXISTS submitted_jokes (
 );
 """
 
+TIPS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS tips (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    submission_id INTEGER NOT NULL,
+    author_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    payer_id INTEGER,
+    created_at TEXT NOT NULL
+);
+"""
+
+SHORTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS shorts_candidates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    text TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'battle',
+    created_at TEXT NOT NULL
+);
+"""
+
+AUTHORS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS authors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id INTEGER UNIQUE NOT NULL,
+    username TEXT,
+    name TEXT NOT NULL,
+    bio TEXT DEFAULT '',
+    registered_at TEXT NOT NULL
+);
+"""
+
+QUIZ_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS pending_quiz (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    truncated_text TEXT NOT NULL,
+    full_text TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+"""
+
 
 class Database:
     def __init__(self, path: str) -> None:
@@ -96,6 +137,10 @@ class Database:
             connection.execute(SUBMITTED_TABLE_SQL)
             connection.execute(META_TABLE_SQL)
             connection.execute(REACTIONS_TABLE_SQL)
+            connection.execute(QUIZ_TABLE_SQL)
+            connection.execute(AUTHORS_TABLE_SQL)
+            connection.execute(TIPS_TABLE_SQL)
+            connection.execute(SHORTS_TABLE_SQL)
             self._migrate(connection)
 
     def _migrate(self, connection: sqlite3.Connection) -> None:
@@ -403,3 +448,131 @@ class Database:
                 "SELECT COUNT(*) AS count FROM submitted_jokes WHERE status = 'approved' AND published_at IS NULL"
             ).fetchone()
             return int(row["count"])
+
+    def save_quiz(self, truncated_text: str, full_text: str, answer: str) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connect() as connection:
+            connection.execute(
+                "INSERT INTO pending_quiz (truncated_text, full_text, answer, created_at) VALUES (?, ?, ?, ?)",
+                (truncated_text, full_text, answer, now),
+            )
+
+    def get_pending_quiz(self) -> dict | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT id, full_text, answer FROM pending_quiz ORDER BY created_at LIMIT 1"
+            ).fetchone()
+            return dict(row) if row else None
+
+    def delete_pending_quiz(self, quiz_id: int) -> None:
+        with self.connect() as connection:
+            connection.execute("DELETE FROM pending_quiz WHERE id = ?", (quiz_id,))
+
+    def count_pending_quiz(self) -> int:
+        with self.connect() as connection:
+            row = connection.execute("SELECT COUNT(*) AS count FROM pending_quiz").fetchone()
+            return int(row["count"])
+
+    def register_author(self, telegram_id: int, username: str | None, name: str) -> bool:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connect() as connection:
+            cursor = connection.execute(
+                "INSERT OR IGNORE INTO authors (telegram_id, username, name, registered_at) VALUES (?, ?, ?, ?)",
+                (telegram_id, username, name, now),
+            )
+            return cursor.rowcount > 0
+
+    def get_author_by_telegram_id(self, telegram_id: int) -> dict | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT id, telegram_id, username, name, bio, registered_at FROM authors WHERE telegram_id = ?",
+                (telegram_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_author_by_username(self, username: str) -> dict | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT id, telegram_id, username, name, bio, registered_at FROM authors WHERE username = ?",
+                (username.lstrip("@"),),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def update_author_name(self, telegram_id: int, name: str) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                "UPDATE authors SET name = ? WHERE telegram_id = ?",
+                (name, telegram_id),
+            )
+
+    def get_top_authors(self, limit: int = 5, days: int = 7) -> list[dict]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT a.id, a.username, a.name, a.telegram_id,
+                       COUNT(sj.id) AS jokes_count
+                FROM authors a
+                LEFT JOIN submitted_jokes sj ON sj.author_id = a.telegram_id
+                    AND sj.status = 'approved' AND sj.published_at IS NOT NULL
+                GROUP BY a.id
+                ORDER BY jokes_count DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def save_tip(self, submission_id: int, author_id: int, amount: int, payer_id: int | None = None) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connect() as connection:
+            connection.execute(
+                "INSERT INTO tips (submission_id, author_id, amount, payer_id, created_at) VALUES (?, ?, ?, ?, ?)",
+                (submission_id, author_id, amount, payer_id, now),
+            )
+
+    def get_author_total_tips(self, author_id: int) -> int:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT COALESCE(SUM(amount), 0) AS total FROM tips WHERE author_id = ?",
+                (author_id,),
+            ).fetchone()
+            return int(row["total"])
+
+    def get_author_published_count(self, telegram_id: int) -> int:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) AS count FROM submitted_jokes WHERE author_id = ? AND status = 'approved' AND published_at IS NOT NULL",
+                (telegram_id,),
+            ).fetchone()
+            return int(row["count"])
+
+    def add_shorts_candidate(self, text: str, source: str = "battle") -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connect() as connection:
+            connection.execute(
+                "INSERT INTO shorts_candidates (text, source, created_at) VALUES (?, ?, ?)",
+                (text, source, now),
+            )
+
+    def count_shorts_candidates(self) -> int:
+        with self.connect() as connection:
+            row = connection.execute("SELECT COUNT(*) AS count FROM shorts_candidates").fetchone()
+            return int(row["count"])
+
+    def get_shorts_candidates(self, limit: int = 3) -> list[dict]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT id, text, source, created_at FROM shorts_candidates ORDER BY RANDOM() LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def delete_shorts_candidate(self, candidate_id: int) -> None:
+        with self.connect() as connection:
+            connection.execute("DELETE FROM shorts_candidates WHERE id = ?", (candidate_id,))
+
+    def get_youtube_last_video_id(self) -> str:
+        return self.get_meta("youtube_last_video_id", "")
+
+    def set_youtube_last_video_id(self, video_id: str) -> None:
+        self.set_meta("youtube_last_video_id", video_id)
