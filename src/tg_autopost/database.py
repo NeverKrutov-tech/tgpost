@@ -26,6 +26,13 @@ CREATE_INDEX_SQL = """
 CREATE UNIQUE INDEX IF NOT EXISTS idx_jokes_content_hash ON jokes(content_hash);
 """
 
+META_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS channel_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+"""
+
 REACTIONS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS reactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -87,6 +94,7 @@ class Database:
             connection.execute(CREATE_INDEX_SQL)
             connection.execute(PENDING_TABLE_SQL)
             connection.execute(SUBMITTED_TABLE_SQL)
+            connection.execute(META_TABLE_SQL)
             connection.execute(REACTIONS_TABLE_SQL)
             self._migrate(connection)
 
@@ -377,6 +385,17 @@ class Database:
                 (joke_id,),
             ).fetchone()
             return dict(row) if row else None
+
+    def get_meta(self, key: str, default: str = "") -> str:
+        with self.connect() as connection:
+            row = connection.execute("SELECT value FROM channel_meta WHERE key = ?", (key,)).fetchone()
+            return row["value"] if row else default
+
+    def set_meta(self, key: str, value: str) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO channel_meta (key, value) VALUES (?, ?)", (key, value)
+            )
 
     def count_approved_submissions(self) -> int:
         with self.connect() as connection:

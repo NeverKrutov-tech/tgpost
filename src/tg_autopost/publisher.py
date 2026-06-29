@@ -104,6 +104,39 @@ class TelegramPublisher:
             ]
         }
 
+    def _welcome_new_members(self) -> None:
+        try:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{self.settings.bot_token}/getChatMemberCount",
+                json={"chat_id": self.settings.channel_id},
+                timeout=self.settings.http_timeout,
+            )
+            data = resp.json()
+            if not data.get("ok"):
+                return
+            current = int(data["result"])
+            prev_str = self.db.get_meta("member_count", "0")
+            prev = int(prev_str) if prev_str else 0
+            self.db.set_meta("member_count", str(current))
+            diff = current - prev
+            if diff >= 3 and prev > 0:
+                self._post_message({
+                    "chat_id": self.settings.channel_id,
+                    "text": (
+                        f"\U0001F44B <b>\u0414\u043E\u0431\u0440\u043E \u043F\u043E\u0436\u0430\u043B\u043E\u0432\u0430\u0442\u044C!</b> "
+                        f"\u0420\u0430\u0434\u044B \u043D\u043E\u0432\u044B\u043C \u043F\u043E\u0434\u043F\u0438\u0441\u0447\u0438\u043A\u0430\u043C \u2014 "
+                        f"\u0432\u0430\u0441 \u0443\u0436\u0435 {current} \U0001F389\n\n"
+                        f"\u041F\u0440\u0438\u0441\u044B\u043B\u0430\u0439\u0442\u0435 \u0441\u0432\u043E\u0438 "
+                        f"\u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0431\u043E\u0442\u0443 "
+                        f"@postbotanekdodik_bot \u2014 \u043B\u0443\u0447\u0448\u0438\u0435 \u043F\u043E\u043F\u0430\u0434\u0443\u0442 "
+                        f"\u0432 \u043A\u0430\u043D\u0430\u043B!"
+                    ),
+                    "parse_mode": "HTML",
+                })
+                logger.info("Welcome post sent — %s new subscribers", diff)
+        except Exception:
+            logger.exception("Failed to check member count")
+
     def _post_message(self, payload: dict) -> dict:
         share = self._share_button()
         if share and "reply_markup" not in payload:
@@ -342,6 +375,8 @@ class TelegramPublisher:
     def publish_next(self) -> bool:
         today = datetime.datetime.today()
         rubric = get_today_rubric()
+
+        self._welcome_new_members()
 
         pending = self.db.get_pending_part()
         if pending:
