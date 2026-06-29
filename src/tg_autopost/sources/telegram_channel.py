@@ -78,6 +78,17 @@ class TelegramChannelSource(JokeSource):
                 if not text or len(text) < MIN_LENGTH:
                     continue
 
+                views_el = msg.select_one("span.tgme_widget_message_views")
+                views = 0
+                if views_el:
+                    views_text = views_el.get_text(strip=True)
+                    views_text = views_text.replace("\u00A0", "").replace(",", "").replace(".", "")
+                    if views_text:
+                        try:
+                            views = int(views_text)
+                        except ValueError:
+                            views = 0
+
                 external_id = f"tg_{channel}_{abs(hash(text)) % 10_000_000}"
 
                 yield Joke(
@@ -86,6 +97,7 @@ class TelegramChannelSource(JokeSource):
                     source_url=url,
                     external_id=external_id,
                     content_hash=build_hash(text),
+                    source_views=views,
                 )
                 yielded += 1
                 if yielded >= limit:

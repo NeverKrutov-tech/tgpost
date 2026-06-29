@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS jokes (
     source_url TEXT NOT NULL,
     external_id TEXT NOT NULL,
     content_hash TEXT NOT NULL UNIQUE,
+    source_views INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     published_at TEXT
 );
@@ -87,16 +88,22 @@ class Database:
             connection.execute(PENDING_TABLE_SQL)
             connection.execute(SUBMITTED_TABLE_SQL)
             connection.execute(REACTIONS_TABLE_SQL)
+            self._migrate(connection)
+
+    def _migrate(self, connection: sqlite3.Connection) -> None:
+        cols = [row[1] for row in connection.execute("PRAGMA table_info(jokes)").fetchall()]
+        if "source_views" not in cols:
+            connection.execute("ALTER TABLE jokes ADD COLUMN source_views INTEGER NOT NULL DEFAULT 0")
 
     def insert_joke(self, joke: Joke) -> bool:
         now = datetime.now(timezone.utc).isoformat()
         with self.connect() as connection:
             cursor = connection.execute(
                 """
-                INSERT OR IGNORE INTO jokes (text, source_name, source_url, external_id, content_hash, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT OR IGNORE INTO jokes (text, source_name, source_url, external_id, content_hash, source_views, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (joke.text, joke.source_name, joke.source_url, joke.external_id, joke.content_hash, now),
+                (joke.text, joke.source_name, joke.source_url, joke.external_id, joke.content_hash, joke.source_views, now),
             )
             return cursor.rowcount > 0
 
@@ -104,7 +111,7 @@ class Database:
         with self.connect() as connection:
             row = connection.execute(
                 """
-                SELECT text, source_name, source_url, external_id, content_hash, created_at, published_at
+                SELECT text, source_name, source_url, external_id, content_hash, source_views, created_at, published_at
                 FROM jokes
                 WHERE published_at IS NULL
                 ORDER BY RANDOM()
@@ -121,18 +128,41 @@ class Database:
             source_url=row["source_url"],
             external_id=row["external_id"],
             content_hash=row["content_hash"],
+            source_views=row["source_views"],
             created_at=datetime.fromisoformat(row["created_at"]),
             published_at=datetime.fromisoformat(row["published_at"]) if row["published_at"] else None,
+        )
+
+    def get_next_popular_unpublished(self) -> Joke | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT text, source_name, source_url, external_id, content_hash, source_views, created_at, published_at
+                FROM jokes
+                WHERE published_at IS NULL AND source_views > 0
+                ORDER BY source_views DESC, RANDOM()
+                LIMIT 1
+                """
+            ).fetchone()
+        if row is None:
+            return None
+        return Joke(
+            text=row["text"],
+            source_name=row["source_name"],
+            source_url=row["source_url"],
+            external_id=row["external_id"],
+            content_hash=row["content_hash"],
+            source_views=row["source_views"],
         )
 
     def get_next_unpublished_matching(self, keywords: list[str], max_batch: int = 200) -> Joke | None:
         with self.connect() as connection:
             rows = connection.execute(
                 """
-                SELECT text, source_name, source_url, external_id, content_hash, created_at, published_at
+                SELECT text, source_name, source_url, external_id, content_hash, source_views
                 FROM jokes
                 WHERE published_at IS NULL
-                ORDER BY RANDOM()
+                ORDER BY source_views DESC, RANDOM()
                 LIMIT ?
                 """,
                 (max_batch,),
@@ -147,6 +177,7 @@ class Database:
                     source_url=row["source_url"],
                     external_id=row["external_id"],
                     content_hash=row["content_hash"],
+                    source_views=row["source_views"],
                 )
         return None
 
@@ -203,10 +234,10 @@ class Database:
         with self.connect() as connection:
             rows = connection.execute(
                 """
-                SELECT text, source_name, source_url, external_id, content_hash, created_at, published_at
+                SELECT text, source_name, source_url, external_id, content_hash, source_views
                 FROM jokes
                 WHERE published_at IS NOT NULL
-                ORDER BY published_at DESC
+                ORDER BY source_views DESC
                 LIMIT ?
                 """,
                 (limit * 3,),
@@ -223,6 +254,7 @@ class Database:
                     source_url=row["source_url"],
                     external_id=row["external_id"],
                     content_hash=row["content_hash"],
+                    source_views=row["source_views"],
                 ))
             if len(result) >= limit:
                 break

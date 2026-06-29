@@ -368,7 +368,10 @@ class TelegramPublisher:
             return self._send_reaction_summary()
 
         if rubric["keywords"]:
-            joke = self.db.get_next_unpublished_matching(rubric["keywords"])
+            if random.random() < 0.8:
+                joke = self.db.get_next_unpublished_matching(rubric["keywords"])
+            else:
+                joke = self.db.get_next_unpublished()
             if joke:
                 if len(joke.text) < 200 and random.random() < OBSERVATION_RATIO:
                     self.db.mark_published(joke.content_hash)
@@ -383,7 +386,12 @@ class TelegramPublisher:
                     return self._send_image(joke, rubric)
                 return self._send_text(joke, rubric)
 
-        joke = self.db.get_next_unpublished()
+        if random.random() < 0.8:
+            joke = self.db.get_next_popular_unpublished()
+        else:
+            joke = None
+        if joke is None:
+            joke = self.db.get_next_unpublished()
         if joke is None:
             logger.info("No unpublished jokes available")
             return False
