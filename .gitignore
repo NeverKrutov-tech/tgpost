@@ -7,6 +7,9 @@ logs_output.txt
 # OAuth client secret
 scripts/client_secret.json
 
+# Temp check scripts
+check_*.py
+
 # Database
 data/*.db
 data/images/

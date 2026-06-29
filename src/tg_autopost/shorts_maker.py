@@ -115,14 +115,23 @@ async def _generate_tts(text: str, output_path: Path) -> float:
     """Generate TTS audio, return duration in seconds."""
     import edge_tts
 
-    voice = random.choice([
-        "ru-RU-DariyaNeural",
-        "ru-RU-SvetlanaNeural",
-    ])
-    communicate = edge_tts.Communicate(text, voice)
-    await communicate.save(str(output_path))
+    voices = ["ru-RU-DariyaNeural", "ru-RU-SvetlanaNeural"]
 
-    # get duration via ffprobe
+    for voice in voices:
+        try:
+            communicate = edge_tts.Communicate(text, voice, rate="-10%")
+            await communicate.save(str(output_path))
+            size = output_path.stat().st_size
+            if size > 100:
+                break
+        except Exception as e:
+            logger.warning("TTS voice %s failed: %s", voice, e)
+            continue
+    else:
+        logger.error("All TTS voices failed")
+        output_path.write_text("")
+        return len(text) * 0.08
+
     try:
         result = subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries",
@@ -132,7 +141,7 @@ async def _generate_tts(text: str, output_path: Path) -> float:
         )
         return float(result.stdout.strip())
     except Exception:
-        return len(text) * 0.08  # fallback 80ms per char
+        return len(text) * 0.08
 
 
 # ── frame rendering ──────────────────────────────────────────
@@ -308,7 +317,7 @@ def render_short(joke_text: str, output_path: str) -> bool:
     title_font = _get_font(110)
 
     # Particles
-    rng = random.Random(seed=hash(joke_text) & 0xFFFFFFFF)
+    rng = random.Random(hash(joke_text) & 0xFFFFFFFF)
     particles = [
         {
             "x": rng.randint(0, W), "y": rng.randint(0, H),
