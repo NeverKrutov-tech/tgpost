@@ -4,6 +4,9 @@
 # Temp logs
 logs_output.txt
 
+# OAuth client secret
+scripts/client_secret.json
+
 # Database
 data/*.db
 data/images/
