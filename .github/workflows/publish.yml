@@ -40,5 +40,8 @@ jobs:
       - name: Ingest jokes
         run: python -m src.tg_autopost ingest
 
+      - name: Seed shorts candidate
+        run: python scripts/seed_shorts.py
+
       - name: Publish joke
         run: python -m src.tg_autopost publish
