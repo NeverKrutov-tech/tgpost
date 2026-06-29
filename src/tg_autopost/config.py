@@ -16,6 +16,9 @@ class Settings:
     http_timeout: int = 20
     youtube_api_key: str = ""
     youtube_channel_id: str = ""
+    youtube_client_id: str = ""
+    youtube_client_secret: str = ""
+    youtube_refresh_token: str = ""
 
 
 def load_settings() -> Settings:
@@ -46,4 +49,7 @@ def load_settings() -> Settings:
         http_timeout=int(os.getenv("HTTP_TIMEOUT", "20")),
         youtube_api_key=os.getenv("YOUTUBE_API_KEY", "").strip(),
         youtube_channel_id=os.getenv("YOUTUBE_CHANNEL_ID", "").strip(),
+        youtube_client_id=os.getenv("YOUTUBE_CLIENT_ID", "").strip(),
+        youtube_client_secret=os.getenv("YOUTUBE_CLIENT_SECRET", "").strip(),
+        youtube_refresh_token=os.getenv("YOUTUBE_REFRESH_TOKEN", "").strip(),
     )

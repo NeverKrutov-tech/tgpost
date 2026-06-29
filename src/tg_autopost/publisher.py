@@ -11,6 +11,7 @@ from .database import Database
 from .image_gen import fits_in_image, generate_joke_image, generate_repost_card
 from .levels import get_level
 from .rubrics import classify_emoji, get_hashtags, get_preamble, get_today_rubric, is_jubilee
+from .shorts_maker import render_short, upload_short
 from .youtube import get_channel_stats, get_latest_videos
 
 logger = logging.getLogger(__name__)
@@ -504,6 +505,32 @@ class TelegramPublisher:
 
         return False
 
+    def _make_short(self) -> bool:
+        if not self.settings.youtube_refresh_token:
+            return False
+        candidates = self.db.get_shorts_candidates(limit=1)
+        if not candidates:
+            return False
+        joke = candidates[0]
+        output = Path("data/shorts") / f"short_{joke['id']}.mp4"
+        if not render_short(joke["text"], str(output)):
+            return False
+        preview = joke["text"].replace("\n", " ")[:80].rstrip() + "\u2026"
+        vid = upload_short(
+            str(output),
+            title=preview,
+            description="\u0410\u043D\u0435\u043A\u0434\u043E\u0442 \u0438\u0437 Telegram @Anetdodik",
+            refresh_token=self.settings.youtube_refresh_token,
+            client_id=self.settings.youtube_client_id,
+            client_secret=self.settings.youtube_client_secret,
+        )
+        output.unlink(missing_ok=True)
+        if vid:
+            self.db.delete_shorts_candidate(joke["id"])
+            logger.info("Auto-posted short: https://youtu.be/%s", vid)
+            return True
+        return False
+
     def publish_next(self) -> bool:
         today = datetime.datetime.today()
         rubric = get_today_rubric()
@@ -539,6 +566,10 @@ class TelegramPublisher:
 
         if self._handle_youtube():
             return True
+
+        if random.random() < 0.15 and self.db.count_shorts_candidates() > 0:
+            if self._make_short():
+                return True
 
         if rubric["keywords"]:
             if random.random() < 0.8:
