@@ -346,15 +346,15 @@ def render_short(joke_text: str, output_path: str) -> bool:
             "[2:a]volume=0.25[a_beat]",
             "[a_voice][a_beat]amix=inputs=2:duration=first[aout]",
         ]
-        output_maps = ["-map", "[aout]"]
+        output_maps = ["-map", "0:v", "-map", "[aout]"]
     elif has_voice:
         inputs.extend(["-i", str(voice_path)])
         filter_chains = ["[1:a]volume=1.5[aout]"]
-        output_maps = ["-map", "[aout]"]
+        output_maps = ["-map", "0:v", "-map", "[aout]"]
     elif has_beat:
         inputs.extend(["-i", str(beat_path)])
         filter_chains = ["[1:a]volume=0.3[aout]"]
-        output_maps = ["-map", "[aout]"]
+        output_maps = ["-map", "0:v", "-map", "[aout]"]
     else:
         inputs.extend(["-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono"])
         output_maps = []
