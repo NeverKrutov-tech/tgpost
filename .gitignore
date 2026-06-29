@@ -1,6 +1,11 @@
 # Environment
 .env
 
+# Temp scripts (contain secrets)
+scripts/*.py
+scripts/*.txt
+scripts/*.json
+
 # Database
 data/*.db
 data/images/
