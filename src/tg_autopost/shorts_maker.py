@@ -50,6 +50,12 @@ def _wrap(text: str, max_chars: int = 32) -> list[str]:
     return lines or [text]
 
 
+def _write_textfile(path: Path, text: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
 def _make_bg_frames(palette, num_frames: int) -> None:
     BG_DIR.mkdir(parents=True, exist_ok=True)
     h1, s1, l1 = palette[0]
@@ -103,70 +109,64 @@ def render_short(joke_text: str, output_path: str) -> bool:
     base_fs = 72 if char_count < 80 else 56 if char_count < 180 else 44
     punch_fs = base_fs + 16
 
-    # Build drawtext filter string
+    # Write text files for each drawtext call
+    text_dir = SHORTS_DIR / "texts"
+    text_dir.mkdir(parents=True, exist_ok=True)
+
     vf_parts = []
 
+    # Title: "АНЕКДОТ"
+    tf_title = _write_textfile(text_dir / "title.txt", "\u0410\u041d\u0415\u041a\u0414\u041e\u0422")
+    title_vf = (
+        f"drawtext=textfile={tf_title}"
+        f":fontfile={font}:fontsize=110:fontcolor=white"
+        ":x=(w-text_w)/2:y=h/4"
+        ":box=1:boxcolor=black@0.3:boxborderw=20"
+        f":enable=between(t,0,{TITLE_DURATION})"
+        f":alpha=if(lt(t,0.4),t/0.4,if(gt(t,{TITLE_DURATION}-0.5),({TITLE_DURATION}-t)/0.5,1))"
+        ":shadowcolor=black@0.6:shadowx=3:shadowy=3"
+    )
+    vf_parts.append(title_vf)
+
+    # Joke lines
     for i, line in enumerate(lines):
         start = line_starts[i]
         end = duration - 0.5
         fs = punch_fs if i == punchline_idx else base_fs
-        escaped = line.replace(":", "\\:").replace("'", "\\'").replace(",", "\\,")
         color = "yellow" if i == punchline_idx else "white"
         y_pos = (H - len(lines) * 110) // 2 + i * 110
+
+        tf_line = _write_textfile(text_dir / f"line_{i}.txt", line)
         ft = (
-            f"drawtext=text='{escaped}'"
-            f":fontfile={font}"
-            f":fontsize={fs}"
-            f":fontcolor={color}@0"
-            f":x=(w-text_w)/2"
-            f":y={y_pos}"
-            f":enable='between(t,{start},{end})'"
-            f":alpha='if(lt(t,{start}+0.4),(t-{start})/0.4,1)'"
-            f":shadowcolor=black@0.6"
-            f":shadowx=3:shadowy=3"
+            f"drawtext=textfile={tf_line}"
+            f":fontfile={font}:fontsize={fs}:fontcolor={color}"
+            f":x=(w-text_w)/2:y={y_pos}"
+            f":enable=between(t,{start},{end})"
+            f":alpha=if(lt(t,{start}+0.4),(t-{start})/0.4,1)"
+            ":shadowcolor=black@0.6:shadowx=3:shadowy=3"
         )
         vf_parts.append(ft)
 
-    # Title
-    title_vf = (
-        "drawtext=text='\\xF0\\x9F\\xA4\\xA3 \\xD0\\x90\\xD0\\x9D\\xD0\\x95\\xD0\\x9A\\xD0\\x94\\xD0\\x9E\\xD0\\xA2'"
-        f":fontfile={font}"
-        ":fontsize=110"
-        ":fontcolor=white@0"
-        ":x=(w-text_w)/2"
-        ":y=h/4"
-        f":enable='between(t,0,{TITLE_DURATION})'"
-        f":alpha='if(lt(t,0.4),t/0.4,if(gt(t,{TITLE_DURATION}-0.5),({TITLE_DURATION}-t)/0.5,1))'"
-        ":shadowcolor=black@0.6"
-        ":shadowx=3:shadowy=3"
-    )
-    vf_parts.append(title_vf)
-
-    # Outro
+    # Outro: "ПОДПИШИСЬ"
     outro_start = duration - OUTRO_DURATION
+    tf_outro = _write_textfile(text_dir / "outro.txt", "\u041f\u041e\u0414\u041f\u0418\u0428\u0418\u0421\u042c")
     outro1 = (
-        "drawtext=text='\\xF0\\x9F\\x94\\xA5 \\xD0\\x9F\\xD0\\x9E\\xD0\\x94\\xD0\\x9F\\xD0\\x98\\xD0\\xA8\\xD0\\x98\\xD0\\xA1\\xD0\\xAC'"
-        f":fontfile={font}"
-        ":fontsize=100"
-        ":fontcolor=yellow@0"
-        ":x=(w-text_w)/2"
-        ":y=h/3"
-        f":enable='between(t,{outro_start},{duration})'"
-        f":alpha='if(lt(t,{outro_start}+0.4),(t-{outro_start})/0.4,1)'"
-        ":shadowcolor=black@0.6"
-        ":shadowx=3:shadowy=3"
+        f"drawtext=textfile={tf_outro}"
+        f":fontfile={font}:fontsize=100:fontcolor=yellow"
+        ":x=(w-text_w)/2:y=h/3"
+        ":box=1:boxcolor=black@0.3:boxborderw=20"
+        f":enable=between(t,{outro_start},{duration})"
+        f":alpha=if(lt(t,{outro_start}+0.4),(t-{outro_start})/0.4,1)"
+        ":shadowcolor=black@0.6:shadowx=3:shadowy=3"
     )
+    tf_handle = _write_textfile(text_dir / "handle.txt", "@Anetdodik")
     outro2 = (
-        "drawtext=text='@Anetdodik'"
-        f":fontfile={font}"
-        ":fontsize=70"
-        ":fontcolor=white@0"
-        ":x=(w-text_w)/2"
-        f":y=h/3+140"
-        f":enable='between(t,{outro_start},{duration})'"
-        f":alpha='if(lt(t,{outro_start}+0.6),(t-{outro_start}-0.2)/0.4,1)'"
-        ":shadowcolor=black@0.6"
-        ":shadowx=3:shadowy=3"
+        f"drawtext=textfile={tf_handle}"
+        f":fontfile={font}:fontsize=70:fontcolor=white"
+        ":x=(w-text_w)/2:y=h/3+140"
+        f":enable=between(t,{outro_start},{duration})"
+        f":alpha=if(lt(t,{outro_start}+0.6),(t-{outro_start}-0.2)/0.4,1)"
+        ":shadowcolor=black@0.6:shadowx=3:shadowy=3"
     )
     vf_parts.append(outro1)
     vf_parts.append(outro2)
@@ -202,6 +202,8 @@ def render_short(joke_text: str, output_path: str) -> bool:
     finally:
         if BG_DIR.exists():
             shutil.rmtree(BG_DIR)
+        if text_dir.exists():
+            shutil.rmtree(text_dir)
 
 
 def upload_short(
