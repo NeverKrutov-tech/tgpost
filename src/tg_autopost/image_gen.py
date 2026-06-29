@@ -169,9 +169,8 @@ def generate_joke_image(text: str, post_number: int, rubric_name: str | None = N
     except Exception:
         header_font = ImageFont.truetype(FONT_PATH, 36)
 
-    header_full = f"{header_text}  \u00B7  \u0412\u044B\u043F\u0443\u0441\u043A #{post_number}"
-    header_w = header_font.getlength(header_full)
-    draw.text(((WIDTH - header_w) / 2, 40), header_full, fill=accent_color, font=header_font)
+    header_w = header_font.getlength(header_text)
+    draw.text(((WIDTH - header_w) / 2, 40), header_text, fill=accent_color, font=header_font)
 
     max_text_width = WIDTH - PADDING * 2
     max_text_height = HEIGHT - TOP_MARGIN - BOTTOM_MARGIN

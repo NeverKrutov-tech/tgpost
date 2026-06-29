@@ -49,18 +49,18 @@ def _build_text(joke_text: str, rubric: dict, post_number: int, preamble_overrid
         header = "<i>\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435:</i>\n"
     body = f"{header}{safe_text}" if header else safe_text
     hashtags = get_hashtags(joke_text)
-    return f"<b>{emoji_line}</b>\n\n{body}\n\n{hashtags}\n\u2500\u2500\u2500\n\u0412\u044B\u043F\u0443\u0441\u043A #{post_number}{jubilee}"
+    return f"<b>{emoji_line}</b>\n\n{body}\n\n{hashtags}"
 
 
-def _build_observation(text: str, post_number: int) -> str:
+def _build_observation(text: str) -> str:
     safe_text = html.escape(text)
     hashtags = get_hashtags(text)
-    return f"\U0001F914 <b>\u041D\u0430\u0431\u043B\u044E\u0434\u0435\u043D\u0438\u0435</b>\n\n{safe_text}\n\n{hashtags}\n\u2500\u2500\u2500\n\u0412\u044B\u043F\u0443\u0441\u043A #{post_number}"
+    return f"\U0001F914 <b>\u041D\u0430\u0431\u043B\u044E\u0434\u0435\u043D\u0438\u0435</b>\n\n{safe_text}\n\n{hashtags}"
 
 
 def _build_caption(post_number: int) -> str:
     jubilee = is_jubilee(post_number)
-    return f"\u0412\u044B\u043F\u0443\u0441\u043A #{post_number}{jubilee}"
+    return jubilee
 
 
 def _truncate_joke(text: str, max_len: int = 80) -> str:
@@ -153,14 +153,12 @@ class TelegramPublisher:
         sub = self.db.get_next_approved_submission()
         if sub is None:
             return False
-        post_number = self.db.count_published() + 1
         author = _author_display(sub["author_username"], sub["author_name"])
         safe_text = html.escape(sub["text"])
         hashtags = get_hashtags(sub["text"])
         text = (
             f"\U0001F4EC <b>\u0410\u0432\u0442\u043E\u0440\u0441\u043A\u0438\u0439 \u0430\u043D\u0435\u043A\u0434\u043E\u0442</b>\n\n"
-            f"{safe_text}\n\n{hashtags}\n\u2500\u2500\u2500\n"
-            f"\u0412\u044B\u043F\u0443\u0441\u043A #{post_number}\n"
+            f"{safe_text}\n\n{hashtags}\n"
             f"\u041F\u0440\u0438\u0441\u043B\u0430\u043B(\u0430): {author}"
         )
         self._post_message({
@@ -202,14 +200,13 @@ class TelegramPublisher:
             self._send_dice()
         return True
 
-    def _send_observation(self, text: str, post_number: int) -> bool:
+    def _send_observation(self, text: str) -> bool:
         payload = {
             "chat_id": self.settings.channel_id,
-            "text": _build_observation(text, post_number),
+            "text": _build_observation(text),
             "parse_mode": "HTML",
         }
         self._post_message(payload)
-        logger.info("Published observation: #%s", post_number)
         return True
 
     def _send_image(self, joke, rubric: dict) -> bool:
@@ -266,8 +263,7 @@ class TelegramPublisher:
         battle_text = (
             f"\u2694\uFE0F <b>\u0411\u0430\u0442\u0442\u043B \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432!</b>\n\n"
             f"<b>1.</b> {html.escape(joke1.text)}\n\n\u2500\u2500\u2500\n\n"
-            f"<b>2.</b> {html.escape(joke2.text)}\n\n\u2500\u2500\u2500\n"
-            f"\u0412\u044B\u043F\u0443\u0441\u043A #{post_number}"
+            f"<b>2.</b> {html.escape(joke2.text)}"
         )
         self._post_message({
             "chat_id": self.settings.channel_id,
@@ -304,15 +300,14 @@ class TelegramPublisher:
         logger.info("Published repost card: %s", joke.external_id)
         return True
 
-    def _send_reaction_summary(self, post_number: int) -> bool:
+    def _send_reaction_summary(self) -> bool:
         reaction = self.db.get_random_unpublished_reaction()
         if reaction is None:
             return False
         author = _author_display(None, reaction["username"])
         text = (
             f"\U0001F4AC <b>\u0420\u0435\u0430\u043A\u0446\u0438\u044F \u043F\u043E\u0434\u043F\u0438\u0441\u0447\u0438\u043A\u0430</b>\n\n"
-            f"{html.escape(reaction['text'])}\n\n\u2500\u2500\u2500\n"
-            f"\u0412\u044B\u043F\u0443\u0441\u043A #{post_number}\n"
+            f"{html.escape(reaction['text'])}\n\n"
             f"\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u043B(\u0430): {author}"
         )
         self._post_message({
@@ -324,7 +319,7 @@ class TelegramPublisher:
         logger.info("Published reaction summary #%s", reaction["id"])
         return True
 
-    def _send_weekly_digest(self, post_number: int) -> bool:
+    def _send_weekly_digest(self) -> bool:
         jokes = self.db.get_recent_published(limit=3, days=7)
         if not jokes:
             return False
@@ -335,16 +330,13 @@ class TelegramPublisher:
         text = (
             f"\U0001F4C5 <b>\u041B\u0443\u0447\u0448\u0435\u0435 \u0437\u0430 \u043D\u0435\u0434\u0435\u043B\u044E</b>\n\n"
             f"{chr(10).join(lines)}\n\n"
-            f"#\u0434\u0430\u0439\u0434\u0436\u0435\u0441\u0442 #\u043B\u0443\u0447\u0448\u0435\u0435\n"
-            f"\u2500\u2500\u2500\n"
-            f"\u0412\u044B\u043F\u0443\u0441\u043A #{post_number}"
+            f"#\u0434\u0430\u0439\u0434\u0436\u0435\u0441\u0442 #\u043B\u0443\u0447\u0448\u0435\u0435"
         )
         self._post_message({
             "chat_id": self.settings.channel_id,
             "text": text,
             "parse_mode": "HTML",
         })
-        logger.info("Published weekly digest #%s", post_number)
         return True
 
     def publish_next(self) -> bool:
@@ -363,7 +355,7 @@ class TelegramPublisher:
         post_number = self.db.count_published() + 1
 
         if today.weekday() in SUNDAY_DIGEST_DAYS and self.db.count_published_today() == 0:
-            if self._send_weekly_digest(post_number):
+            if self._send_weekly_digest():
                 return True
 
         if today.weekday() in FRIDAY_PROMPT_DAYS and self.db.count_published_today() == 0:
@@ -373,14 +365,14 @@ class TelegramPublisher:
             return self._handle_battle(rubric)
 
         if self.db.count_unpublished_reactions() > 0:
-            return self._send_reaction_summary(post_number)
+            return self._send_reaction_summary()
 
         if rubric["keywords"]:
             joke = self.db.get_next_unpublished_matching(rubric["keywords"])
             if joke:
                 if len(joke.text) < 200 and random.random() < OBSERVATION_RATIO:
                     self.db.mark_published(joke.content_hash)
-                    return self._send_observation(joke.text, post_number)
+                    return self._send_observation(joke.text)
                 if len(joke.text) > 600 and _split_two_part(joke.text):
                     result = self._handle_two_part(joke, rubric)
                     if result:
@@ -398,7 +390,7 @@ class TelegramPublisher:
 
         if len(joke.text) < 200 and random.random() < OBSERVATION_RATIO:
             self.db.mark_published(joke.content_hash)
-            return self._send_observation(joke.text, post_number)
+            return self._send_observation(joke.text)
 
         if len(joke.text) > 600 and _split_two_part(joke.text):
             result = self._handle_two_part(joke, rubric)
