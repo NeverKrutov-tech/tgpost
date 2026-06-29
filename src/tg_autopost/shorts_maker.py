@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import math
 import random
@@ -111,36 +110,27 @@ def _generate_beat(duration: float, output_path: Path,
     logger.info("Generated beat: %.1fs, %s", duration, output_path)
 
 
-async def _generate_tts(text: str, output_path: Path) -> float:
+def _generate_tts(text: str, output_path: Path) -> float:
     """Generate TTS audio, return duration in seconds."""
-    import edge_tts
-
-    voices = ["ru-RU-DariyaNeural", "ru-RU-SvetlanaNeural"]
-
-    for voice in voices:
-        try:
-            communicate = edge_tts.Communicate(text, voice, rate="-10%")
-            await communicate.save(str(output_path))
-            size = output_path.stat().st_size
-            if size > 100:
-                break
-        except Exception as e:
-            logger.warning("TTS voice %s failed: %s", voice, e)
-            continue
-    else:
-        logger.error("All TTS voices failed")
-        output_path.write_text("")
-        return len(text) * 0.08
-
     try:
-        result = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries",
-             "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
-             str(output_path)],
-            capture_output=True, text=True, timeout=15,
-        )
-        return float(result.stdout.strip())
-    except Exception:
+        from gtts import gTTS
+        tts = gTTS(text=text, lang="ru", slow=False)
+        tts.save(str(output_path))
+        if output_path.stat().st_size > 100:
+            try:
+                result = subprocess.run(
+                    ["ffprobe", "-v", "error", "-show_entries",
+                     "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
+                     str(output_path)],
+                    capture_output=True, text=True, timeout=15,
+                )
+                return float(result.stdout.strip())
+            except Exception:
+                pass
+        return len(text) * 0.08
+    except Exception as e:
+        logger.error("TTS failed: %s", e)
+        output_path.write_text("")
         return len(text) * 0.08
 
 
@@ -174,7 +164,7 @@ def _render_frame(t: float, total_dur: float,
     shift = t * 0.02
 
     strip = _render_gradient_strip(palette, shift)
-    bg = strip.resize((W, H), Image.Resampling.LINEAR)
+    bg = strip.resize((W, H), Image.Resampling.BILINEAR)
     frame = bg.convert("RGBA")
 
     overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -268,11 +258,7 @@ def render_short(joke_text: str, output_path: str) -> bool:
     palette = random.choice(PALETTES)
 
     # Audio generation
-    try:
-        asyncio.run(_generate_tts(joke_text, audio_dir / "voice.mp3"))
-    except Exception as e:
-        logger.error("TTS failed: %s — continuing without voice", e)
-        Path(audio_dir / "voice.mp3").touch()
+    _generate_tts(joke_text, audio_dir / "voice.mp3")
 
     voice_dur = 0
     try:
