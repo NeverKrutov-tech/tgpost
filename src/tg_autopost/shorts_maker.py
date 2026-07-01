@@ -1,12 +1,15 @@
 import logging
 import math
+import os
 import random
 import struct
 import subprocess
 import colorsys
 import shutil
+from io import BytesIO
 from pathlib import Path
 
+import requests
 from PIL import Image, ImageDraw, ImageFont
 
 from .image_gen import FONT_PATH
@@ -51,6 +54,94 @@ def _split_segments(text: str) -> list[str]:
 def _get_font(size: int) -> ImageFont.FreeTypeFont:
     path = FONT_PATH or "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
     return ImageFont.truetype(str(path), size)
+
+
+# ── background generation ─────────────────────────────────────
+
+TOPIC_PROMPTS: list[tuple[list[str], str]] = [
+    (["работа", "офис", "шеф", "начальник", "коллег", "директор"], "работа"),
+    (["врач", "больница", "хирург", "пациент", "аптека"], "врач"),
+    (["муж", "жен", "семь", "тещ", "свекров", "жена", "тёщ"], "семь"),
+    (["арми", "воен", "солдат", "полковник", "казарм"], "арми"),
+    (["милиц", "полиц", "гаи", "гаишник"], "милиц"),
+    (["водка", "пиво", "бар", "пьян", "выпив"], "водка"),
+    (["школ", "учител", "урок", "класс", "ученик"], "школ"),
+    (["деньг", "банк", "олигарх", "бизнес", "миллион"], "деньг"),
+    (["кот", "кошк", "собак", "зоопарк", "медвед"], "кот"),
+    (["ресторан", "еда", "обед", "готов", "повар"], "ресторан"),
+]
+
+THEME_SCENES = {
+    "работа": "modern office interior with desks, soft natural lighting, professional atmosphere",
+    "врач": "clean hospital corridor, medical equipment, white walls, clinical lighting",
+    "семь": "cozy home living room, warm lamp light, comfortable armchair, fireplace",
+    "арми": "military barracks, camouflage nets, morning sunlight, army atmosphere",
+    "милиц": "police station interior, desk with papers, blue uniform, official atmosphere",
+    "водка": "russian pub interior, wooden tables, dim warm lighting, rustic atmosphere",
+    "школ": "empty classroom, wooden desks, chalkboard, sunlight through window",
+    "деньг": "luxury office interior, modern furniture, city view through window",
+    "кот": "sunlit room with a sleeping cat on a windowsill, peaceful atmosphere",
+    "ресторан": "elegant restaurant interior, candlelit tables, warm amber lighting",
+}
+
+DEFAULT_PROMPT = "cozy interior room, warm lighting, comfortable atmosphere, cinematic, highly detailed, 4k"
+
+
+def _guess_theme(joke_text: str) -> str:
+    text = joke_text.lower()
+    for words, theme_key in TOPIC_PROMPTS:
+        for w in words:
+            if w in text:
+                return THEME_SCENES.get(theme_key, DEFAULT_PROMPT)
+    return DEFAULT_PROMPT
+
+
+def _generate_hf_background(joke_text: str, token: str) -> Image.Image | None:
+    if not token:
+        return None
+    prompt = _guess_theme(joke_text)
+    full_prompt = f"{prompt}, vertical portrait orientation, soft gradient abstract background, no text, no people, 4k"
+
+    try:
+        api_url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1"
+        resp = requests.post(
+            api_url,
+            headers={"Authorization": f"Bearer {token}"},
+            json={"inputs": full_prompt},
+            timeout=60,
+        )
+        if resp.status_code == 503:
+            logger.warning("HF model is loading, retrying in 10s...")
+            import time
+            time.sleep(10)
+            resp = requests.post(
+                api_url,
+                headers={"Authorization": f"Bearer {token}"},
+                json={"inputs": full_prompt},
+                timeout=60,
+            )
+        if resp.status_code != 200:
+            logger.warning("HF API error %d: %s", resp.status_code, resp.text[:200])
+            return None
+
+        img = Image.open(BytesIO(resp.content)).convert("RGB")
+        w, h = img.size
+        target_ratio = W / H  # ~0.5625
+        img_ratio = w / h
+
+        if img_ratio < target_ratio:
+            new_h = int(w / target_ratio)
+            img = img.crop((0, (h - new_h) // 2, w, (h - new_h) // 2 + new_h))
+        else:
+            new_w = int(h * target_ratio)
+            img = img.crop(((w - new_w) // 2, 0, (w - new_w) // 2 + new_w, h))
+
+        img = img.resize((W, H), Image.Resampling.BILINEAR)
+        logger.info("Generated HF background: %s", prompt)
+        return img
+    except Exception as e:
+        logger.warning("HF background failed: %s", e)
+        return None
 
 
 # ── audio generation ─────────────────────────────────────────
@@ -159,12 +250,16 @@ def _render_gradient_strip(palette, shift: float) -> Image.Image:
 def _render_frame(t: float, total_dur: float,
                   segments: list[str], seg_times: list[tuple[float, float]],
                   seg_idx_map: dict, punchline_idx: int, palette: list,
-                  particles: list[dict], font, punch_font, title_font
+                  particles: list[dict], font, punch_font, title_font,
+                  background: Image.Image | None = None,
                   ) -> Image.Image:
     shift = t * 0.02
 
-    strip = _render_gradient_strip(palette, shift)
-    bg = strip.resize((W, H), Image.Resampling.BILINEAR)
+    if background is not None:
+        bg = background.copy()
+    else:
+        strip = _render_gradient_strip(palette, shift)
+        bg = strip.resize((W, H), Image.Resampling.BILINEAR)
     frame = bg.convert("RGBA")
 
     overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -246,7 +341,7 @@ def _center_text(draw, text, x, y, font, fill, shadow=False,
 
 # ── public ───────────────────────────────────────────────────
 
-def render_short(joke_text: str, output_path: str) -> bool:
+def render_short(joke_text: str, output_path: str, hf_token: str = "") -> bool:
     SHORTS_DIR.mkdir(parents=True, exist_ok=True)
     frame_dir = SHORTS_DIR / "frames"
     audio_dir = SHORTS_DIR / "audio"
@@ -256,6 +351,9 @@ def render_short(joke_text: str, output_path: str) -> bool:
     segments = _split_segments(joke_text)
     punch_idx = len(segments) - 1
     palette = random.choice(PALETTES)
+
+    # Try HF background
+    hf_bg = _generate_hf_background(joke_text, hf_token)
 
     # Audio generation
     _generate_tts(joke_text, audio_dir / "voice.mp3")
@@ -324,6 +422,7 @@ def render_short(joke_text: str, output_path: str) -> bool:
             t, total_dur,
             segments, seg_times, {}, punch_idx, palette,
             particles, font, punch_font, title_font,
+            background=hf_bg,
         )
         img.save(frame_dir / f"f_{f_idx:06d}.png")
 

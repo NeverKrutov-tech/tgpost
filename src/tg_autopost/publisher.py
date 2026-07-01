@@ -513,7 +513,7 @@ class TelegramPublisher:
             return False
         joke = candidates[0]
         output = Path("data/shorts") / f"short_{joke['id']}.mp4"
-        if not render_short(joke["text"], str(output)):
+        if not render_short(joke["text"], str(output), hf_token=self.settings.hf_token):
             return False
         preview = joke["text"].replace("\n", " ")[:80].rstrip() + "\u2026"
         vid = upload_short(
