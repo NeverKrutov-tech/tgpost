@@ -96,52 +96,55 @@ def _guess_theme(joke_text: str) -> str:
     return DEFAULT_PROMPT
 
 
+HF_API_URLS = [
+    "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5",
+    "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1",
+]
+
+
 def _generate_hf_background(joke_text: str, token: str) -> Image.Image | None:
     if not token:
         return None
     prompt = _guess_theme(joke_text)
     full_prompt = f"{prompt}, vertical portrait orientation, soft gradient abstract background, no text, no people, 4k"
 
-    try:
-        api_url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1"
-        resp = requests.post(
-            api_url,
-            headers={"Authorization": f"Bearer {token}"},
-            json={"inputs": full_prompt},
-            timeout=60,
-        )
-        if resp.status_code == 503:
-            logger.warning("HF model is loading, retrying in 10s...")
-            import time
-            time.sleep(10)
+    for api_url in HF_API_URLS:
+        try:
             resp = requests.post(
                 api_url,
                 headers={"Authorization": f"Bearer {token}"},
                 json={"inputs": full_prompt},
-                timeout=60,
+                timeout=90,
             )
-        if resp.status_code != 200:
-            logger.warning("HF API error %d: %s", resp.status_code, resp.text[:200])
-            return None
-
-        img = Image.open(BytesIO(resp.content)).convert("RGB")
-        w, h = img.size
-        target_ratio = W / H  # ~0.5625
-        img_ratio = w / h
-
-        if img_ratio < target_ratio:
-            new_h = int(w / target_ratio)
-            img = img.crop((0, (h - new_h) // 2, w, (h - new_h) // 2 + new_h))
-        else:
-            new_w = int(h * target_ratio)
-            img = img.crop(((w - new_w) // 2, 0, (w - new_w) // 2 + new_w, h))
-
-        img = img.resize((W, H), Image.Resampling.BILINEAR)
-        logger.info("Generated HF background: %s", prompt)
-        return img
-    except Exception as e:
-        logger.warning("HF background failed: %s", e)
-        return None
+            if resp.status_code == 503:
+                import time
+                logger.warning("HF model loading at %s, waiting 15s...", api_url)
+                time.sleep(15)
+                resp = requests.post(
+                    api_url,
+                    headers={"Authorization": f"Bearer {token}"},
+                    json={"inputs": full_prompt},
+                    timeout=90,
+                )
+            if resp.status_code == 200:
+                img = Image.open(BytesIO(resp.content)).convert("RGB")
+                w, h = img.size
+                target_ratio = W / H
+                img_ratio = w / h
+                if img_ratio < target_ratio:
+                    new_h = int(w / target_ratio)
+                    img = img.crop((0, (h - new_h) // 2, w, (h - new_h) // 2 + new_h))
+                else:
+                    new_w = int(h * target_ratio)
+                    img = img.crop(((w - new_w) // 2, 0, (w - new_w) // 2 + new_w, h))
+                img = img.resize((W, H), Image.Resampling.BILINEAR)
+                logger.info("Generated HF background from %s: %s", api_url.split("/")[-1], prompt)
+                return img
+            logger.warning("HF API error %d from %s: %s", resp.status_code, api_url.split("/")[-1], resp.text[:150])
+        except Exception as e:
+            logger.warning("HF background failed on %s: %s", api_url.split("/")[-1], e)
+    logger.warning("All HF endpoints failed, using gradient fallback")
+    return None
 
 
 # ── audio generation ─────────────────────────────────────────
