@@ -567,7 +567,7 @@ class TelegramPublisher:
         if self._handle_youtube():
             return True
 
-        if random.random() < 0.15 and self.db.count_shorts_candidates() > 0:
+        if True and self.db.count_shorts_candidates() > 0:
             if self._make_short():
                 return True
 
