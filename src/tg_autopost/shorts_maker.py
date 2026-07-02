@@ -111,13 +111,13 @@ def _generate_background(joke_text: str, cf_id: str = "", cf_token: str = "", hf
     if cf_id and cf_token:
         try:
             url = f"https://api.cloudflare.com/client/v4/accounts/{cf_id}/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0"
-            resp = requests.post(url, headers={"Authorization": f"Bearer {cf_token}"}, json={"prompt": full_prompt}, timeout=120)
+            resp = requests.post(url, headers={"Authorization": f"Bearer {cf_token}", "Accept": "application/json"}, json={"prompt": full_prompt}, timeout=30)
             if resp.status_code == 200:
                 ct = resp.headers.get("content-type", "")
                 if "image" in ct:
                     img = _open(resp.content)
                     if img:
-                        logger.info("Generated background via Cloudflare SDXL: %s", prompt)
+                        logger.info("Generated background via Cloudflare SDXL (raw): %s", prompt)
                         return img
                 else:
                     try:
@@ -127,7 +127,7 @@ def _generate_background(joke_text: str, cf_id: str = "", cf_token: str = "", hf
                             img_bytes = base64.b64decode(data["result"]["image"])
                             img = _open(img_bytes)
                             if img:
-                                logger.info("Generated background via Cloudflare SDXL: %s", prompt)
+                                logger.info("Generated background via Cloudflare SDXL (json): %s", prompt)
                                 return img
                         logger.warning("Cloudflare API returned success=false: %s", str(data.get("errors", ""))[:150])
                     except Exception:
