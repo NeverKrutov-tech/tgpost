@@ -112,6 +112,7 @@ def _generate_background(joke_text: str, cf_id: str = "", cf_token: str = "", hf
         try:
             url = f"https://api.cloudflare.com/client/v4/accounts/{cf_id}/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0"
             resp = requests.post(url, headers={"Authorization": f"Bearer {cf_token}"}, json={"prompt": full_prompt}, timeout=120)
+            logger.info("Cloudflare response status %d, body length %d", resp.status_code, len(resp.content))
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get("success"):
@@ -123,7 +124,7 @@ def _generate_background(joke_text: str, cf_id: str = "", cf_token: str = "", hf
                         return img
                 logger.warning("Cloudflare API returned success=false: %s", str(data.get("errors", ""))[:150])
             else:
-                logger.warning("Cloudflare API status %d: %s", resp.status_code, resp.text[:150])
+                logger.warning("Cloudflare API status %d: %s", resp.status_code, resp.text[:300])
         except Exception as e:
             logger.warning("Cloudflare failed: %s", e)
 
