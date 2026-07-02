@@ -569,7 +569,7 @@ class TelegramPublisher:
 
         if random.random() < 0.15 and self.db.count_shorts_candidates() > 0:
             if self._make_short():
-                return True
+                logger.info("Short posted, continuing with regular post")
 
         if rubric["keywords"]:
             if random.random() < 0.8:
