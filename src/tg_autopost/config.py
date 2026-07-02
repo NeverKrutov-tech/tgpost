@@ -20,6 +20,8 @@ class Settings:
     youtube_client_secret: str = ""
     youtube_refresh_token: str = ""
     hf_token: str = ""
+    cf_account_id: str = ""
+    cf_api_token: str = ""
 
 
 def load_settings() -> Settings:
@@ -54,4 +56,6 @@ def load_settings() -> Settings:
         youtube_client_secret=os.getenv("YOUTUBE_CLIENT_SECRET", "").strip(),
         youtube_refresh_token=os.getenv("YOUTUBE_REFRESH_TOKEN", "").strip(),
         hf_token=os.getenv("HF_TOKEN", "").strip(),
+        cf_account_id=os.getenv("CF_ACCOUNT_ID", "").strip(),
+        cf_api_token=os.getenv("CF_API_TOKEN", "").strip(),
     )

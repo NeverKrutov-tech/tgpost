@@ -96,32 +96,58 @@ def _guess_theme(joke_text: str) -> str:
     return DEFAULT_PROMPT
 
 
-def _generate_hf_background(joke_text: str, token: str) -> Image.Image | None:
+def _generate_background(joke_text: str, cf_id: str = "", cf_token: str = "", hf_token: str = "") -> Image.Image | None:
     prompt = _guess_theme(joke_text)
     full_prompt = f"{prompt}, vertical portrait orientation, no text, no people, 4k"
 
-    # Try Pollinations.ai (free, no token)
+    def _open(img_data) -> Image.Image | None:
+        try:
+            img = Image.open(BytesIO(img_data)).convert("RGB")
+            return img.resize((W, H), Image.Resampling.BILINEAR)
+        except Exception:
+            return None
+
+    # 1. Cloudflare Workers AI (SDXL, best quality, 100k/day free)
+    if cf_id and cf_token:
+        try:
+            url = f"https://api.cloudflare.com/client/v4/accounts/{cf_id}/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0"
+            resp = requests.post(url, headers={"Authorization": f"Bearer {cf_token}"}, json={"prompt": full_prompt}, timeout=120)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("success"):
+                    import base64
+                    img_bytes = base64.b64decode(data["result"]["image"])
+                    img = _open(img_bytes)
+                    if img:
+                        logger.info("Generated background via Cloudflare SDXL: %s", prompt)
+                        return img
+                logger.warning("Cloudflare API returned success=false: %s", str(data.get("errors", ""))[:150])
+            else:
+                logger.warning("Cloudflare API status %d: %s", resp.status_code, resp.text[:150])
+        except Exception as e:
+            logger.warning("Cloudflare failed: %s", e)
+
+    # 2. Pollinations.ai (free, no token)
     try:
         import urllib.parse
         url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(full_prompt)}?width=1080&height=1920&nofeed=true"
         resp = requests.get(url, timeout=90)
         if resp.status_code == 200:
-            img = Image.open(BytesIO(resp.content)).convert("RGB")
-            img = img.resize((W, H), Image.Resampling.BILINEAR)
-            logger.info("Generated background via pollinations: %s", prompt)
-            return img
-        logger.warning("Pollinations bad status %d", resp.status_code)
+            img = _open(resp.content)
+            if img:
+                logger.info("Generated background via pollinations: %s", prompt)
+                return img
     except Exception as e:
         logger.warning("Pollinations failed: %s", e)
 
-    # Try Hugging Face Inference API
-    if token:
+    # 3. Hugging Face Inference API
+    if hf_token:
         for model_name, model_url in [
             ("stable-diffusion-v1-5", "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"),
             ("stable-diffusion-2-1", "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1"),
         ]:
             try:
-                hf_headers = {"Authorization": f"Bearer {token}"}
+                hf_headers = {"Authorization": f"Bearer {hf_token}"}
                 resp = requests.post(model_url, headers=hf_headers, json={"inputs": full_prompt}, timeout=90)
                 if resp.status_code == 503:
                     import time
@@ -129,11 +155,10 @@ def _generate_hf_background(joke_text: str, token: str) -> Image.Image | None:
                     time.sleep(15)
                     resp = requests.post(model_url, headers=hf_headers, json={"inputs": full_prompt}, timeout=90)
                 if resp.status_code == 200:
-                    img = Image.open(BytesIO(resp.content)).convert("RGB")
-                    img = img.resize((W, H), Image.Resampling.BILINEAR)
-                    logger.info("Generated background via HF %s: %s", model_name, prompt)
-                    return img
-                logger.warning("HF %s returned %d", model_name, resp.status_code)
+                    img = _open(resp.content)
+                    if img:
+                        logger.info("Generated background via HF %s: %s", model_name, prompt)
+                        return img
             except Exception as e:
                 logger.warning("HF %s failed: %s", model_name, e)
 
@@ -338,7 +363,7 @@ def _center_text(draw, text, x, y, font, fill, shadow=False,
 
 # ── public ───────────────────────────────────────────────────
 
-def render_short(joke_text: str, output_path: str, hf_token: str = "") -> bool:
+def render_short(joke_text: str, output_path: str, hf_token: str = "", cf_account_id: str = "", cf_api_token: str = "") -> bool:
     SHORTS_DIR.mkdir(parents=True, exist_ok=True)
     frame_dir = SHORTS_DIR / "frames"
     audio_dir = SHORTS_DIR / "audio"
@@ -350,7 +375,7 @@ def render_short(joke_text: str, output_path: str, hf_token: str = "") -> bool:
     palette = random.choice(PALETTES)
 
     # Try HF background
-    hf_bg = _generate_hf_background(joke_text, hf_token)
+    hf_bg = _generate_background(joke_text, cf_id=cf_account_id, cf_token=cf_api_token, hf_token=hf_token)
 
     # Audio generation
     _generate_tts(joke_text, audio_dir / "voice.mp3")
