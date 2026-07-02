@@ -104,15 +104,13 @@ def _generate_hf_background(joke_text: str, token: str) -> Image.Image | None:
     try:
         import urllib.parse
         url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(full_prompt)}?width=1080&height=1920&nofeed=true"
-        logger.info("Pollinations URL: %s", url[:120])
         resp = requests.get(url, timeout=90)
-        logger.info("Pollinations status: %d, len=%d", resp.status_code, len(resp.content))
         if resp.status_code == 200:
             img = Image.open(BytesIO(resp.content)).convert("RGB")
             img = img.resize((W, H), Image.Resampling.BILINEAR)
             logger.info("Generated background via pollinations: %s", prompt)
             return img
-        logger.warning("Pollinations bad status %d: %s", resp.status_code, resp.text[:150])
+        logger.warning("Pollinations bad status %d", resp.status_code)
     except Exception as e:
         logger.warning("Pollinations failed: %s", e)
 
