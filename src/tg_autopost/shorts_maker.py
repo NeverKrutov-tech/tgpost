@@ -96,54 +96,47 @@ def _guess_theme(joke_text: str) -> str:
     return DEFAULT_PROMPT
 
 
-HF_API_URLS = [
-    "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5",
-    "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1",
-]
-
-
 def _generate_hf_background(joke_text: str, token: str) -> Image.Image | None:
-    if not token:
-        return None
     prompt = _guess_theme(joke_text)
-    full_prompt = f"{prompt}, vertical portrait orientation, soft gradient abstract background, no text, no people, 4k"
+    full_prompt = f"{prompt}, vertical portrait orientation, no text, no people, 4k"
 
-    for api_url in HF_API_URLS:
-        try:
-            resp = requests.post(
-                api_url,
-                headers={"Authorization": f"Bearer {token}"},
-                json={"inputs": full_prompt},
-                timeout=90,
-            )
-            if resp.status_code == 503:
-                import time
-                logger.warning("HF model loading at %s, waiting 15s...", api_url)
-                time.sleep(15)
-                resp = requests.post(
-                    api_url,
-                    headers={"Authorization": f"Bearer {token}"},
-                    json={"inputs": full_prompt},
-                    timeout=90,
-                )
-            if resp.status_code == 200:
-                img = Image.open(BytesIO(resp.content)).convert("RGB")
-                w, h = img.size
-                target_ratio = W / H
-                img_ratio = w / h
-                if img_ratio < target_ratio:
-                    new_h = int(w / target_ratio)
-                    img = img.crop((0, (h - new_h) // 2, w, (h - new_h) // 2 + new_h))
-                else:
-                    new_w = int(h * target_ratio)
-                    img = img.crop(((w - new_w) // 2, 0, (w - new_w) // 2 + new_w, h))
-                img = img.resize((W, H), Image.Resampling.BILINEAR)
-                logger.info("Generated HF background from %s: %s", api_url.split("/")[-1], prompt)
-                return img
-            logger.warning("HF API error %d from %s: %s", resp.status_code, api_url.split("/")[-1], resp.text[:150])
-        except Exception as e:
-            logger.warning("HF background failed on %s: %s", api_url.split("/")[-1], e)
-    logger.warning("All HF endpoints failed, using gradient fallback")
+    # Try Pollinations.ai (free, no token)
+    try:
+        import urllib.parse
+        url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(full_prompt)}?width=1080&height=1920&nofeed=true"
+        resp = requests.get(url, timeout=90)
+        if resp.status_code == 200 and b'PNG' in resp.content[:20]:
+            img = Image.open(BytesIO(resp.content)).convert("RGB")
+            img = img.resize((W, H), Image.Resampling.BILINEAR)
+            logger.info("Generated background via pollinations: %s", prompt)
+            return img
+    except Exception as e:
+        logger.warning("Pollinations failed: %s", e)
+
+    # Try Hugging Face Inference API
+    if token:
+        for model_name, model_url in [
+            ("stable-diffusion-v1-5", "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"),
+            ("stable-diffusion-2-1", "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1"),
+        ]:
+            try:
+                hf_headers = {"Authorization": f"Bearer {token}"}
+                resp = requests.post(model_url, headers=hf_headers, json={"inputs": full_prompt}, timeout=90)
+                if resp.status_code == 503:
+                    import time
+                    logger.warning("HF model loading (%s), waiting 15s...", model_name)
+                    time.sleep(15)
+                    resp = requests.post(model_url, headers=hf_headers, json={"inputs": full_prompt}, timeout=90)
+                if resp.status_code == 200:
+                    img = Image.open(BytesIO(resp.content)).convert("RGB")
+                    img = img.resize((W, H), Image.Resampling.BILINEAR)
+                    logger.info("Generated background via HF %s: %s", model_name, prompt)
+                    return img
+                logger.warning("HF %s returned %d", model_name, resp.status_code)
+            except Exception as e:
+                logger.warning("HF %s failed: %s", model_name, e)
+
+    logger.warning("All background APIs failed, using gradient fallback")
     return None
 
 
