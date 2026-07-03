@@ -1,6 +1,5 @@
 import logging
 import math
-import os
 import random
 import struct
 import subprocess
@@ -20,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 SHORTS_DIR = Path("data/shorts")
 MUSIC_DIR = Path("data/music")
+SFX_DIR = Path("data/sfx")
 W, H = 1080, 1920
 FPS = 24
 
@@ -33,8 +33,9 @@ PALETTES = [
 ]
 
 SPEAKER_EMOJIS = ["\U0001f9d1", "\U0001f468\u200d\U00002694\ufe0f"]
-BUBBLE_COLORS = [(50, 70, 120), (80, 50, 100)]
-BUBBLE_ALIGN = ["left", "right"]
+CHARACTER_NAMES = ["\u0421\u043E\u0431\u0435\u0441\u0435\u0434\u043D\u0438\u043A 1", "\u0421\u043E\u0431\u0435\u0441\u0435\u0434\u043D\u0438\u043A 2"]
+ACCENT_COLORS = [(100, 180, 255), (255, 180, 100)]
+CHAR_COLORS = [(80, 140, 220), (220, 140, 80)]
 
 
 def _hsl_rgb(h, s, l):
@@ -46,6 +47,8 @@ def _get_font(size: int) -> ImageFont.FreeTypeFont:
     path = FONT_PATH or "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
     return ImageFont.truetype(str(path), size)
 
+
+# ── Scene parser ─────────────────────────────────────────
 
 def _theme_emoji(joke_text: str) -> str:
     text = joke_text.lower()
@@ -68,17 +71,65 @@ def _theme_emoji(joke_text: str) -> str:
     return "\U0001f4ac"
 
 
+def _guess_theme_name(joke_text: str) -> str:
+    text = joke_text.lower()
+    topics = {
+        "\u0432\u0440\u0430\u0447": "\u043F\u0440\u043E \u0432\u0440\u0430\u0447\u0435\u0439",
+        "\u0440\u0430\u0431\u043E\u0442\u0430": "\u043F\u0440\u043E \u0440\u0430\u0431\u043E\u0442\u0443",
+        "\u043C\u0443\u0436": "\u043F\u0440\u043E \u0441\u0435\u043C\u044C\u044E",
+        "\u0430\u0440\u043C\u0438": "\u043F\u0440\u043E \u0430\u0440\u043C\u0438\u044E",
+        "\u0432\u043E\u0434\u043A\u0430": "\u043F\u0440\u043E \u0432\u044B\u043F\u0438\u0432\u043A\u0443",
+        "\u0448\u043A\u043E\u043B": "\u043F\u0440\u043E \u0448\u043A\u043E\u043B\u0443",
+        "\u043A\u043E\u0442": "\u043F\u0440\u043E \u0436\u0438\u0432\u043E\u0442\u043D\u044B\u0445",
+        "\u0434\u0435\u043D\u044C\u0433": "\u043F\u0440\u043E \u0434\u0435\u043D\u044C\u0433\u0438",
+    }
+    for kw, theme in topics.items():
+        if kw in text:
+            return theme
+    return ""
+
+
+def _parse_scenes(joke_text: str) -> list[dict]:
+    lines = joke_text.strip().split("\n")
+    scenes = []
+    dialogue_idx = 0
+    narrative_buffer = []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        is_dialogue = any(stripped.startswith(c) for c in ["\u2014", "-", "\u2013"])
+        if is_dialogue:
+            if narrative_buffer:
+                scenes.append({"type": "narrative", "text": "\n".join(narrative_buffer)})
+                narrative_buffer = []
+            text = stripped.lstrip("\u2014- \u2013")
+            scenes.append({"type": "dialogue", "text": text, "speaker": dialogue_idx % 2})
+            dialogue_idx += 1
+        else:
+            narrative_buffer.append(stripped)
+
+    if narrative_buffer:
+        scenes.append({"type": "narrative", "text": "\n".join(narrative_buffer)})
+
+    if scenes:
+        scenes[-1]["type"] = "punchline"
+
+    return scenes
+
+
+# ── Background ───────────────────────────────────────────
+
 TOPIC_PROMPTS: list[tuple[list[str], str]] = [
-    (["\u0440\u0430\u0431\u043E\u0442\u0430", "\u043E\u0444\u0438\u0441", "\u0448\u0435\u0444", "\u043D\u0430\u0447\u0430\u043B\u044C\u043D\u0438\u043A", "\u043A\u043E\u043B\u043B\u0435\u0433", "\u0434\u0438\u0440\u0435\u043A\u0442\u043E\u0440"], "\u0440\u0430\u0431\u043E\u0442\u0430"),
-    (["\u0432\u0440\u0430\u0447", "\u0431\u043E\u043B\u044C\u043D\u0438\u0446\u0430", "\u0445\u0438\u0440\u0443\u0440\u0433", "\u043F\u0430\u0446\u0438\u0435\u043D\u0442", "\u0430\u043F\u0442\u0435\u043A\u0430"], "\u0432\u0440\u0430\u0447"),
-    (["\u043C\u0443\u0436", "\u0436\u0435\u043D", "\u0441\u0435\u043C\u044C", "\u0442\u0435\u0449", "\u0441\u0432\u0435\u043A\u0440\u043E\u0432", "\u0436\u0435\u043D\u0430", "\u0442\u0451\u0449"], "\u0441\u0435\u043C\u044C"),
-    (["\u0430\u0440\u043C\u0438", "\u0432\u043E\u0435\u043D", "\u0441\u043E\u043B\u0434\u0430\u0442", "\u043F\u043E\u043B\u043A\u043E\u0432\u043D\u0438\u043A", "\u043A\u0430\u0437\u0430\u0440\u043C"], "\u0430\u0440\u043C\u0438"),
-    (["\u043C\u0438\u043B\u0438\u0446", "\u043F\u043E\u043B\u0438\u0446", "\u0433\u0430\u0438", "\u0433\u0430\u0438\u0448\u043D\u0438\u043A"], "\u043C\u0438\u043B\u0438\u0446"),
-    (["\u0432\u043E\u0434\u043A\u0430", "\u043F\u0438\u0432\u043E", "\u0431\u0430\u0440", "\u043F\u044C\u044F\u043D", "\u0432\u044B\u043F\u0438\u0432"], "\u0432\u043E\u0434\u043A\u0430"),
-    (["\u0448\u043A\u043E\u043B", "\u0443\u0447\u0438\u0442\u0435\u043B", "\u0443\u0440\u043E\u043A", "\u043A\u043B\u0430\u0441\u0441", "\u0443\u0447\u0435\u043D\u0438\u043A"], "\u0448\u043A\u043E\u043B"),
-    (["\u043A\u043E\u0442", "\u043A\u043E\u0448\u043A", "\u0441\u043E\u0431\u0430\u043A", "\u0437\u043E\u043E\u043F\u0430\u0440\u043A", "\u043C\u0435\u0434\u0432\u0435\u0434"], "\u043A\u043E\u0442"),
-    (["\u0440\u0435\u0441\u0442\u043E\u0440\u0430\u043D", "\u0435\u0434\u0430", "\u043E\u0431\u0435\u0434", "\u0433\u043E\u0442\u043E\u0432"], "\u0440\u0435\u0441\u0442\u043E\u0440\u0430\u043D"),
-    (["\u0434\u0435\u043D\u044C\u0433", "\u0431\u0430\u043D\u043A", "\u043E\u043B\u0438\u0433\u0430\u0440\u0445", "\u0431\u0438\u0437\u043D\u0435\u0441", "\u043C\u0438\u043B\u043B\u0438\u043E\u043D"], "\u0434\u0435\u043D\u044C\u0433"),
+    (["\u0440\u0430\u0431\u043E\u0442\u0430", "\u043E\u0444\u0438\u0441", "\u0448\u0435\u0444"], "\u0440\u0430\u0431\u043E\u0442\u0430"),
+    (["\u0432\u0440\u0430\u0447", "\u0431\u043E\u043B\u044C\u043D\u0438\u0446\u0430", "\u043F\u0430\u0446\u0438\u0435\u043D\u0442"], "\u0432\u0440\u0430\u0447"),
+    (["\u043C\u0443\u0436", "\u0436\u0435\u043D", "\u0441\u0435\u043C\u044C", "\u0442\u0435\u0449", "\u0436\u0435\u043D\u0430"], "\u0441\u0435\u043C\u044C"),
+    (["\u0430\u0440\u043C\u0438", "\u0432\u043E\u0435\u043D", "\u0441\u043E\u043B\u0434\u0430\u0442"], "\u0430\u0440\u043C\u0438"),
+    (["\u0432\u043E\u0434\u043A\u0430", "\u043F\u0438\u0432\u043E", "\u0431\u0430\u0440", "\u043F\u044C\u044F\u043D"], "\u0432\u043E\u0434\u043A\u0430"),
+    (["\u0448\u043A\u043E\u043B", "\u0443\u0447\u0438\u0442\u0435\u043B", "\u0443\u0440\u043E\u043A", "\u043A\u043B\u0430\u0441\u0441"], "\u0448\u043A\u043E\u043B"),
+    (["\u043A\u043E\u0442", "\u043A\u043E\u0448\u043A", "\u0441\u043E\u0431\u0430\u043A", "\u0436\u0438\u0432\u043E\u0442\u043D"], "\u043A\u043E\u0442"),
+    (["\u0434\u0435\u043D\u044C\u0433", "\u0431\u0430\u043D\u043A", "\u0431\u0438\u0437\u043D\u0435\u0441", "\u043C\u0438\u043B\u043B\u0438\u043E\u043D"], "\u0434\u0435\u043D\u044C\u0433"),
 ]
 
 THEME_SCENES = {
@@ -86,11 +137,9 @@ THEME_SCENES = {
     "\u0432\u0440\u0430\u0447": "clean hospital corridor, medical equipment, white walls, clinical lighting",
     "\u0441\u0435\u043C\u044C": "cozy home living room, warm lamp light, comfortable armchair, fireplace",
     "\u0430\u0440\u043C\u0438": "military barracks, camouflage nets, morning sunlight, army atmosphere",
-    "\u043C\u0438\u043B\u0438\u0446": "police station interior, desk with papers, blue uniform, official atmosphere",
     "\u0432\u043E\u0434\u043A\u0430": "russian pub interior, wooden tables, dim warm lighting, rustic atmosphere",
     "\u0448\u043A\u043E\u043B": "empty classroom, wooden desks, chalkboard, sunlight through window",
     "\u043A\u043E\u0442": "sunlit room with a sleeping cat on a windowsill, peaceful atmosphere",
-    "\u0440\u0435\u0441\u0442\u043E\u0440\u0430\u043D": "elegant restaurant interior, candlelit tables, warm amber lighting",
     "\u0434\u0435\u043D\u044C\u0433": "luxury office interior, modern furniture, city view through window",
 }
 
@@ -183,40 +232,7 @@ def _generate_background(joke_text: str, cf_id: str = "", cf_token: str = "", hf
     return None
 
 
-# ── Scene parsing ─────────────────────────────────────────
-
-def _parse_scenes(joke_text: str) -> list[dict]:
-    lines = joke_text.strip().split("\n")
-    scenes = []
-    dialogue_idx = 0
-    narrative_buffer = []
-
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            continue
-
-        is_dialogue = any(stripped.startswith(c) for c in ["\u2014", "-", "\u2013"])
-        if is_dialogue:
-            if narrative_buffer:
-                scenes.append({"type": "narrative", "text": "\n".join(narrative_buffer)})
-                narrative_buffer = []
-            text = stripped.lstrip("\u2014- \u2013")
-            scenes.append({"type": "dialogue", "text": text, "speaker": dialogue_idx % 2})
-            dialogue_idx += 1
-        else:
-            narrative_buffer.append(stripped)
-
-    if narrative_buffer:
-        scenes.append({"type": "narrative", "text": "\n".join(narrative_buffer)})
-
-    if scenes:
-        scenes[-1]["type"] = "punchline"
-
-    return scenes
-
-
-# ── Audio ─────────────────────────────────────────────────
+# ── Audio ────────────────────────────────────────────────
 
 async def _edge_tts(text: str, output_path: Path) -> float:
     try:
@@ -225,9 +241,8 @@ async def _edge_tts(text: str, output_path: Path) -> float:
         await communicate.save(str(output_path))
         if output_path.stat().st_size > 100:
             result = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_entries",
-                 "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
-                 str(output_path)],
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                 "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
                 capture_output=True, text=True, timeout=15,
             )
             return float(result.stdout.strip())
@@ -241,7 +256,6 @@ def _generate_tts(text: str, output_path: Path) -> float:
     if dur > 0:
         logger.info("Generated TTS via edge-tts: %.1fs", dur)
         return dur
-
     logger.info("edge-tts failed, falling back to gTTS")
     try:
         from gtts import gTTS
@@ -250,9 +264,8 @@ def _generate_tts(text: str, output_path: Path) -> float:
         if output_path.stat().st_size > 100:
             try:
                 result = subprocess.run(
-                    ["ffprobe", "-v", "error", "-show_entries",
-                     "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
-                     str(output_path)],
+                    ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                     "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
                     capture_output=True, text=True, timeout=15,
                 )
                 return float(result.stdout.strip())
@@ -266,25 +279,31 @@ def _generate_tts(text: str, output_path: Path) -> float:
 
 
 def _select_music(total_dur: float, output_path: Path) -> bool:
-    if not MUSIC_DIR.exists():
-        return False
-    tracks = list(MUSIC_DIR.glob("*.mp3")) + list(MUSIC_DIR.glob("*.wav"))
+    MUSIC_DIR.mkdir(parents=True, exist_ok=True)
+    tracks = list(MUSIC_DIR.glob("*.mp3"))
     if not tracks:
         return False
     track = random.choice(tracks)
     try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(track)],
+            capture_output=True, text=True, timeout=15,
+        )
+        track_dur = float(result.stdout.strip()) or 30
+        loop_count = int(math.ceil(total_dur / max(track_dur, 1)))
         cmd = [
             "ffmpeg", "-y",
+            "-stream_loop", str(loop_count),
             "-i", str(track),
-            "-filter_complex",
-            f"aloop=loop=-1:size=44100*{int(min(30, total_dur))}[out];[out]volume=0.2[aout]",
             "-t", str(total_dur),
-            "-map", "[aout]",
+            "-af", "volume=0.15",
             "-acodec", "pcm_s16le",
+            "-ar", "44100",
             str(output_path),
         ]
         subprocess.run(cmd, check=True, capture_output=True, timeout=30)
-        logger.info("Selected music track: %s", track.name)
+        logger.info("Selected music: %s (%.1fs, looped x%d)", track.name, track_dur, loop_count)
         return True
     except Exception as e:
         logger.warning("Failed to process music track %s: %s", track.name, e)
@@ -296,7 +315,6 @@ def _generate_beat(duration: float, output_path: Path, bpm: int = 128, sr: int =
     total_samples = int(duration * sr)
     samples = [0.0] * total_samples
     rng = random.Random(42)
-
     for i in range(total_samples):
         t = i / sr
         kick_phase = (t % beat_sec) / beat_sec
@@ -314,47 +332,48 @@ def _generate_beat(duration: float, output_path: Path, bpm: int = 128, sr: int =
         else:
             pad_freq = pad_note * 1.5
         pad_env = 0.06 * (1 - math.exp(-t * 0.5)) * max(0, 1 - (t / duration))
-        samples[i] += pad_env * (
-            0.5 * math.sin(2 * math.pi * pad_freq * t) +
-            0.3 * math.sin(2 * math.pi * pad_freq * 2 * t)
-        )
-
+        samples[i] += pad_env * (0.5 * math.sin(2 * math.pi * pad_freq * t) + 0.3 * math.sin(2 * math.pi * pad_freq * 2 * t))
     peak = max(abs(s) for s in samples) or 1
     ints = [int(s / peak * 30000) for s in samples]
-
     with open(output_path, "wb") as f:
         data_size = len(ints) * 2
-        f.write(b"RIFF")
-        f.write(struct.pack("<I", 36 + data_size))
-        f.write(b"WAVE")
-        f.write(b"fmt ")
+        f.write(b"RIFF"); f.write(struct.pack("<I", 36 + data_size))
+        f.write(b"WAVE"); f.write(b"fmt ")
         f.write(struct.pack("<IHHIIHH", 16, 1, 1, sr, sr * 2, 2, 16))
-        f.write(b"data")
-        f.write(struct.pack("<I", data_size))
+        f.write(b"data"); f.write(struct.pack("<I", data_size))
         for s in ints:
             f.write(struct.pack("<h", s))
+    logger.info("Generated beat: %.1fs", duration)
 
-    logger.info("Generated beat: %.1fs, %s", duration, output_path)
+
+# ── SFX ──────────────────────────────────────────────────
+
+SFX_TRACKS = {
+    "hit": "https://github.com/NEVKrutov-tech/tgpost/raw/main/data/sfx/hit.wav" if False else None,
+    "swoosh": None,
+}
+
+def _ensure_sfx() -> dict[str, Path]:
+    SFX_DIR.mkdir(parents=True, exist_ok=True)
+    result = {}
+    for name in ["hit", "swoosh", "laugh"]:
+        p = SFX_DIR / f"{name}.wav"
+        if p.exists() and p.stat().st_size > 1000:
+            result[name] = p
+    return result
 
 
-# ── Frame rendering ───────────────────────────────────────
+# ── Frame rendering (viral Shorts style) ─────────────────
 
 def _render_gradient_strip(palette, shift: float) -> Image.Image:
-    h1, s1, l1 = palette[0]
-    h2, s2, l2 = palette[1]
-    ch1 = (h1 + shift) % 1.0
-    ch2 = (h2 + shift) % 1.0
-    c1 = _hsl_rgb(ch1, s1, l1)
-    c2 = _hsl_rgb(ch2, s2, l2)
-
+    h1, s1, l1 = palette[0]; h2, s2, l2 = palette[1]
+    ch1 = (h1 + shift) % 1.0; ch2 = (h2 + shift) % 1.0
+    c1 = _hsl_rgb(ch1, s1, l1); c2 = _hsl_rgb(ch2, s2, l2)
     img = Image.new("RGB", (1, H))
     pix = img.load()
     for y in range(H):
-        frac = y / H
-        r = int(c1[0] + (c2[0] - c1[0]) * frac)
-        g = int(c1[1] + (c2[1] - c1[1]) * frac)
-        b = int(c1[2] + (c2[2] - c1[2]) * frac)
-        pix[0, y] = (r, g, b)
+        f = y / H
+        pix[0, y] = (int(c1[0] + (c2[0] - c1[0]) * f), int(c1[1] + (c2[1] - c1[1]) * f), int(c1[2] + (c2[2] - c1[2]) * f))
     return img
 
 
@@ -362,62 +381,87 @@ def _draw_rounded_rect(draw, x1, y1, x2, y2, radius, fill):
     draw.rounded_rectangle([x1, y1, x2, y2], radius=radius, fill=fill)
 
 
-def _draw_bubble(draw, text, x, y, width, align, bubble_color, font, max_width=800):
+def _center_text(draw, text, x, y, font, fill, shadow=False, shadow_alpha=60):
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    bx = x - tw // 2; by = y - th // 2
+    if shadow:
+        r, g, b, a = fill if len(fill) == 4 else (*fill, 255)
+        for dx, dy in [(-3, -3), (3, -3), (-3, 3), (3, 3), (0, -5), (0, 5)]:
+            draw.text((bx + dx, by + dy), text, font=font, fill=(0, 0, 0, min(255, a * shadow_alpha // 100)))
+    draw.text((bx, by), text, font=font, fill=fill)
+
+
+def _draw_subtitle_text(draw, text: str, current_word_idx: int, font, box_x, box_y, box_w, box_h, accent_color):
+    words = text.split()
     padding = 30
-    border_radius = 25
-    tail_size = 20
+    line_h = font.getbbox("Ag")[3] - font.getbbox("Ag")[1] + 10
+    max_chars_per_line = max(1, (box_w - padding * 2) // (font.getbbox("A")[2] - font.getbbox("A")[0] + 4))
 
     lines = []
-    for word in text.split():
-        if not lines:
-            lines.append(word)
-        elif draw.textbbox((0, 0), lines[-1] + " " + word, font=font)[2] - draw.textbbox((0, 0), lines[-1] + " " + word, font=font)[0] < max_width:
-            lines[-1] += " " + word
+    current_line = []
+    for w in words:
+        test = " ".join(current_line + [w])
+        if len(test) <= max_chars_per_line:
+            current_line.append(w)
         else:
-            lines.append(word)
+            lines.append(current_line)
+            current_line = [w]
+    if current_line:
+        lines.append(current_line)
 
-    line_height = draw.textbbox((0, 0), "Ag", font=font)[3] - draw.textbbox((0, 0), "Ag", font=font)[1] + 8
-    text_h = len(lines) * line_height
-    bw = min(max_width, max(draw.textbbox((0, 0), l, font=font)[2] - draw.textbbox((0, 0), l, font=font)[0] for l in lines) + padding * 2)
-    bh = text_h + padding * 2
+    total_h = len(lines) * line_h
+    start_y = box_y + (box_h - total_h) // 2
+    word_counter = 0
 
-    if align == "right":
-        bx = x - bw
-        tail_points = [(x - 5, y + bh // 2), (x - 5 - tail_size, y + bh // 2 - 10), (x - 5 - tail_size, y + bh // 2 + 10)]
-    else:
-        bx = x
-        tail_points = [(x + bw + 5, y + bh // 2), (x + bw + 5 + tail_size, y + bh // 2 - 10), (x + bw + 5 + tail_size, y + bh // 2 + 10)]
-
-    _draw_rounded_rect(draw, bx, y, bx + bw, y + bh, border_radius, bubble_color)
-    draw.polygon(tail_points, fill=bubble_color)
-
-    for i, line in enumerate(lines):
-        lx = bx + padding
-        ly = y + padding + i * line_height
-        draw.text((lx, ly), line, font=font, fill=(255, 255, 255, 255))
-
-    return bh
+    for li, line_words in enumerate(lines):
+        x = box_x + padding
+        y = start_y + li * line_h
+        for w in line_words:
+            is_current = (word_counter == current_word_idx)
+            if is_current:
+                c = accent_color
+                f = _get_font(62)
+            else:
+                c = (255, 255, 255, 255)
+                f = font
+            draw.text((x, y), w + " ", font=f, fill=c)
+            x += f.getbbox(w + " ")[2] - f.getbbox(w + " ")[0]
+            word_counter += 1
 
 
-def _draw_progress_bar(draw, t, total_dur):
-    bar_h = 6
-    bar_y = H - bar_h - 10
-    bar_w = W - 80
-    bar_x = 40
-    progress = min(1.0, t / max(total_dur, 1))
+def _draw_character_circle(draw, cx, cy, emoji, name, color, size=80):
+    _draw_rounded_rect(draw, cx - size // 2 - 5, cy - size // 2 - 5, cx + size // 2 + 5, cy + size // 2 + 5, size // 2 + 5, (*color, 200))
+    ef = _get_font(size - 10)
+    draw.text((cx - (ef.getbbox(emoji)[2] - ef.getbbox(emoji)[0]) // 2, cy - size // 2 + 10), emoji, font=ef, fill=(255, 255, 255, 220))
+    nf = _get_font(28)
+    nw = nf.getbbox(name)[2] - nf.getbbox(name)[0]
+    draw.text((cx - nw // 2, cy + size // 2 + 5), name, font=nf, fill=(255, 255, 255, 160))
 
-    _draw_rounded_rect(draw, bar_x, bar_y, bar_x + bar_w, bar_y + bar_h, 3, (255, 255, 255, 40))
 
-    fill_w = int(bar_w * progress)
-    if fill_w > 0:
-        _draw_rounded_rect(draw, bar_x, bar_y, bar_x + fill_w, bar_y + bar_h, 3, (255, 215, 0, 200))
+def _get_word_index(text: str, local_t: float, ttl_dur: float) -> int:
+    words = text.split()
+    if not words:
+        return 0
+    speed = len(words) / max(ttl_dur, 0.5)
+    return min(len(words) - 1, int(speed * local_t))
 
 
 def _render_frame(t: float, total_dur: float,
                   scenes: list[dict], scene_times: list[tuple[float, float]],
                   palette: list, particles: list[dict],
+                  sfx_hit_t: float | None = None,
                   background: Image.Image | None = None) -> Image.Image:
     shift = t * 0.02
+    shake_amount = 0
+
+    if sfx_hit_t is not None and abs(t - sfx_hit_t) < 0.15:
+        shake_intensity = max(0, 1 - abs(t - sfx_hit_t) / 0.15)
+        shake_amount = int(shake_intensity * 8)
+        sx = random.randint(-shake_amount, shake_amount)
+        sy = random.randint(-shake_amount, shake_amount)
+    else:
+        sx = sy = 0
 
     zoom = 1.0 + 0.04 * (t / max(total_dur, 1))
     zoom_w, zoom_h = int(W * zoom), int(H * zoom)
@@ -431,129 +475,123 @@ def _render_frame(t: float, total_dur: float,
         strip = _render_gradient_strip(palette, shift)
         bg = strip.resize((W, H), Image.Resampling.BILINEAR)
     frame = bg.convert("RGBA")
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
 
-    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 50))
+    dark_overlay = Image.new("RGBA", (W, H), (0, 0, 0, 50))
+    overlay = Image.alpha_composite(overlay, dark_overlay)
     draw = ImageDraw.Draw(overlay)
 
     for p in particles:
-        px = (p["x"] + t * p["vx"]) % W
-        py = (p["y"] + t * p["vy"]) % H
+        px = (p["x"] + t * p["vx"] + sx) % W
+        py = (p["y"] + t * p["vy"] + sy) % H
         phase = t * p["freq"] + p["phase"]
-        alpha = int((0.3 + 0.7 * max(0, math.sin(phase))) * 100)
+        alpha = int((0.3 + 0.7 * max(0, math.sin(phase))) * 80)
         r = p["radius"]
         draw.ellipse([px - r, py - r, px + r, py + r], fill=(255, 255, 255, alpha))
 
-    visible_scenes = [(i, st, et) for i, (st, et) in enumerate(scene_times) if st <= t <= et]
-
-    font = _get_font(56)
-    punch_font = _get_font(72)
-
-    for i, st, et in visible_scenes:
-        scene = scenes[i]
-        local_t = max(0, t - st)
-        fade = min(1.0, local_t / 0.3)
-        is_punch = scene.get("type") == "punchline"
-        ttl_dur = max(0.5, et - st)
-        char_speed = len(scene["text"]) / ttl_dur * 1.2
-        chars_visible = min(len(scene["text"]), int(char_speed * local_t))
-
-        if scene["type"] == "dialogue":
-            speaker = scene.get("speaker", 0)
-            emoji = SPEAKER_EMOJIS[speaker]
-            align = BUBBLE_ALIGN[speaker]
-            color = BUBBLE_COLORS[speaker]
-
-            bubble_x = 80 if align == "left" else W - 80
-            bubble_y = H // 2 - 100
-
-            display_text = scene["text"][:chars_visible]
-            if display_text:
-                emoji_font = _get_font(80)
-                eb = emoji_font.getbbox(emoji)
-                ew = eb[2] - eb[0]
-                emoji_x = bubble_x - ew // 2 if align == "left" else bubble_x - ew // 2
-                emoji_y = bubble_y - 70
-                draw.text((emoji_x, emoji_y), emoji, font=emoji_font, fill=(255, 255, 255, int(fade * 255)))
-
-                _draw_bubble(draw, display_text, bubble_x, bubble_y, int(bubble_x if align == "left" else W - bubble_x), align, (*color, int(fade * 255)), font if not is_punch else punch_font)
-
-                if is_punch:
-                    sparkle = ["\u2728", "\u2b50", "\U0001f4a5"]
-                    for j, s in enumerate(sparkle):
-                        sx = random.randint(100, W - 100)
-                        sy = random.randint(bubble_y - 80, bubble_y + 200)
-                        sa = int(fade * 255 * max(0, (t - st) % 0.5 / 0.5))
-                        if sa > 0:
-                            draw.text((sx, sy), s, font=_get_font(40), fill=(255, 220, 50, sa))
-
-        elif scene["type"] == "narrative":
-            alpha = int(fade * 255)
-            if alpha > 0:
-                lines = scene["text"].split("\n")
-                line_h = 70
-                total = len(lines) * line_h
-                start_y = (H - total) // 2
-
-                for j, line in enumerate(lines):
-                    y = start_y + j * line_h
-                    lchars = min(len(line), max(0, int(char_speed * local_t) - sum(len(l) for l in lines[:j])))
-                    display = line[:lchars]
-                    if display:
-                        _draw_bubble(draw, display, W // 2 - 150, y, 300, "left", (40, 40, 60, int(alpha * 0.85)), font)
-
-        elif scene["type"] == "punchline":
-            alpha = int(fade * 255)
-            if alpha > 0:
-                bc = alpha * 0.85
-                text = scene["text"][:chars_visible]
-                if text:
-                    bbox = punch_font.getbbox(text)
-                    tw = bbox[2] - bbox[0]
-                    bx = (W - tw) // 2 - 40
-                    by = H // 2 - 80
-                    _draw_rounded_rect(draw, bx, by, bx + tw + 80, by + 160, 30, (60, 30, 30, int(bc)))
-                    for dx, dy in [(-2, 0), (2, 0), (0, -2), (0, 2)]:
-                        _center_text(draw, text, W // 2 + dx + random.randint(-2, 2), H // 2 + dy, punch_font, (255, 180, 30, alpha), shadow_alpha=40)
-                    _center_text(draw, text, W // 2, H // 2, punch_font, (255, 220, 50, alpha), shadow=True, shadow_alpha=80)
+    visible = [(i, st, et) for i, (st, et) in enumerate(scene_times) if st <= t <= et]
 
     hook_dur = 1.2
     if t < hook_dur:
         alpha = int(min(1.0, t / 0.3, (hook_dur - t) / 0.3) * 255)
         if alpha > 0:
-            hook_font = _get_font(120)
-            theme_emoji = _theme_emoji(scenes[0].get("text", "") if scenes else "")
-            hook_text = f"{theme_emoji}  \u0410\u041d\u0415\u041a\u0414\u041e\u0422"
-            bbox = hook_font.getbbox(hook_text)
-            tw = bbox[2] - bbox[0]
-            bx = (W - tw) // 2 - 40
-            by = H // 2 - 80
-            _draw_rounded_rect(draw, bx, by, bx + tw + 80, by + 160, 40, (20, 20, 40, int(alpha * 0.9)))
-            _center_text(draw, hook_text, W // 2, H // 2, hook_font, (255, 255, 200, alpha), shadow=True, shadow_alpha=80)
+            emoji = _theme_emoji(scenes[0]["text"] if scenes else "")
+            theme = _guess_theme_name(scenes[0]["text"] if scenes else "")
+            hook_font = _get_font(110)
+            scale = 0.3 + 0.7 * (t / hook_dur)
+            scaled_size = int(110 * scale)
+            if scaled_size > 30:
+                sf = _get_font(min(110, scaled_size))
+                text = f"{emoji}  \u0410\u041D\u0415\u041A\u0414\u041E\u0422"
+                if theme:
+                    text += f"\n{theme}"
+                lines = text.split("\n")
+                for li, lt in enumerate(lines):
+                    _center_text(draw, lt, W // 2 + sx, H // 2 - 60 + li * 130 + sy, sf, (255, 255, 200, alpha), shadow=True, shadow_alpha=80)
+
+    subtitle_h = 280
+    subtitle_y = H - subtitle_h - 60
+    strip_w = W - 80
+    strip_x = 40
+
+    if visible:
+        vi, st, et = visible[0]
+        scene = scenes[vi]
+        local_t = max(0, t - st)
+        ttl_dur = max(0.5, et - st)
+        fade = min(1.0, local_t / 0.2)
+        is_punch = scene["type"] == "punchline"
+
+        if scene["type"] == "hook":
+            pass
+        elif scene["type"] == "dialogue" or scene["type"] == "punchline":
+            speaker = scene.get("speaker", 0)
+            emoji = SPEAKER_EMOJIS[speaker]
+            name = CHARACTER_NAMES[speaker]
+            color = CHAR_COLORS[speaker]
+            accent = ACCENT_COLORS[speaker]
+
+            if is_punch:
+                speaker = 1 - scene.get("speaker", 0)
+                emoji = "\U0001f923"
+                name = ""
+                color = (200, 150, 50)
+                accent = (255, 220, 50)
+
+            if not is_punch:
+                cpos = (200, 300) if speaker == 0 else (W - 200, 300)
+                _draw_character_circle(draw, cpos[0] + sx, cpos[1] + sy, emoji, name, color)
+
+            alpha = int(fade * 255)
+            if alpha > 0:
+                bg_color = (*color, int(alpha * 0.85))
+                _draw_rounded_rect(draw, strip_x + sx, subtitle_y + sy, strip_x + strip_w + sx, subtitle_y + subtitle_h + sy, 25, bg_color)
+
+                word_idx = _get_word_index(scene["text"], local_t, ttl_dur)
+                text_font = _get_font(56)
+                _draw_subtitle_text(draw, scene["text"], word_idx, text_font, strip_x + 20 + sx, subtitle_y + sy, strip_w - 40, subtitle_h, accent)
+
+                if is_punch and local_t > 0.1:
+                    impact_alpha = int(min(1.0, local_t / 0.15) * 60)
+                    if impact_alpha > 0:
+                        _draw_rounded_rect(draw, 0, 0, W, H, 0, (255, 255, 255, impact_alpha))
+                    sparkles = ["\u2728", "\u2b50", "\U0001f4a5", "\U0001f389"]
+                    for si, s in enumerate(sparkles):
+                        sa = int(fade * 255 * max(0, math.sin((local_t + si * 0.2) * 8)))
+                        if sa > 0:
+                            ssx = random.randint(200, W - 200) + sx
+                            ssy = random.randint(300, H - 300) + sy
+                            draw.text((ssx, ssy), s, font=_get_font(40 + int(random.random() * 20)), fill=(255, 220, 50, sa))
+
+        elif scene["type"] == "narrative":
+            alpha = int(fade * 255)
+            if alpha > 0:
+                bg_color = (60, 60, 80, int(alpha * 0.85))
+                _draw_rounded_rect(draw, strip_x + sx, subtitle_y + sy, strip_x + strip_w + sx, subtitle_y + subtitle_h + sy, 25, bg_color)
+                word_idx = _get_word_index(scene["text"], local_t, ttl_dur)
+                _draw_subtitle_text(draw, scene["text"], word_idx, _get_font(56), strip_x + 20 + sx, subtitle_y + sy, strip_w - 40, subtitle_h, (200, 200, 255))
+
+    bar_h = 5
+    bar_y = H - bar_h - 15
+    bar_w = W - 80
+    bar_x = 40
+    progress = min(1.0, t / max(total_dur, 1))
+    _draw_rounded_rect(draw, bar_x, bar_y, bar_x + bar_w, bar_y + bar_h, 2, (255, 255, 255, 40))
+    fw = int(bar_w * progress)
+    if fw > 0:
+        _draw_rounded_rect(draw, bar_x, bar_y, bar_x + fw, bar_y + bar_h, 2, (255, 215, 0, 200))
 
     outro_start = total_dur - 2.5
     if t > outro_start:
         frac = min(1.0, (t - outro_start) / 0.5)
         alpha = int(frac * 255)
         if alpha > 0:
-            _center_text(draw, "\U0001f447 \u041f\u041e\u0414\u041f\u0418\u0428\u0418\u0421\u042c \U0001f447", W // 2, H // 3, _get_font(90), (255, 200, 50, alpha), shadow=True, shadow_alpha=80)
-            _center_text(draw, "@Anetdodik", W // 2, H // 3 + 130, _get_font(60), (255, 255, 255, alpha), shadow=True, shadow_alpha=60)
-
-    _draw_progress_bar(draw, t, total_dur)
+            _center_text(draw, "\U0001f447 \u041F\u041E\u0414\u041F\u0418\u0428\u0418\u0421\u042c \U0001f447", W // 2 + sx, H // 3 + sy, _get_font(90), (255, 200, 50, alpha), shadow=True, shadow_alpha=80)
+            _center_text(draw, "@Anetdodik", W // 2 + sx, H // 3 + 130 + sy, _get_font(60), (255, 255, 255, alpha), shadow=True, shadow_alpha=60)
 
     frame = Image.alpha_composite(frame, overlay)
     return frame.convert("RGB")
-
-
-def _center_text(draw, text, x, y, font, fill, shadow=False, shadow_alpha=60):
-    bbox = draw.textbbox((0, 0), text, font=font)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    bx = x - tw // 2
-    by = y - th // 2
-    if shadow:
-        r, g, b, a = fill if len(fill) == 4 else (*fill, 255)
-        for dx, dy in [(-3, -3), (3, -3), (-3, 3), (3, 3), (0, -5), (0, 5)]:
-            draw.text((bx + dx, by + dy), text, font=font, fill=(0, 0, 0, min(255, a * shadow_alpha // 100)))
-    draw.text((bx, by), text, font=font, fill=fill)
 
 
 # ── Public ────────────────────────────────────────────────
@@ -580,15 +618,14 @@ def render_short(joke_text: str, output_path: str, hf_token: str = "", cf_accoun
     try:
         result = subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1",
-             str(audio_dir / "voice.mp3")],
+             "-of", "default=noprint_wrappers=1:nokey=1", str(audio_dir / "voice.mp3")],
             capture_output=True, text=True, timeout=15,
         )
         voice_dur = float(result.stdout.strip())
     except Exception:
         voice_dur = max(8, len(joke_text) * 0.08)
 
-    audio_dur = max(voice_dur, 12) + 3.0
+    audio_dur = max(voice_dur, 12) + 2.5
     total_dur = max(12, min(55, audio_dur))
     total_frames = int(total_dur * FPS)
 
@@ -601,36 +638,39 @@ def render_short(joke_text: str, output_path: str, hf_token: str = "", cf_accoun
 
     seg_lens = [len(s["text"]) for s in scenes]
     total_chars = sum(seg_lens) or 1
-    padding_sec = 0.4
+    padding_sec = 0.3
     scene_times = []
-    cur = hook_dur = 1.2
+    cur = 1.2
+    punchline_idx = max(i for i, s in enumerate(scenes) if s["type"] == "punchline") if any(s["type"] == "punchline" for s in scenes) else len(scenes) - 1
+
+    punchline_scene = scenes[punchline_idx]
+    punch_len = len(punchline_scene["text"])
+    non_punch_chars = total_chars - punch_len
+
     for i, seg_len in enumerate(seg_lens):
-        seg_dur = max(0.8, (seg_len / total_chars) * max(voice_dur - cur, 3))
-        end = min(cur + seg_dur + padding_sec, total_dur - 3.0)
-        scene_times.append((cur, end))
-        cur = end + padding_sec * 0.3
+        if i == punchline_idx:
+            seg_dur = max(1.5, (seg_len / max(non_punch_chars, 1)) * max(voice_dur - cur, 1.5))
+            end = min(cur + seg_dur + 0.5, total_dur - 3.0)
+            scene_times.append((cur, end))
+        else:
+            seg_dur = max(1.0, (seg_len / max(non_punch_chars, 1)) * max(voice_dur - cur, 3))
+            end = min(cur + seg_dur + padding_sec, total_dur - 3.0)
+            scene_times.append((cur, end))
+            cur = end + padding_sec * 0.2
+
+    hit_time = scene_times[punchline_idx][0] + 0.1 if punchline_idx < len(scene_times) else None
 
     rng = random.Random()
     particles = [
-        {
-            "x": rng.randint(0, W), "y": rng.randint(0, H),
-            "vx": rng.uniform(-10, 10), "vy": rng.uniform(-20, -5),
-            "radius": rng.randint(2, 4),
-            "freq": rng.uniform(0.5, 2.0),
-            "phase": rng.random() * math.tau,
-        }
+        {"x": rng.randint(0, W), "y": rng.randint(0, H), "vx": rng.uniform(-10, 10), "vy": rng.uniform(-20, -5), "radius": rng.randint(2, 4), "freq": rng.uniform(0.5, 2.0), "phase": rng.random() * math.tau}
         for _ in range(20)
     ]
 
-    logger.info("Rendering %d frames (%.1fs), %d scenes, voice=%.1fs",
-                total_frames, total_dur, len(scenes), voice_dur)
+    logger.info("Rendering %d frames (%.1fs), %d scenes, voice=%.1fs", total_frames, total_dur, len(scenes), voice_dur)
 
     for f_idx in range(total_frames):
         t = f_idx / FPS
-        img = _render_frame(
-            t, total_dur, scenes, scene_times,
-            palette, particles, background=hf_bg,
-        )
+        img = _render_frame(t, total_dur, scenes, scene_times, palette, particles, sfx_hit_t=hit_time, background=hf_bg)
         img.save(frame_dir / f"f_{f_idx:06d}.png")
 
     voice_path = audio_dir / "voice.mp3"
@@ -662,15 +702,11 @@ def render_short(joke_text: str, output_path: str, hf_token: str = "", cf_accoun
         "ffmpeg", "-y", *inputs,
         *(["-filter_complex", ";".join(filter_chains)] if filter_chains else []),
         *output_maps,
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-preset", "fast",
-        "-crf", "22",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-preset", "fast", "-crf", "22",
         "-movflags", "+faststart",
-        "-c:a", "aac",
-        "-b:a", "128k",
-        "-shortest",
-        output_path,
+        "-c:a", "aac", "-b:a", "128k",
+        "-shortest", output_path,
     ]
 
     try:
@@ -705,33 +741,22 @@ def upload_short(
 
     try:
         creds = Credentials(
-            token=None,
-            refresh_token=refresh_token,
+            token=None, refresh_token=refresh_token,
             token_uri="https://oauth2.googleapis.com/token",
-            client_id=client_id,
-            client_secret=client_secret,
+            client_id=client_id, client_secret=client_secret,
             scopes=["https://www.googleapis.com/auth/youtube.upload"],
         )
         youtube = build("youtube", "v3", credentials=creds, cache_discovery=False)
         body = {
             "snippet": {
                 "title": title[:100],
-                "description": (
-                    description + "\n\n\u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C: https://t.me/Anetdodik"
-                ).strip()[:5000],
+                "description": (description + "\n\n\u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C: https://t.me/Anetdodik").strip()[:5000],
                 "tags": ["\u0430\u043D\u0435\u043A\u0434\u043E\u0442", "\u044E\u043C\u043E\u0440", "shorts", "\u0441\u043C\u0435\u0448\u043D\u043E\u0435"],
             },
-            "status": {
-                "privacyStatus": privacy_status,
-                "selfDeclaredMadeForKids": False,
-            },
+            "status": {"privacyStatus": privacy_status, "selfDeclaredMadeForKids": False},
         }
         media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
-        request = youtube.videos().insert(
-            part="snippet,status",
-            body=body,
-            media_body=media,
-        )
+        request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
         response = request.execute()
         video_id = response["id"]
         logger.info("Uploaded short: https://youtu.be/%s (privacy: %s)", video_id, privacy_status)
