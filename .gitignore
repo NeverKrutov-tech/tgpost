@@ -28,3 +28,6 @@ build/
 # OS
 Thumbs.db
 .DS_Store
+
+data/music/*.mp3
+data/music/*.wav
