@@ -51,5 +51,20 @@ jobs:
       - name: Seed shorts candidate
         run: python scripts/seed_shorts.py
 
+      - name: Read Friday prompt marker
+        run: |
+          MARKER=$(gh variable get FRIDAY_PROMPT_MARKER --repo ${{ github.repository }} 2>/dev/null || echo "")
+          echo "FRIDAY_PROMPT_MARKER=$MARKER" >> $GITHUB_ENV
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Publish joke
         run: python -m src.tg_autopost publish
+
+      - name: Save Friday prompt marker
+        run: |
+          if [ -f data/friday_marker.txt ]; then
+            gh variable set FRIDAY_PROMPT_MARKER --repo ${{ github.repository }} --body "$(cat data/friday_marker.txt)"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}

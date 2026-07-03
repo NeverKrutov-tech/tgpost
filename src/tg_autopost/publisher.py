@@ -1,6 +1,7 @@
 import datetime
 import html
 import logging
+import os
 import random
 from pathlib import Path
 
@@ -232,6 +233,7 @@ class TelegramPublisher:
         msg_id = result.get("result", {}).get("message_id")
         if msg_id:
             self.db.set_meta(f"special_friday_prompt_msgid_{datetime.datetime.today().strftime('%Y-%m-%d')}", str(msg_id))
+        Path("data/friday_marker.txt").write_text(datetime.datetime.today().strftime("%Y-%m-%d"))
         logger.info("Published Friday prompt (msg_id=%s)", msg_id)
         return True
 
@@ -549,6 +551,9 @@ class TelegramPublisher:
 
     def _friday_prompt_posted_today(self) -> bool:
         today_str = datetime.datetime.today().strftime("%Y-%m-%d")
+        if os.environ.get("FRIDAY_PROMPT_MARKER") == today_str:
+            logger.info("Friday prompt already posted (verified via GitHub Variable)")
+            return True
         msg_id_key = f"special_friday_prompt_msgid_{today_str}"
         stored_msg_id = self.db.get_meta(msg_id_key)
         if stored_msg_id:
