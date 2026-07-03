@@ -227,9 +227,12 @@ class TelegramPublisher:
             f"@{bot_username}\n\n"
             "\u041B\u0443\u0447\u0448\u0438\u0439 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u043C \u0432 \u0441\u0443\u0431\u0431\u043E\u0442\u0443 \u0441 \u0443\u043A\u0430\u0437\u0430\u043D\u0438\u0435\u043C \u0430\u0432\u0442\u043E\u0440\u0430!"
         )
-        self._post_message({"chat_id": self.settings.channel_id, "text": text, "parse_mode": "HTML"})
         self.db.mark_special_post("friday_prompt")
-        logger.info("Published Friday prompt")
+        result = self._post_message({"chat_id": self.settings.channel_id, "text": text, "parse_mode": "HTML"})
+        msg_id = result.get("result", {}).get("message_id")
+        if msg_id:
+            self.db.set_meta(f"special_friday_prompt_msgid_{datetime.datetime.today().strftime('%Y-%m-%d')}", str(msg_id))
+        logger.info("Published Friday prompt (msg_id=%s)", msg_id)
         return True
 
     def _send_quiz_answer(self) -> bool:
@@ -466,6 +469,7 @@ class TelegramPublisher:
                 f"{chr(10).join(author_lines)}"
             )
         result += "\n\n#\u0434\u0430\u0439\u0434\u0436\u0435\u0441\u0442 #\u043B\u0443\u0447\u0448\u0435\u0435"
+        self.db.mark_special_post("sunday_digest")
         self._post_message({
             "chat_id": self.settings.channel_id,
             "text": result,
@@ -543,6 +547,34 @@ class TelegramPublisher:
             return True
         return False
 
+    def _friday_prompt_posted_today(self) -> bool:
+        try:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{self.settings.bot_token}/getUpdates",
+                json={"allowed_updates": ["channel_post"], "limit": 10},
+                timeout=15,
+            )
+            data = resp.json()
+            if not data.get("ok"):
+                return False
+            today_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+            day_start = today_ts - (today_ts % 86400)
+            for update in data.get("result", []):
+                post = update.get("channel_post", {})
+                chat_id = str(post.get("chat", {}).get("id", ""))
+                if chat_id != str(self.settings.channel_id):
+                    continue
+                post_date = post.get("date", 0)
+                if post_date < day_start:
+                    continue
+                text = post.get("text", "") or post.get("caption", "")
+                if "\U0001F4DD" in text and "\u041F\u044F\u0442\u043D\u0438\u0447\u043D\u044B\u0439" in text:
+                    return True
+            return False
+        except Exception as e:
+            logger.warning("Telegram Friday prompt check failed: %s", e)
+            return False
+
     def publish_next(self) -> bool:
         today = datetime.datetime.today()
         rubric = get_today_rubric()
@@ -572,11 +604,13 @@ class TelegramPublisher:
 
         if today.weekday() in SUNDAY_DIGEST_DAYS and not self.db.has_special_post_today("sunday_digest"):
             if self._send_weekly_digest():
-                self.db.mark_special_post("sunday_digest")
                 return True
 
-        if today.weekday() in FRIDAY_PROMPT_DAYS and not self.db.has_special_post_today("friday_prompt"):
-            return self._send_friday_prompt()
+        if today.weekday() in FRIDAY_PROMPT_DAYS:
+            if self._friday_prompt_posted_today():
+                logger.info("Friday prompt already posted today (verified via Telegram channel)")
+            elif not self.db.has_special_post_today("friday_prompt"):
+                return self._send_friday_prompt()
 
         if post_number % BATTLE_EVERY == 0 and post_number > 0:
             return self._handle_battle(rubric)
