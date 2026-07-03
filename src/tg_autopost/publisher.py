@@ -551,8 +551,8 @@ class TelegramPublisher:
 
     def _friday_prompt_posted_today(self) -> bool:
         today_str = datetime.datetime.today().strftime("%Y-%m-%d")
-        if os.environ.get("FRIDAY_PROMPT_MARKER") == today_str:
-            logger.info("Friday prompt already posted (verified via GitHub Variable)")
+        if os.environ.get("FRIDAY_MARKER") == today_str:
+            logger.info("Friday prompt already posted (verified via repo marker file)")
             return True
         msg_id_key = f"special_friday_prompt_msgid_{today_str}"
         stored_msg_id = self.db.get_meta(msg_id_key)

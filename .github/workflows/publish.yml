@@ -53,18 +53,24 @@ jobs:
 
       - name: Read Friday prompt marker
         run: |
-          MARKER=$(gh variable get FRIDAY_PROMPT_MARKER --repo ${{ github.repository }} 2>/dev/null || echo "")
-          echo "FRIDAY_PROMPT_MARKER=$MARKER" >> $GITHUB_ENV
-        env:
-          GH_TOKEN: ${{ github.token }}
+          if [ -f data/friday_marker.txt ]; then
+            echo "FRIDAY_MARKER=$(cat data/friday_marker.txt)" >> $GITHUB_ENV
+          fi
+
+      - name: Set Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Publish joke
         run: python -m src.tg_autopost publish
 
-      - name: Save Friday prompt marker
+      - name: Commit Friday prompt marker
         run: |
           if [ -f data/friday_marker.txt ]; then
-            gh variable set FRIDAY_PROMPT_MARKER --repo ${{ github.repository }} --body "$(cat data/friday_marker.txt)"
+            git add data/friday_marker.txt
+            if ! git diff --cached --quiet; then
+              git commit -m "chore: update Friday prompt marker [skip ci]"
+              git push
+            fi
           fi
-        env:
-          GH_TOKEN: ${{ github.token }}
