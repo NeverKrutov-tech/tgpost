@@ -8,6 +8,7 @@ import requests
 
 from .config import Settings
 from .database import Database
+from .handlers import PollingHandler
 from .image_gen import fits_in_image, generate_joke_image, generate_repost_card
 from .levels import get_level
 from .rubrics import classify_emoji, get_hashtags, get_preamble, get_today_rubric, is_jubilee
@@ -226,6 +227,7 @@ class TelegramPublisher:
             "\u041B\u0443\u0447\u0448\u0438\u0439 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u043C \u0432 \u0441\u0443\u0431\u0431\u043E\u0442\u0443 \u0441 \u0443\u043A\u0430\u0437\u0430\u043D\u0438\u0435\u043C \u0430\u0432\u0442\u043E\u0440\u0430!"
         )
         self._post_message({"chat_id": self.settings.channel_id, "text": text, "parse_mode": "HTML"})
+        self.db.mark_special_post("friday_prompt")
         logger.info("Published Friday prompt")
         return True
 
@@ -335,11 +337,13 @@ class TelegramPublisher:
         if split is None:
             return False
         part1, part2 = split
-        p1_hash = joke.content_hash + "_p1"
+        original_hash = joke.content_hash
+        p1_hash = original_hash + "_p1"
         self.db.save_pending_part(
-            joke.content_hash, part2, joke.source_name,
-            joke.external_id + "_p2", joke.content_hash + "_p2",
+            original_hash, part2, joke.source_name,
+            joke.external_id + "_p2", original_hash + "_p2",
         )
+        self.db.mark_published(original_hash)
         joke.text = part1.strip()
         joke.content_hash = p1_hash
         return self._send_text(joke, rubric, "\u0427\u0438\u0442\u0430\u0439\u0442\u0435 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u043C \u0432\u044B\u043F\u0443\u0441\u043A\u0435:")
@@ -535,6 +539,13 @@ class TelegramPublisher:
         today = datetime.datetime.today()
         rubric = get_today_rubric()
 
+        try:
+            handler = PollingHandler(self.settings, self.db)
+            handler.poll_once()
+            logger.info("Processed pending bot updates")
+        except Exception:
+            logger.exception("Failed to poll bot updates")
+
         self._welcome_new_members()
 
         if self.db.count_pending_quiz() > 0:
@@ -551,11 +562,12 @@ class TelegramPublisher:
 
         post_number = self.db.count_published() + 1
 
-        if today.weekday() in SUNDAY_DIGEST_DAYS and self.db.count_published_today() == 0:
+        if today.weekday() in SUNDAY_DIGEST_DAYS and not self.db.has_special_post_today("sunday_digest"):
             if self._send_weekly_digest():
+                self.db.mark_special_post("sunday_digest")
                 return True
 
-        if today.weekday() in FRIDAY_PROMPT_DAYS and self.db.count_published_today() == 0:
+        if today.weekday() in FRIDAY_PROMPT_DAYS and not self.db.has_special_post_today("friday_prompt"):
             return self._send_friday_prompt()
 
         if post_number % BATTLE_EVERY == 0 and post_number > 0:

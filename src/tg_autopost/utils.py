@@ -5,6 +5,7 @@ import re
 WHITESPACE_RE = re.compile(r"\s+")
 PUNCTUATION_RE = re.compile(r"[\u2010-\u2015]")
 QUOTES_RE = re.compile(r"[\u00AB\u00BB\u2018\u2019\u201A\u201B\u201C\u201D\u201E]")
+ALL_PUNCTUATION_RE = re.compile(r"[\u0021-\u002F\u003A-\u0040\u005B-\u0060\u007B-\u007E\u2010-\u2015\u2018-\u201D\u00AB\u00BB]")
 
 
 def normalize_text(text: str) -> str:
@@ -31,3 +32,10 @@ def normalize_text(text: str) -> str:
 def build_hash(text: str) -> str:
     normalized = normalize_text(text).lower()
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def dedup_key(text: str) -> str:
+    result = ALL_PUNCTUATION_RE.sub(" ", text)
+    result = WHITESPACE_RE.sub(" ", result).strip()
+    result = result.lower()
+    return result

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .models import Joke
-from .utils import build_hash
+from .utils import build_hash, dedup_key
 
 
 CREATE_TABLE_SQL = """
@@ -160,55 +160,64 @@ class Database:
             )
             return cursor.rowcount > 0
 
-    def get_next_unpublished(self) -> Joke | None:
+    def _get_published_dedup_keys(self) -> set[str]:
         with self.connect() as connection:
-            row = connection.execute(
+            rows = connection.execute(
+                "SELECT text FROM jokes WHERE published_at IS NOT NULL"
+            ).fetchall()
+        return {dedup_key(row["text"]) for row in rows}
+
+    def get_next_unpublished(self) -> Joke | None:
+        published_keys = self._get_published_dedup_keys()
+        with self.connect() as connection:
+            rows = connection.execute(
                 """
                 SELECT text, source_name, source_url, external_id, content_hash, source_views, created_at, published_at
                 FROM jokes
                 WHERE published_at IS NULL
                 ORDER BY RANDOM()
-                LIMIT 1
                 """
-            ).fetchone()
+            ).fetchall()
 
-        if row is None:
-            return None
-
-        return Joke(
-            text=row["text"],
-            source_name=row["source_name"],
-            source_url=row["source_url"],
-            external_id=row["external_id"],
-            content_hash=row["content_hash"],
-            source_views=row["source_views"],
-            created_at=datetime.fromisoformat(row["created_at"]),
-            published_at=datetime.fromisoformat(row["published_at"]) if row["published_at"] else None,
-        )
+        for row in rows:
+            if dedup_key(row["text"]) not in published_keys:
+                return Joke(
+                    text=row["text"],
+                    source_name=row["source_name"],
+                    source_url=row["source_url"],
+                    external_id=row["external_id"],
+                    content_hash=row["content_hash"],
+                    source_views=row["source_views"],
+                    created_at=datetime.fromisoformat(row["created_at"]),
+                    published_at=datetime.fromisoformat(row["published_at"]) if row["published_at"] else None,
+                )
+        return None
 
     def get_next_popular_unpublished(self) -> Joke | None:
+        published_keys = self._get_published_dedup_keys()
         with self.connect() as connection:
-            row = connection.execute(
+            rows = connection.execute(
                 """
                 SELECT text, source_name, source_url, external_id, content_hash, source_views, created_at, published_at
                 FROM jokes
                 WHERE published_at IS NULL AND source_views > 0
                 ORDER BY source_views DESC, RANDOM()
-                LIMIT 1
                 """
-            ).fetchone()
-        if row is None:
-            return None
-        return Joke(
-            text=row["text"],
-            source_name=row["source_name"],
-            source_url=row["source_url"],
-            external_id=row["external_id"],
-            content_hash=row["content_hash"],
-            source_views=row["source_views"],
-        )
+            ).fetchall()
+        for row in rows:
+            if dedup_key(row["text"]) not in published_keys:
+                return Joke(
+                    text=row["text"],
+                    source_name=row["source_name"],
+                    source_url=row["source_url"],
+                    external_id=row["external_id"],
+                    content_hash=row["content_hash"],
+                    source_views=row["source_views"],
+                )
+        return None
 
     def get_next_unpublished_matching(self, keywords: list[str], max_batch: int = 200) -> Joke | None:
+        published_keys = self._get_published_dedup_keys()
         with self.connect() as connection:
             rows = connection.execute(
                 """
@@ -222,6 +231,8 @@ class Database:
             ).fetchall()
 
         for row in rows:
+            if dedup_key(row["text"]) in published_keys:
+                continue
             text_lower = row["text"].lower()
             if not keywords or any(kw.lower() in text_lower for kw in keywords):
                 return Joke(
@@ -246,15 +257,16 @@ class Database:
         now = datetime.now(timezone.utc).isoformat()
         removed = 0
         with self.connect() as connection:
-            rows = connection.execute(
-                "SELECT content_hash, text FROM jokes WHERE published_at IS NULL ORDER BY created_at"
+            all_rows = connection.execute(
+                "SELECT content_hash, text, published_at FROM jokes ORDER BY created_at"
             ).fetchall()
             seen: set[str] = set()
-            for row in rows:
-                key = build_hash(row["text"])
+            for row in all_rows:
+                key = dedup_key(row["text"])
                 if key in seen:
-                    connection.execute("UPDATE jokes SET published_at = ? WHERE content_hash = ?", (now, row["content_hash"]))
-                    removed += 1
+                    if row["published_at"] is None:
+                        connection.execute("UPDATE jokes SET published_at = ? WHERE content_hash = ?", (now, row["content_hash"]))
+                        removed += 1
                 else:
                     seen.add(key)
         return removed
@@ -281,6 +293,23 @@ class Database:
                 (today + "%",),
             ).fetchone()
             return int(row["count"])
+
+    def mark_special_post(self, post_type: str) -> None:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        with self.connect() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO channel_meta (key, value) VALUES (?, ?)",
+                (f"special_{post_type}_{today}", "1"),
+            )
+
+    def has_special_post_today(self, post_type: str) -> bool:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT value FROM channel_meta WHERE key = ?",
+                (f"special_{post_type}_{today}",),
+            ).fetchone()
+            return row is not None
 
     def get_recent_published(self, limit: int = 3, days: int = 7) -> list[Joke]:
         cutoff = datetime.now(timezone.utc).isoformat()

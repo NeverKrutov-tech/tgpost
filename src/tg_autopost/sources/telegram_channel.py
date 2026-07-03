@@ -22,6 +22,16 @@ SKIP_PATTERNS = [
     re.compile(r"^\d+$"),
 ]
 
+AD_PHRASES = [
+    "\u0447\u0438\u0442\u0430\u0442\u044C \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435",
+    "\u0447\u0438\u0442\u0430\u0439\u0442\u0435 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435",
+    "\u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432",
+    "\u043F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C",
+    "\u043F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C \u043D\u0430",
+    "\u0440\u0435\u043A\u043B\u0430\u043C\u0430",
+    "\u0440\u0435\u043A\u043B\u0430\u043C\u043D\u044B\u0439 \u043F\u043E\u0441\u0442",
+]
+
 MIN_LENGTH = 30
 MAX_LENGTH = 3000
 
@@ -63,6 +73,8 @@ class TelegramChannelSource(JokeSource):
                     continue
                 if msg.select_one("a.tgme_widget_message_link_preview"):
                     continue
+                if msg.select_one("a.tgme_widget_message_inline_button_url"):
+                    continue
 
                 text_div = msg.select_one("div.tgme_widget_message_text")
                 if text_div is None:
@@ -72,6 +84,9 @@ class TelegramChannelSource(JokeSource):
                 if not raw_text or len(raw_text) < MIN_LENGTH or len(raw_text) > MAX_LENGTH:
                     continue
                 if any(p.search(raw_text) for p in SKIP_PATTERNS):
+                    continue
+                raw_lower = raw_text.lower()
+                if any(phrase in raw_lower for phrase in AD_PHRASES):
                     continue
 
                 text = normalize_text(raw_text)
