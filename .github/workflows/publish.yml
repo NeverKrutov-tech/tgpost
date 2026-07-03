@@ -65,9 +65,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Publish joke
+        continue-on-error: true
         run: python -m src.tg_autopost publish
 
       - name: Commit Friday prompt marker
+        if: always()
         continue-on-error: true
         run: |
           if [ -f data/friday_marker.txt ]; then

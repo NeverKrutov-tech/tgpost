@@ -228,10 +228,10 @@ class TelegramPublisher:
             f"@{bot_username}\n\n"
             "\u041B\u0443\u0447\u0448\u0438\u0439 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u043C \u0432 \u0441\u0443\u0431\u0431\u043E\u0442\u0443 \u0441 \u0443\u043A\u0430\u0437\u0430\u043D\u0438\u0435\u043C \u0430\u0432\u0442\u043E\u0440\u0430!"
         )
-        self.db.mark_special_post("friday_prompt")
         result = self._post_message({"chat_id": self.settings.channel_id, "text": text, "parse_mode": "HTML"})
         msg_id = result.get("result", {}).get("message_id")
         if msg_id:
+            self.db.mark_special_post("friday_prompt")
             self.db.set_meta(f"special_friday_prompt_msgid_{datetime.datetime.today().strftime('%Y-%m-%d')}", str(msg_id))
         Path("data/friday_marker.txt").write_text(datetime.datetime.today().strftime("%Y-%m-%d"))
         logger.info("Published Friday prompt (msg_id=%s)", msg_id)
