@@ -14,6 +14,7 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 
 from .image_gen import FONT_PATH
+from .music_fetcher import ensure_music
 
 logger = logging.getLogger(__name__)
 
@@ -559,6 +560,7 @@ def _center_text(draw, text, x, y, font, fill, shadow=False, shadow_alpha=60):
 
 def render_short(joke_text: str, output_path: str, hf_token: str = "", cf_account_id: str = "", cf_api_token: str = "") -> bool:
     SHORTS_DIR.mkdir(parents=True, exist_ok=True)
+    ensure_music()
     frame_dir = SHORTS_DIR / "frames"
     audio_dir = SHORTS_DIR / "audio"
     frame_dir.mkdir(exist_ok=True)
