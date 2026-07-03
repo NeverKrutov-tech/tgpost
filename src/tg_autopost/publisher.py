@@ -548,28 +548,56 @@ class TelegramPublisher:
         return False
 
     def _friday_prompt_posted_today(self) -> bool:
+        today_str = datetime.datetime.today().strftime("%Y-%m-%d")
+        msg_id_key = f"special_friday_prompt_msgid_{today_str}"
+        stored_msg_id = self.db.get_meta(msg_id_key)
+        if stored_msg_id:
+            try:
+                resp = requests.post(
+                    f"https://api.telegram.org/bot{self.settings.bot_token}/editMessageReplyMarkup",
+                    json={"chat_id": self.settings.channel_id, "message_id": int(stored_msg_id)},
+                    timeout=10,
+                )
+                if resp.json().get("ok"):
+                    logger.info("Friday prompt verified via stored message_id %s", stored_msg_id)
+                    return True
+            except Exception:
+                pass
+
         try:
-            resp = requests.post(
-                f"https://api.telegram.org/bot{self.settings.bot_token}/getUpdates",
-                json={"allowed_updates": ["channel_post"], "limit": 10},
-                timeout=15,
-            )
-            data = resp.json()
-            if not data.get("ok"):
-                return False
             today_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
             day_start = today_ts - (today_ts % 86400)
-            for update in data.get("result", []):
-                post = update.get("channel_post", {})
-                chat_id = str(post.get("chat", {}).get("id", ""))
-                if chat_id != str(self.settings.channel_id):
-                    continue
-                post_date = post.get("date", 0)
-                if post_date < day_start:
-                    continue
-                text = post.get("text", "") or post.get("caption", "")
-                if "\U0001F4DD" in text and "\u041F\u044F\u0442\u043D\u0438\u0447\u043D\u044B\u0439" in text:
-                    return True
+            logger.info("Scanning getUpdates for Friday prompt (day_start=%s)", day_start)
+            for page in range(50):
+                resp = requests.post(
+                    f"https://api.telegram.org/bot{self.settings.bot_token}/getUpdates",
+                    json={"allowed_updates": ["channel_post"], "limit": 100},
+                    timeout=25,
+                )
+                data = resp.json()
+                if not data.get("ok"):
+                    logger.warning("getUpdates failed: %s", data.get("description", "unknown"))
+                    return False
+                updates = data.get("result", [])
+                if not updates:
+                    logger.info("getUpdates scan complete: no more updates after %d pages", page)
+                    break
+                logger.info("getUpdates page %d: got %d channel_post updates", page, len(updates))
+                for update in updates:
+                    post = update.get("channel_post", {})
+                    if not post:
+                        continue
+                    chat_id = str(post.get("chat", {}).get("id", ""))
+                    if chat_id != str(self.settings.channel_id):
+                        continue
+                    post_date = post.get("date", 0)
+                    if post_date < day_start:
+                        continue
+                    text = post.get("text", "") or post.get("caption", "")
+                    if "\U0001F4DD" in text and "\u041F\u044F\u0442\u043D\u0438\u0447\u043D\u044B\u0439" in text:
+                        logger.info("Friday prompt found in getUpdates at update_id=%s, date=%s", update["update_id"], post_date)
+                        return True
+            logger.info("getUpdates scan complete: checked %d pages, Friday prompt not found", page)
             return False
         except Exception as e:
             logger.warning("Telegram Friday prompt check failed: %s", e)
