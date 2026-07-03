@@ -32,7 +32,7 @@ PALETTES = [
 ]
 
 SPEAKER_EMOJIS = ["\U0001f9d1", "\U0001f468\u200d\U00002694\ufe0f"]
-BUBBLE_COLORS = [(50, 70, 120, 200), (80, 50, 100, 200)]
+BUBBLE_COLORS = [(50, 70, 120), (80, 50, 100)]
 BUBBLE_ALIGN = ["left", "right"]
 
 
