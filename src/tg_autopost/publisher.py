@@ -7,6 +7,7 @@ from pathlib import Path
 import requests
 
 from .config import Settings
+from .content_filter import is_flagged
 from .database import Database
 from .handlers import PollingHandler
 from .image_gen import fits_in_image, generate_joke_image, generate_repost_card
@@ -516,6 +517,12 @@ class TelegramPublisher:
         if not candidates:
             return False
         joke = candidates[0]
+
+        if is_flagged(joke["text"]):
+            self.db.delete_shorts_candidate(joke["id"])
+            logger.warning("Skipping flagged joke for short: %s ...", joke["text"].replace("\n", " ")[:60])
+            return False
+
         output = Path("data/shorts") / f"short_{joke['id']}.mp4"
         if not render_short(joke["text"], str(output), hf_token=self.settings.hf_token, cf_account_id=self.settings.cf_account_id, cf_api_token=self.settings.cf_api_token):
             return False
@@ -527,11 +534,12 @@ class TelegramPublisher:
             refresh_token=self.settings.youtube_refresh_token,
             client_id=self.settings.youtube_client_id,
             client_secret=self.settings.youtube_client_secret,
+            privacy_status="private",
         )
         output.unlink(missing_ok=True)
         if vid:
             self.db.delete_shorts_candidate(joke["id"])
-            logger.info("Auto-posted short: https://youtu.be/%s", vid)
+            logger.info("Posted short: https://youtu.be/%s", vid)
             return True
         return False
 

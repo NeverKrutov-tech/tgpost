@@ -528,6 +528,7 @@ def render_short(joke_text: str, output_path: str, hf_token: str = "", cf_accoun
 def upload_short(
     video_path: str, title: str, description: str,
     refresh_token: str, client_id: str, client_secret: str,
+    privacy_status: str = "private",
 ) -> str | None:
     try:
         from google.oauth2.credentials import Credentials
@@ -556,7 +557,7 @@ def upload_short(
                 "tags": ["анекдот", "юмор", "shorts", "смешное"],
             },
             "status": {
-                "privacyStatus": "public",
+                "privacyStatus": privacy_status,
                 "selfDeclaredMadeForKids": False,
             },
         }
@@ -568,7 +569,7 @@ def upload_short(
         )
         response = request.execute()
         video_id = response["id"]
-        logger.info("Uploaded short: https://youtu.be/%s", video_id)
+        logger.info("Uploaded short: https://youtu.be/%s (privacy: %s)", video_id, privacy_status)
         return video_id
     except Exception as e:
         logger.exception("Failed to upload short")
