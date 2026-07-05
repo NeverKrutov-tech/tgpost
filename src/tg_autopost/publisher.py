@@ -438,6 +438,39 @@ class TelegramPublisher:
         prev = self.db.get_meta("member_count", "0")
         return int(prev) if prev else 0
 
+    def _digest_posted_today(self) -> bool:
+        today_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        day_start = today_ts - (today_ts % 86400)
+        try:
+            for page in range(50):
+                resp = requests.post(
+                    f"https://api.telegram.org/bot{self.settings.bot_token}/getUpdates",
+                    json={"allowed_updates": ["channel_post"], "limit": 100},
+                    timeout=25,
+                )
+                data = resp.json()
+                if not data.get("ok"):
+                    return False
+                updates = data.get("result", [])
+                if not updates:
+                    break
+                for update in updates:
+                    post = update.get("channel_post", {})
+                    if not post:
+                        continue
+                    chat_id = str(post.get("chat", {}).get("id", ""))
+                    if chat_id != str(self.settings.channel_id):
+                        continue
+                    post_date = post.get("date", 0)
+                    if post_date < day_start:
+                        continue
+                    text = post.get("text", "") or post.get("caption", "")
+                    if "#\u0434\u0430\u0439\u0434\u0436\u0435\u0441\u0442" in text:
+                        return True
+        except Exception:
+            pass
+        return False
+
     def _send_weekly_digest(self) -> bool:
         jokes = self.db.get_recent_published(limit=3, days=7)
         if not jokes:
@@ -467,16 +500,16 @@ class TelegramPublisher:
                 display = f"@{a['username']}" if a["username"] else a["name"]
                 author_lines.append(f"<b>{i}.</b> {html.escape(display)} \u2014 {a['jokes_count']}")
             result += (
-                f"\n\n\U0001F3C6 <b>\u0422\u043E\u043F \u0430\u0432\u0442\u043E\u0440\u043E\u0432</b>\n"
+                f"\n\n\U0001F3C6 <b>\u0422\u041E\u041F \u0430\u0432\u0442\u043E\u0440\u043E\u0432</b>\n"
                 f"{chr(10).join(author_lines)}"
             )
         result += "\n\n#\u0434\u0430\u0439\u0434\u0436\u0435\u0441\u0442 #\u043B\u0443\u0447\u0448\u0435\u0435"
-        self.db.mark_special_post("sunday_digest")
         self._post_message({
             "chat_id": self.settings.channel_id,
             "text": result,
             "parse_mode": "HTML",
         })
+        self.db.mark_special_post("sunday_digest")
         return True
 
     def _handle_youtube(self) -> bool:
@@ -635,8 +668,10 @@ class TelegramPublisher:
 
         post_number = self.db.count_published() + 1
 
-        if today.weekday() in SUNDAY_DIGEST_DAYS and not self.db.has_special_post_today("sunday_digest"):
-            if self._send_weekly_digest():
+        if today.weekday() in SUNDAY_DIGEST_DAYS:
+            if self._digest_posted_today():
+                logger.info("Sunday digest already posted today (verified via Telegram)")
+            elif self._send_weekly_digest():
                 return True
 
         if today.weekday() in FRIDAY_PROMPT_DAYS:

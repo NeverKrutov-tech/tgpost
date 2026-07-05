@@ -21,7 +21,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: data/jokes.db
-          key: jokes-db-v1
+          key: jokes-db-v1-${{ github.run_id }}
+          restore-keys: |
+            jokes-db-v1
 
       - name: Install dependencies
         run: pip install -r requirements.txt

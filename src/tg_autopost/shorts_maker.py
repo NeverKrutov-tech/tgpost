@@ -129,17 +129,17 @@ TOPIC_PROMPTS: list[tuple[list[str], str]] = [
 ]
 
 THEME_SCENES = {
-    "\u0440\u0430\u0431\u043E\u0442\u0430": "modern office interior with desks, soft natural lighting, professional atmosphere",
-    "\u0432\u0440\u0430\u0447": "clean hospital corridor, medical equipment, white walls, clinical lighting",
-    "\u0441\u0435\u043C\u044C": "cozy home living room, warm lamp light, comfortable armchair, fireplace",
-    "\u0430\u0440\u043C\u0438": "military barracks, camouflage nets, morning sunlight, army atmosphere",
-    "\u0432\u043E\u0434\u043A\u0430": "russian pub interior, wooden tables, dim warm lighting, rustic atmosphere",
-    "\u0448\u043A\u043E\u043B": "empty classroom, wooden desks, chalkboard, sunlight through window",
-    "\u043A\u043E\u0442": "sunlit room with a sleeping cat on a windowsill, peaceful atmosphere",
-    "\u0434\u0435\u043D\u044C\u0433": "luxury office interior, modern furniture, city view through window",
+    "\u0440\u0430\u0431\u043E\u0442\u0430": "modern open-plan office, rows of desks with monitors, large windows, soft natural daylight, ergonomic chairs, potted plants, professional atmosphere, 8k, photorealistic, highly detailed",
+    "\u0432\u0440\u0430\u0447": "clean hospital corridor, white walls, medical equipment on carts, fluorescent ceiling lights, sterile clinical atmosphere, reflective floor, 8k, photorealistic, highly detailed",
+    "\u0441\u0435\u043C\u044C": "cozy living room, warm amber lamp light, plush leather armchair, stone fireplace with crackling fire, family photos on walls, soft blankets, intimate atmosphere, 8k, photorealistic, highly detailed",
+    "\u0430\u0440\u043C\u0438": "military barracks interior, metal bunk beds, camouflage netting, morning sunlight through dusty windows, footlockers, tactical gear, gritty atmosphere, 8k, photorealistic, highly detailed",
+    "\u0432\u043E\u0434\u043A\u0430": "traditional Russian pub, dark wooden tables and benches, dim warm candlelight, vaulted brick ceiling, samovar on counter, rustic atmospheric, 8k, photorealistic, highly detailed",
+    "\u0448\u043A\u043E\u043B": "empty classroom, rows of wooden desks, large green chalkboard with chalk dust, sunlight streaming through tall windows, dust motes dancing, academic atmosphere, 8k, photorealistic, highly detailed",
+    "\u043A\u043E\u0442": "sunlit bedroom, cat sleeping on windowsill, sheer curtains filtering golden light, cozy blankets, peaceful morning atmosphere, 8k, photorealistic, highly detailed",
+    "\u0434\u0435\u043D\u044C\u0433": "luxury corner office, floor-to-ceiling windows with panoramic city view, sleek modern furniture, marble floor, ambient LED lighting, wealthy atmosphere, 8k, photorealistic, highly detailed",
 }
 
-DEFAULT_PROMPT = "cozy interior room, warm lighting, comfortable atmosphere, cinematic, highly detailed, 4k"
+DEFAULT_PROMPT = "cozy interior room, warm ambient lighting, comfortable furniture, cinematic composition, photorealistic, highly detailed, 8k, masterpiece"
 
 
 def _guess_theme(joke_text: str) -> str:
