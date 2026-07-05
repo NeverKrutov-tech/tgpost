@@ -439,33 +439,22 @@ class TelegramPublisher:
         return int(prev) if prev else 0
 
     def _digest_posted_today(self) -> bool:
-        today_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
-        day_start = today_ts - (today_ts % 86400)
+        today_str = datetime.datetime.today().strftime("%Y-%m-%d")
+        if os.environ.get("SUNDAY_DIGEST_MARKER") == today_str:
+            logger.info("Sunday digest already posted today (verified via repo marker file)")
+            return True
         try:
-            for page in range(50):
-                resp = requests.post(
-                    f"https://api.telegram.org/bot{self.settings.bot_token}/getUpdates",
-                    json={"allowed_updates": ["channel_post"], "limit": 100},
-                    timeout=25,
-                )
-                data = resp.json()
-                if not data.get("ok"):
-                    return False
-                updates = data.get("result", [])
-                if not updates:
-                    break
-                for update in updates:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{self.settings.bot_token}/getUpdates",
+                json={"allowed_updates": ["channel_post"], "limit": 1},
+                timeout=15,
+            )
+            data = resp.json()
+            if data.get("ok"):
+                for update in data.get("result", []):
                     post = update.get("channel_post", {})
-                    if not post:
-                        continue
-                    chat_id = str(post.get("chat", {}).get("id", ""))
-                    if chat_id != str(self.settings.channel_id):
-                        continue
-                    post_date = post.get("date", 0)
-                    if post_date < day_start:
-                        continue
-                    text = post.get("text", "") or post.get("caption", "")
-                    if "#\u0434\u0430\u0439\u0434\u0436\u0435\u0441\u0442" in text:
+                    if post.get("text") and "#\u0434\u0430\u0439\u0434\u0436\u0435\u0441\u0442" in post.get("text", ""):
+                        logger.info("Sunday digest found in recent getUpdates")
                         return True
         except Exception:
             pass
@@ -510,6 +499,7 @@ class TelegramPublisher:
             "parse_mode": "HTML",
         })
         self.db.mark_special_post("sunday_digest")
+        Path("data/sunday_digest_marker.txt").write_text(datetime.datetime.today().strftime("%Y-%m-%d"))
         return True
 
     def _handle_youtube(self) -> bool:

@@ -59,6 +59,12 @@ jobs:
             echo "FRIDAY_MARKER=$(cat data/friday_marker.txt)" >> $GITHUB_ENV
           fi
 
+      - name: Read Sunday digest marker
+        run: |
+          if [ -f data/sunday_digest_marker.txt ]; then
+            echo "SUNDAY_DIGEST_MARKER=$(cat data/sunday_digest_marker.txt)" >> $GITHUB_ENV
+          fi
+
       - name: Set Git user
         run: |
           git config user.name "github-actions[bot]"
@@ -72,10 +78,9 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          if [ -f data/friday_marker.txt ]; then
-            git add data/friday_marker.txt
-            if ! git diff --cached --quiet; then
-              git commit -m "chore: update Friday prompt marker [skip ci]"
-              git push
-            fi
+          [ -f data/friday_marker.txt ] && git add data/friday_marker.txt
+          [ -f data/sunday_digest_marker.txt ] && git add data/sunday_digest_marker.txt
+          if ! git diff --cached --quiet 2>/dev/null; then
+            git commit -m "chore: update markers [skip ci]"
+            git push
           fi
