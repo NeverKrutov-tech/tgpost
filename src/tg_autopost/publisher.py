@@ -658,11 +658,12 @@ class TelegramPublisher:
 
         post_number = self.db.count_published() + 1
 
-        if today.weekday() in SUNDAY_DIGEST_DAYS:
-            if self._digest_posted_today():
-                logger.info("Sunday digest already posted today (verified via Telegram)")
-            elif self._send_weekly_digest():
-                return True
+        # TODO: re-enable after fixing dedup
+        #if today.weekday() in SUNDAY_DIGEST_DAYS:
+        #    if self._digest_posted_today():
+        #        logger.info("Sunday digest already posted today (verified via Telegram)")
+        #    elif self._send_weekly_digest():
+        #        return True
 
         if today.weekday() in FRIDAY_PROMPT_DAYS:
             if self._friday_prompt_posted_today():
