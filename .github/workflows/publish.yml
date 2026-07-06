@@ -18,12 +18,12 @@ jobs:
 
       - name: Restore DB from cache
         id: cache-db
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: data/jokes.db
-          key: jokes-db-v1-${{ github.run_id }}
+          key: jokes-db-v1
           restore-keys: |
-            jokes-db-v1
+            jokes-db-v1-
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -73,6 +73,14 @@ jobs:
       - name: Publish joke
         continue-on-error: true
         run: python -m src.tg_autopost publish
+
+      - name: Save DB to cache
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: data/jokes.db
+          key: jokes-db-v1-${{ github.run_id }}
 
       - name: Commit Friday prompt marker
         if: always()
