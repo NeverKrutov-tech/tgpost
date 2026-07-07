@@ -132,14 +132,17 @@ class TelegramPublisher:
     def _bot_link(self) -> str:
         return f"https://t.me/{self._get_bot_username()}"
 
-    def _pick_locked_content(self, part2: str | None = None) -> str:
-        if part2:
-            return part2
-        joke = self.db.get_next_unpublished()
-        return joke.text if joke else "\u0421\u043A\u043E\u0440\u043E \u043D\u043E\u0432\u044B\u0439 \u0430\u043D\u0435\u043A\u0434\u043E\u0442!"
+    def _split_for_locked(self, text: str) -> tuple[str, str]:
+        lines = text.strip().split("\n")
+        if len(lines) >= 4:
+            split_at = max(2, len(lines) * 2 // 3)
+            return "\n".join(lines[:split_at]), "\n".join(lines[split_at:])
+        if len(lines) >= 2:
+            return "\n".join(lines[:-1]), lines[-1]
+        return text, f"\U0001F517 \u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432 \u043A\u0430\u043D\u0430\u043B\u0435!"
 
-    def _save_locked(self, joke_hash: str, part2: str | None = None) -> int:
-        return self.db.save_locked_content(joke_hash, self._pick_locked_content(part2))
+    def _save_locked(self, joke_hash: str, locked: str) -> int:
+        return self.db.save_locked_content(joke_hash, locked)
 
     def _build_keyboard(self, locked_content_id: int | None = None) -> dict:
         buttons = []
@@ -326,8 +329,9 @@ class TelegramPublisher:
 
     def _send_text(self, joke, rubric: dict, preamble_override: str = "", is_part2: bool = False, locked_content: str | None = None) -> int:
         post_number = self.db.count_published() + 1
-        text = _build_text(joke.text, rubric, post_number, preamble_override, is_part2, self.settings.channel_link)
-        locked_id = self._save_locked(joke.content_hash, locked_content)
+        public_text, locked = (joke.text, locked_content) if locked_content else self._split_for_locked(joke.text)
+        text = _build_text(public_text, rubric, post_number, preamble_override, is_part2, self.settings.channel_link)
+        locked_id = self._save_locked(joke.content_hash, locked)
         payload = {
             "chat_id": self.settings.channel_id,
             "text": text,
@@ -351,9 +355,10 @@ class TelegramPublisher:
 
     def _send_image(self, joke, rubric: dict) -> bool:
         post_number = self.db.count_published() + 1
-        image_path = generate_joke_image(joke.text, post_number, rubric_name=rubric.get("name"))
+        public_text, locked = self._split_for_locked(joke.text)
+        image_path = generate_joke_image(public_text, post_number, rubric_name=rubric.get("name"))
         caption = _build_caption(post_number, self.settings.channel_link)
-        locked_id = self._save_locked(joke.content_hash)
+        locked_id = self._save_locked(joke.content_hash, locked)
 
         with open(image_path, "rb") as f:
             response = requests.post(
@@ -420,9 +425,10 @@ class TelegramPublisher:
 
     def _send_repost_card(self, joke) -> bool:
         post_number = self.db.count_published() + 1
-        image_path = generate_repost_card(joke.text)
+        public_text, locked = self._split_for_locked(joke.text)
+        image_path = generate_repost_card(public_text)
         caption = _build_caption(post_number, self.settings.channel_link)
-        locked_id = self._save_locked(joke.content_hash)
+        locked_id = self._save_locked(joke.content_hash, locked)
         with open(image_path, "rb") as f:
             response = requests.post(
                 f"https://api.telegram.org/bot{self.settings.bot_token}/sendPhoto",
