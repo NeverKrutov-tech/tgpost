@@ -1,18 +1,10 @@
 import argparse
 import logging
 import sys
-import threading
-
-from apscheduler.schedulers.blocking import BlockingScheduler
 
 from .config import load_settings
 from .database import Database
 from .handlers import PollingHandler
-from .ingest import JokeIngestor
-from .publisher import TelegramPublisher
-from .sources.anekdot_ru import AnekdotRuSource
-from .sources.anekdotov_net import AnekdotovNetSource
-from .sources.telegram_channel import TelegramChannelSource
 
 
 def configure_logging() -> None:
@@ -27,7 +19,13 @@ def configure_logging() -> None:
     )
 
 
-def build_services() -> tuple[object, Database, JokeIngestor, TelegramPublisher]:
+def build_services():
+    from .ingest import JokeIngestor
+    from .publisher import TelegramPublisher
+    from .sources.anekdot_ru import AnekdotRuSource
+    from .sources.anekdotov_net import AnekdotovNetSource
+    from .sources.telegram_channel import TelegramChannelSource
+
     settings = load_settings()
     db = Database(settings.database_path)
     sources: list = [
@@ -59,6 +57,9 @@ def run_ingest_and_publish() -> None:
 
 
 def run_scheduler() -> None:
+    from apscheduler.schedulers.blocking import BlockingScheduler
+    import threading
+
     settings = load_settings()
     db = Database(settings.database_path)
 
@@ -80,9 +81,16 @@ def run_scheduler() -> None:
     scheduler.start()
 
 
+def run_bot() -> None:
+    settings = load_settings()
+    db = Database(settings.database_path)
+    handler = PollingHandler(settings, db)
+    handler.run_forever()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Telegram joke autoposting service")
-    parser.add_argument("command", nargs="?", default="run", choices=["run", "ingest", "publish"])
+    parser.add_argument("command", nargs="?", default="run", choices=["run", "ingest", "publish", "bot"])
     args = parser.parse_args()
 
     configure_logging()
@@ -91,6 +99,8 @@ def main() -> int:
         run_ingest()
     elif args.command == "publish":
         run_publish()
+    elif args.command == "bot":
+        run_bot()
     else:
         run_scheduler()
 

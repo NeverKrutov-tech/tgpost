@@ -2,7 +2,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Tuple
 
 from .models import Joke
 from .utils import build_hash, dedup_key
@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS pending_parts (
     source_name TEXT NOT NULL,
     external_id TEXT NOT NULL,
     content_hash TEXT NOT NULL,
+    part1_msg_id INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 """
@@ -86,6 +87,15 @@ CREATE TABLE IF NOT EXISTS shorts_candidates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     text TEXT NOT NULL,
     source TEXT NOT NULL DEFAULT 'battle',
+    created_at TEXT NOT NULL
+);
+"""
+
+LOCKED_CONTENT_SQL = """
+CREATE TABLE IF NOT EXISTS locked_content (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    joke_hash TEXT NOT NULL,
+    content TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
 """
@@ -141,12 +151,16 @@ class Database:
             connection.execute(AUTHORS_TABLE_SQL)
             connection.execute(TIPS_TABLE_SQL)
             connection.execute(SHORTS_TABLE_SQL)
+            connection.execute(LOCKED_CONTENT_SQL)
             self._migrate(connection)
 
     def _migrate(self, connection: sqlite3.Connection) -> None:
         cols = [row[1] for row in connection.execute("PRAGMA table_info(jokes)").fetchall()]
         if "source_views" not in cols:
             connection.execute("ALTER TABLE jokes ADD COLUMN source_views INTEGER NOT NULL DEFAULT 0")
+        pending_cols = [row[1] for row in connection.execute("PRAGMA table_info(pending_parts)").fetchall()]
+        if "part1_msg_id" not in pending_cols:
+            connection.execute("ALTER TABLE pending_parts ADD COLUMN part1_msg_id INTEGER NOT NULL DEFAULT 0")
 
     def insert_joke(self, joke: Joke) -> bool:
         now = datetime.now(timezone.utc).isoformat()
@@ -342,32 +356,51 @@ class Database:
                 break
         return result
 
-    def save_pending_part(self, part1_hash: str, text: str, source_name: str, external_id: str, content_hash: str) -> None:
+    def save_pending_part(self, part1_hash: str, text: str, source_name: str, external_id: str, content_hash: str, part1_msg_id: int = 0) -> None:
         now = datetime.now(timezone.utc).isoformat()
         with self.connect() as connection:
             connection.execute(
-                "INSERT OR IGNORE INTO pending_parts (part1_hash, text, source_name, external_id, content_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (part1_hash, text, source_name, external_id, content_hash, now),
+                "INSERT OR IGNORE INTO pending_parts (part1_hash, text, source_name, external_id, content_hash, part1_msg_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (part1_hash, text, source_name, external_id, content_hash, part1_msg_id, now),
             )
 
-    def get_pending_part(self) -> Joke | None:
+    def get_pending_part(self) -> Tuple["Joke", int] | None:
         with self.connect() as connection:
             row = connection.execute(
-                "SELECT text, source_name, external_id, content_hash FROM pending_parts ORDER BY created_at LIMIT 1"
+                "SELECT text, source_name, external_id, content_hash, part1_msg_id FROM pending_parts ORDER BY created_at LIMIT 1"
             ).fetchone()
         if row is None:
             return None
-        return Joke(
-            text=row["text"],
-            source_name=row["source_name"],
-            source_url="",
-            external_id=row["external_id"] + "_part2",
-            content_hash=row["content_hash"],
+        return (
+            Joke(
+                text=row["text"],
+                source_name=row["source_name"],
+                source_url="",
+                external_id=row["external_id"] + "_part2",
+                content_hash=row["content_hash"],
+            ),
+            row["part1_msg_id"],
         )
 
     def delete_pending_part(self, content_hash: str) -> None:
         with self.connect() as connection:
             connection.execute("DELETE FROM pending_parts WHERE content_hash = ?", (content_hash,))
+
+    def save_locked_content(self, joke_hash: str, content: str) -> int:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connect() as connection:
+            cursor = connection.execute(
+                "INSERT INTO locked_content (joke_hash, content, created_at) VALUES (?, ?, ?)",
+                (joke_hash, content, now),
+            )
+            return int(cursor.lastrowid)
+
+    def get_locked_content(self, content_id: int) -> str | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT content FROM locked_content WHERE id = ?", (content_id,)
+            ).fetchone()
+        return row["content"] if row else None
 
     def save_submitted_joke(self, text: str, author_id: int, author_username: str | None, author_name: str | None) -> int:
         now = datetime.now(timezone.utc).isoformat()

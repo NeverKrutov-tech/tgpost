@@ -197,6 +197,14 @@ class PollingHandler:
                         "\u26A0\uFE0F Не удалось создать платёж. Попробуй позже.",
                     )
                 return
+            if text.startswith("/start cont_"):
+                try:
+                    content_id = int(text.split("cont_", 1)[1].split()[0])
+                except (ValueError, IndexError):
+                    _send_message(self.settings.bot_token, chat_id, START_TEXT)
+                    return
+                self._handle_locked_content(chat_id, uid, content_id)
+                return
             _send_message(self.settings.bot_token, chat_id, START_TEXT)
             return
 
@@ -309,6 +317,35 @@ class PollingHandler:
         )
 
         self._notify_admin(joke_id, text, uid, username, full_name)
+
+    def _handle_locked_content(self, chat_id: int, user_id: int, content_id: int) -> None:
+        content = self.db.get_locked_content(content_id)
+        if content is None:
+            _send_message(self.settings.bot_token, chat_id, "\u274C \u041A\u043E\u043D\u0442\u0435\u043D\u0442 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D.")
+            return
+        try:
+            resp = _api_call(self.settings.bot_token, "getChatMember", {
+                "chat_id": self.settings.channel_id,
+                "user_id": user_id,
+            })
+            if resp and resp.get("ok"):
+                status = resp.get("result", {}).get("status", "")
+                if status in ("member", "administrator", "creator"):
+                    _send_message(self.settings.bot_token, chat_id, content)
+                    return
+        except Exception:
+            logger.exception("Failed to check chat member")
+        link = self.settings.channel_link
+        _send_message(
+            self.settings.bot_token, chat_id,
+            "\U0001F512 \u042D\u0442\u043E\u0442 \u043A\u043E\u043D\u0442\u0435\u043D\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E\u0434\u043F\u0438\u0441\u0447\u0438\u043A\u0430\u043C \u043A\u0430\u043D\u0430\u043B\u0430.\n"
+            "\u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C, \u0447\u0442\u043E\u0431\u044B \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u0442\u044C \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435!",
+            reply_markup={
+                "inline_keyboard": [
+                    [{"text": "\U0001F447 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F", "url": link}]
+                ]
+            },
+        )
 
     def _notify_admin(self, joke_id: int, text: str, author_id: int, username: str | None, name: str | None) -> None:
         admin_id = self.settings.admin_id

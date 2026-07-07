@@ -22,6 +22,7 @@ class Settings:
     hf_token: str = ""
     cf_account_id: str = ""
     cf_api_token: str = ""
+    kie_api_key: str = ""
 
 
 def load_settings() -> Settings:
@@ -58,4 +59,5 @@ def load_settings() -> Settings:
         hf_token=os.getenv("HF_TOKEN", "").strip(),
         cf_account_id=os.getenv("CF_ACCOUNT_ID", "").strip(),
         cf_api_token=os.getenv("CF_API_TOKEN", "").strip(),
+        kie_api_key=os.getenv("KIE_API_KEY", "").strip(),
     )

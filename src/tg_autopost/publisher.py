@@ -1,5 +1,6 @@
 import datetime
 import html
+import json
 import logging
 import os
 import random
@@ -42,7 +43,7 @@ def _split_two_part(text: str) -> tuple[str, str] | None:
     return "\n\n".join(parts[:mid]), "\n\n".join(parts[mid:])
 
 
-def _build_text(joke_text: str, rubric: dict, post_number: int, preamble_override: str = "", is_part2: bool = False) -> str:
+def _build_text(joke_text: str, rubric: dict, post_number: int, preamble_override: str = "", is_part2: bool = False, channel_link: str = "") -> str:
     topic_emoji = rubric["emoji"]
     content_emoji = classify_emoji(joke_text)
     emoji_line = f"{topic_emoji} {content_emoji}".strip()
@@ -56,17 +57,30 @@ def _build_text(joke_text: str, rubric: dict, post_number: int, preamble_overrid
         header = "<i>\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435:</i>\n"
     body = f"{header}{safe_text}" if header else safe_text
     hashtags = get_hashtags(joke_text)
-    return f"<b>{emoji_line}</b>\n\n{body}\n\n{hashtags}"
+    signature = ""
+    if channel_link:
+        name = channel_link.rstrip("/").rsplit("/", 1)[-1]
+        signature = f"\n— <a href=\"{channel_link}\">@{name}</a>"
+    return f"<b>{emoji_line}</b>\n\n{body}\n\n{hashtags}{signature}"
 
 
-def _build_observation(text: str) -> str:
+def _build_observation(text: str, channel_link: str = "") -> str:
     safe_text = html.escape(text)
     hashtags = get_hashtags(text)
-    return f"\U0001F914 <b>\u041D\u0430\u0431\u043B\u044E\u0434\u0435\u043D\u0438\u0435</b>\n\n{safe_text}\n\n{hashtags}"
+    signature = ""
+    if channel_link:
+        name = channel_link.rstrip("/").rsplit("/", 1)[-1]
+        signature = f"\n— <a href=\"{channel_link}\">@{name}</a>"
+    return f"\U0001F914 <b>\u041D\u0430\u0431\u043B\u044E\u0434\u0435\u043D\u0438\u0435</b>\n\n{safe_text}\n\n{hashtags}{signature}"
 
 
-def _build_caption(post_number: int) -> str:
+def _build_caption(post_number: int, channel_link: str = "") -> str:
     jubilee = is_jubilee(post_number)
+    if channel_link:
+        name = channel_link.rstrip("/").rsplit("/", 1)[-1]
+        if jubilee:
+            jubilee += "\n"
+        jubilee += f"— <a href=\"{channel_link}\">@{name}</a>"
     return jubilee
 
 
@@ -111,6 +125,32 @@ class TelegramPublisher:
             ]
         }
 
+    def _channel_username(self) -> str:
+        link = self.settings.channel_link
+        return link.rstrip("/").rsplit("/", 1)[-1] if link else ""
+
+    def _bot_link(self) -> str:
+        return f"https://t.me/{self._get_bot_username()}"
+
+    def _pick_locked_content(self, part2: str | None = None) -> str:
+        if part2:
+            return part2
+        joke = self.db.get_next_unpublished()
+        return joke.text if joke else "\u0421\u043A\u043E\u0440\u043E \u043D\u043E\u0432\u044B\u0439 \u0430\u043D\u0435\u043A\u0434\u043E\u0442!"
+
+    def _save_locked(self, joke_hash: str, part2: str | None = None) -> int:
+        return self.db.save_locked_content(joke_hash, self._pick_locked_content(part2))
+
+    def _build_keyboard(self, locked_content_id: int | None = None) -> dict:
+        buttons = []
+        if locked_content_id:
+            bot_link = self._bot_link()
+            buttons.append([{"text": "\U0001F517 \u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435", "url": f"{bot_link}?start=cont_{locked_content_id}"}])
+        share = self._share_button()
+        if share:
+            buttons.extend(share["inline_keyboard"])
+        return {"inline_keyboard": buttons}
+
     def _welcome_new_members(self) -> None:
         try:
             current = self._get_member_count()
@@ -135,10 +175,9 @@ class TelegramPublisher:
         except Exception:
             logger.exception("Failed to check member count")
 
-    def _post_message(self, payload: dict) -> dict:
-        share = self._share_button()
-        if share and "reply_markup" not in payload:
-            payload["reply_markup"] = share
+    def _post_message(self, payload: dict, locked_content_id: int | None = None) -> dict:
+        if "reply_markup" not in payload:
+            payload["reply_markup"] = self._build_keyboard(locked_content_id)
         response = requests.post(
             f"https://api.telegram.org/bot{self.settings.bot_token}/sendMessage",
             json=payload,
@@ -285,25 +324,26 @@ class TelegramPublisher:
         logger.info("Published quiz prompt for joke: %s", joke.external_id)
         return True
 
-    def _send_text(self, joke, rubric: dict, preamble_override: str = "", is_part2: bool = False) -> bool:
+    def _send_text(self, joke, rubric: dict, preamble_override: str = "", is_part2: bool = False, locked_content: str | None = None) -> int:
         post_number = self.db.count_published() + 1
-        text = _build_text(joke.text, rubric, post_number, preamble_override, is_part2)
+        text = _build_text(joke.text, rubric, post_number, preamble_override, is_part2, self.settings.channel_link)
+        locked_id = self._save_locked(joke.content_hash, locked_content)
         payload = {
             "chat_id": self.settings.channel_id,
             "text": text,
             "parse_mode": "HTML",
         }
-        self._post_message(payload)
+        data = self._post_message(payload, locked_content_id=locked_id)
         self.db.mark_published(joke.content_hash)
         logger.info("Published text joke: %s", joke.external_id)
         if not is_part2 and random.random() < DICE_RATIO:
             self._send_dice()
-        return True
+        return data["result"]["message_id"]
 
     def _send_observation(self, text: str) -> bool:
         payload = {
             "chat_id": self.settings.channel_id,
-            "text": _build_observation(text),
+            "text": _build_observation(text, self.settings.channel_link),
             "parse_mode": "HTML",
         }
         self._post_message(payload)
@@ -312,12 +352,13 @@ class TelegramPublisher:
     def _send_image(self, joke, rubric: dict) -> bool:
         post_number = self.db.count_published() + 1
         image_path = generate_joke_image(joke.text, post_number, rubric_name=rubric.get("name"))
-        caption = _build_caption(post_number)
+        caption = _build_caption(post_number, self.settings.channel_link)
+        locked_id = self._save_locked(joke.content_hash)
 
         with open(image_path, "rb") as f:
             response = requests.post(
                 f"https://api.telegram.org/bot{self.settings.bot_token}/sendPhoto",
-                data={"chat_id": self.settings.channel_id, "caption": caption},
+                data={"chat_id": self.settings.channel_id, "caption": caption, "reply_markup": json.dumps(self._build_keyboard(locked_id))},
                 files={"photo": f},
                 timeout=self.settings.http_timeout,
             )
@@ -345,14 +386,11 @@ class TelegramPublisher:
         part1, part2 = split
         original_hash = joke.content_hash
         p1_hash = original_hash + "_p1"
-        self.db.save_pending_part(
-            original_hash, part2, joke.source_name,
-            joke.external_id + "_p2", original_hash + "_p2",
-        )
         self.db.mark_published(original_hash)
         joke.text = part1.strip()
         joke.content_hash = p1_hash
-        return self._send_text(joke, rubric, "\u0427\u0438\u0442\u0430\u0439\u0442\u0435 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u043C \u0432\u044B\u043F\u0443\u0441\u043A\u0435:")
+        self._send_text(joke, rubric, "\u0427\u0438\u0442\u0430\u0439\u0442\u0435 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u043C \u0432\u044B\u043F\u0443\u0441\u043A\u0435:", locked_content=part2.strip())
+        return True
 
     def _handle_battle(self, rubric: dict) -> bool:
         joke1 = self.db.get_next_unpublished()
@@ -383,11 +421,12 @@ class TelegramPublisher:
     def _send_repost_card(self, joke) -> bool:
         post_number = self.db.count_published() + 1
         image_path = generate_repost_card(joke.text)
-        caption = _build_caption(post_number)
+        caption = _build_caption(post_number, self.settings.channel_link)
+        locked_id = self._save_locked(joke.content_hash)
         with open(image_path, "rb") as f:
             response = requests.post(
                 f"https://api.telegram.org/bot{self.settings.bot_token}/sendPhoto",
-                data={"chat_id": self.settings.channel_id, "caption": caption},
+                data={"chat_id": self.settings.channel_id, "caption": caption, "reply_markup": json.dumps(self._build_keyboard(locked_id))},
                 files={"photo": f},
                 timeout=self.settings.http_timeout,
             )
@@ -553,7 +592,7 @@ class TelegramPublisher:
             return False
 
         output = Path("data/shorts") / f"short_{joke['id']}.mp4"
-        if not render_short(joke["text"], str(output), hf_token=self.settings.hf_token, cf_account_id=self.settings.cf_account_id, cf_api_token=self.settings.cf_api_token):
+        if not render_short(joke["text"], str(output), kie_api_key=self.settings.kie_api_key):
             return False
         preview = joke["text"].replace("\n", " ")[:80].rstrip() + "\u2026"
         vid = upload_short(
@@ -646,12 +685,6 @@ class TelegramPublisher:
 
         if self.db.count_pending_quiz() > 0:
             return self._send_quiz_answer()
-
-        pending = self.db.get_pending_part()
-        if pending:
-            result = self._send_text(pending, rubric, is_part2=True)
-            self.db.delete_pending_part(pending.content_hash)
-            return result
 
         if self.db.count_approved_submissions() > 0:
             return self._send_subscriber_joke()
