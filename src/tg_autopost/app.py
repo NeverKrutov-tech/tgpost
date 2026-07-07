@@ -27,7 +27,7 @@ def build_services():
     from .sources.telegram_channel import TelegramChannelSource
 
     settings = load_settings()
-    db = Database(settings.database_path)
+    db = Database(settings.database_url or settings.database_path)
     sources: list = [
         AnekdotRuSource(timeout=settings.http_timeout),
         AnekdotovNetSource(timeout=settings.http_timeout),
@@ -61,7 +61,7 @@ def run_scheduler() -> None:
     import threading
 
     settings = load_settings()
-    db = Database(settings.database_path)
+    db = Database(settings.database_url or settings.database_path)
 
     handler = PollingHandler(settings, db)
     polling_thread = threading.Thread(target=handler.run_forever, daemon=True)
@@ -83,7 +83,7 @@ def run_scheduler() -> None:
 
 def run_bot() -> None:
     settings = load_settings()
-    db = Database(settings.database_path)
+    db = Database(settings.database_url or settings.database_path)
     handler = PollingHandler(settings, db)
     handler.run_forever()
 

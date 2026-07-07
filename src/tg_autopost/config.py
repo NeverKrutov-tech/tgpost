@@ -13,6 +13,7 @@ class Settings:
     post_interval_hours: int = 2
     fetch_limit: int = 30
     database_path: str = "data/jokes.db"
+    database_url: str = ""
     http_timeout: int = 20
     youtube_api_key: str = ""
     youtube_channel_id: str = ""
@@ -50,6 +51,7 @@ def load_settings() -> Settings:
         post_interval_hours=int(os.getenv("POST_INTERVAL_HOURS", "2")),
         fetch_limit=int(os.getenv("FETCH_LIMIT", "30")),
         database_path=os.getenv("DATABASE_PATH", "data/jokes.db"),
+        database_url=os.getenv("DATABASE_URL", "").strip(),
         http_timeout=int(os.getenv("HTTP_TIMEOUT", "20")),
         youtube_api_key=os.getenv("YOUTUBE_API_KEY", "").strip(),
         youtube_channel_id=os.getenv("YOUTUBE_CHANNEL_ID", "").strip(),

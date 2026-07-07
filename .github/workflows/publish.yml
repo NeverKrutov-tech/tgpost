@@ -46,6 +46,7 @@ jobs:
           echo "HF_TOKEN=${{ secrets.HF_TOKEN }}" >> .env
           echo "CF_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }}" >> .env
           echo "CF_API_TOKEN=${{ secrets.CF_API_TOKEN }}" >> .env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
 
       - name: Ingest jokes
         run: python -m src.tg_autopost ingest
