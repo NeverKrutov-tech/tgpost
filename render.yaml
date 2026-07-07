@@ -1,10 +1,10 @@
 services:
-  - type: worker
+  - type: web
     name: tgpost-bot
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python -m src.tg_autopost bot
+    startCommand: python -m src.tg_autopost.render_web
     envVars:
       - key: BOT_TOKEN
         sync: false
