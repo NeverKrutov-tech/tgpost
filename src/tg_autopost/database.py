@@ -7,6 +7,8 @@ from typing import Iterator, Tuple
 from .models import Joke
 from .utils import build_hash, dedup_key
 
+PUBLISHED_KEYS_FILE = "data/published_keys.txt"
+
 
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS jokes (
@@ -174,12 +176,39 @@ class Database:
             )
             return cursor.rowcount > 0
 
+    def _load_published_keys_file(self) -> set[str]:
+        path = Path(PUBLISHED_KEYS_FILE)
+        if not path.exists():
+            return set()
+        try:
+            keys = {
+                line.strip()
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            }
+            return keys
+        except Exception:
+            return set()
+
+    def _append_published_key(self, key: str) -> None:
+        if not key:
+            return
+        path = Path(PUBLISHED_KEYS_FILE)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with path.open("a", encoding="utf-8") as f:
+                f.write(key + "\n")
+        except Exception:
+            pass
+
     def _get_published_dedup_keys(self) -> set[str]:
         with self.connect() as connection:
             rows = connection.execute(
                 "SELECT text FROM jokes WHERE published_at IS NOT NULL"
             ).fetchall()
-        return {dedup_key(row["text"]) for row in rows}
+        keys = {dedup_key(row["text"]) for row in rows}
+        keys |= self._load_published_keys_file()
+        return keys
 
     def get_next_unpublished(self) -> Joke | None:
         published_keys = self._get_published_dedup_keys()
@@ -262,6 +291,11 @@ class Database:
     def mark_published(self, content_hash: str) -> None:
         published_at = datetime.now(timezone.utc).isoformat()
         with self.connect() as connection:
+            row = connection.execute(
+                "SELECT text FROM jokes WHERE content_hash = ?", (content_hash,)
+            ).fetchone()
+            if row is not None:
+                self._append_published_key(dedup_key(row["text"]))
             connection.execute(
                 "UPDATE jokes SET published_at = ? WHERE content_hash = ?",
                 (published_at, content_hash),
@@ -451,6 +485,11 @@ class Database:
     def mark_submission_published(self, joke_id: int) -> None:
         now = datetime.now(timezone.utc).isoformat()
         with self.connect() as connection:
+            row = connection.execute(
+                "SELECT text FROM submitted_jokes WHERE id = ?", (joke_id,)
+            ).fetchone()
+            if row is not None:
+                self._append_published_key(dedup_key(row["text"]))
             connection.execute(
                 "UPDATE submitted_jokes SET published_at = ? WHERE id = ?",
                 (now, joke_id),
@@ -474,6 +513,11 @@ class Database:
     def mark_reaction_published(self, reaction_id: int) -> None:
         now = datetime.now(timezone.utc).isoformat()
         with self.connect() as connection:
+            row = connection.execute(
+                "SELECT text FROM reactions WHERE id = ?", (reaction_id,)
+            ).fetchone()
+            if row is not None:
+                self._append_published_key(dedup_key(row["text"]))
             connection.execute(
                 "UPDATE reactions SET published_at = ? WHERE id = ?", (now, reaction_id)
             )
