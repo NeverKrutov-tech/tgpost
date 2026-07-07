@@ -132,26 +132,14 @@ class TelegramPublisher:
     def _bot_link(self) -> str:
         return f"https://t.me/{self._get_bot_username()}"
 
-    def _split_for_locked(self, text: str) -> tuple[str, str]:
-        lines = text.strip().split("\n")
-        if len(lines) >= 4:
-            split_at = max(2, len(lines) * 2 // 3)
-            return "\n".join(lines[:split_at]), "\n".join(lines[split_at:])
-        if len(lines) >= 2:
-            return "\n".join(lines[:-1]), lines[-1]
-        return text, f"\U0001F517 \u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432 \u043A\u0430\u043D\u0430\u043B\u0435!"
-
-    def _save_locked(self, joke_hash: str, locked: str) -> int:
-        return self.db.save_locked_content(joke_hash, locked)
-
-    def _build_keyboard(self, locked_content_id: int | None = None) -> dict:
+    def _build_keyboard(self) -> dict:
         buttons = []
-        if locked_content_id:
-            bot_link = self._bot_link()
-            buttons.append([{"text": "\U0001F517 \u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435", "url": f"{bot_link}?start=cont_{locked_content_id}"}])
         share = self._share_button()
         if share:
             buttons.extend(share["inline_keyboard"])
+        # Subscribe button
+        if self.settings.channel_link:
+            buttons.append([{"text": "\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F", "url": self.settings.channel_link}])
         return {"inline_keyboard": buttons}
 
     def _welcome_new_members(self) -> None:
@@ -178,9 +166,9 @@ class TelegramPublisher:
         except Exception:
             logger.exception("Failed to check member count")
 
-    def _post_message(self, payload: dict, locked_content_id: int | None = None) -> dict:
+    def _post_message(self, payload: dict) -> dict:
         if "reply_markup" not in payload:
-            payload["reply_markup"] = self._build_keyboard(locked_content_id)
+            payload["reply_markup"] = self._build_keyboard()
         payload.setdefault("disable_web_page_preview", True)
         response = requests.post(
             f"https://api.telegram.org/bot{self.settings.bot_token}/sendMessage",
@@ -328,17 +316,15 @@ class TelegramPublisher:
         logger.info("Published quiz prompt for joke: %s", joke.external_id)
         return True
 
-    def _send_text(self, joke, rubric: dict, preamble_override: str = "", is_part2: bool = False, locked_content: str | None = None) -> int:
+    def _send_text(self, joke, rubric: dict, preamble_override: str = "", is_part2: bool = False) -> int:
         post_number = self.db.count_published() + 1
-        public_text, locked = (joke.text, locked_content) if locked_content else self._split_for_locked(joke.text)
-        text = _build_text(public_text, rubric, post_number, preamble_override, is_part2, self.settings.channel_link)
-        locked_id = self._save_locked(joke.content_hash, locked)
+        text = _build_text(joke.text, rubric, post_number, preamble_override, is_part2, self.settings.channel_link)
         payload = {
             "chat_id": self.settings.channel_id,
             "text": text,
             "parse_mode": "HTML",
         }
-        data = self._post_message(payload, locked_content_id=locked_id)
+        data = self._post_message(payload)
         self.db.mark_published(joke.content_hash)
         logger.info("Published text joke: %s", joke.external_id)
         if not is_part2 and random.random() < DICE_RATIO:
@@ -356,15 +342,13 @@ class TelegramPublisher:
 
     def _send_image(self, joke, rubric: dict) -> bool:
         post_number = self.db.count_published() + 1
-        public_text, locked = self._split_for_locked(joke.text)
-        image_path = generate_joke_image(public_text, post_number, rubric_name=rubric.get("name"))
+        image_path = generate_joke_image(joke.text, post_number, rubric_name=rubric.get("name"))
         caption = _build_caption(post_number, self.settings.channel_link)
-        locked_id = self._save_locked(joke.content_hash, locked)
 
         with open(image_path, "rb") as f:
             response = requests.post(
                 f"https://api.telegram.org/bot{self.settings.bot_token}/sendPhoto",
-                data={"chat_id": self.settings.channel_id, "caption": caption, "reply_markup": json.dumps(self._build_keyboard(locked_id))},
+                data={"chat_id": self.settings.channel_id, "caption": caption, "reply_markup": json.dumps(self._build_keyboard())},
                 files={"photo": f},
                 timeout=self.settings.http_timeout,
             )
@@ -389,13 +373,10 @@ class TelegramPublisher:
         split = _split_two_part(joke.text)
         if split is None:
             return False
-        part1, part2 = split
-        original_hash = joke.content_hash
-        p1_hash = original_hash + "_p1"
-        self.db.mark_published(original_hash)
+        part1, _part2 = split
+        self.db.mark_published(joke.content_hash)
         joke.text = part1.strip()
-        joke.content_hash = p1_hash
-        self._send_text(joke, rubric, "\u0427\u0438\u0442\u0430\u0439\u0442\u0435 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u043C \u0432\u044B\u043F\u0443\u0441\u043A\u0435:", locked_content=part2.strip())
+        self._send_text(joke, rubric, "\u0427\u0438\u0442\u0430\u0439\u0442\u0435 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u043C \u0432\u044B\u043F\u0443\u0441\u043A\u0435:")
         return True
 
     def _handle_battle(self, rubric: dict) -> bool:
@@ -426,14 +407,13 @@ class TelegramPublisher:
 
     def _send_repost_card(self, joke) -> bool:
         post_number = self.db.count_published() + 1
-        public_text, locked = self._split_for_locked(joke.text)
-        image_path = generate_repost_card(public_text)
+        image_path = generate_repost_card(joke.text)
         caption = _build_caption(post_number, self.settings.channel_link)
-        locked_id = self._save_locked(joke.content_hash, locked)
+
         with open(image_path, "rb") as f:
             response = requests.post(
                 f"https://api.telegram.org/bot{self.settings.bot_token}/sendPhoto",
-                data={"chat_id": self.settings.channel_id, "caption": caption, "reply_markup": json.dumps(self._build_keyboard(locked_id))},
+                data={"chat_id": self.settings.channel_id, "caption": caption, "reply_markup": json.dumps(self._build_keyboard())},
                 files={"photo": f},
                 timeout=self.settings.http_timeout,
             )
