@@ -60,7 +60,7 @@ def _build_text(joke_text: str, rubric: dict, post_number: int, preamble_overrid
     signature = ""
     if channel_link:
         name = channel_link.rstrip("/").rsplit("/", 1)[-1]
-        signature = f"\n— <a href=\"{channel_link}\">@{name}</a>"
+        signature = f"\n— @{name}"
     return f"<b>{emoji_line}</b>\n\n{body}\n\n{hashtags}{signature}"
 
 
@@ -70,7 +70,7 @@ def _build_observation(text: str, channel_link: str = "") -> str:
     signature = ""
     if channel_link:
         name = channel_link.rstrip("/").rsplit("/", 1)[-1]
-        signature = f"\n— <a href=\"{channel_link}\">@{name}</a>"
+        signature = f"\n— @{name}"
     return f"\U0001F914 <b>\u041D\u0430\u0431\u043B\u044E\u0434\u0435\u043D\u0438\u0435</b>\n\n{safe_text}\n\n{hashtags}{signature}"
 
 
@@ -80,7 +80,7 @@ def _build_caption(post_number: int, channel_link: str = "") -> str:
         name = channel_link.rstrip("/").rsplit("/", 1)[-1]
         if jubilee:
             jubilee += "\n"
-        jubilee += f"— <a href=\"{channel_link}\">@{name}</a>"
+        jubilee += f"— @{name}"
     return jubilee
 
 
@@ -181,6 +181,7 @@ class TelegramPublisher:
     def _post_message(self, payload: dict, locked_content_id: int | None = None) -> dict:
         if "reply_markup" not in payload:
             payload["reply_markup"] = self._build_keyboard(locked_content_id)
+        payload.setdefault("disable_web_page_preview", True)
         response = requests.post(
             f"https://api.telegram.org/bot{self.settings.bot_token}/sendMessage",
             json=payload,
