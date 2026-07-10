@@ -24,7 +24,6 @@ def build_services():
     from .publisher import TelegramPublisher
     from .sources.anekdot_ru import AnekdotRuSource
     from .sources.anekdotov_net import AnekdotovNetSource
-    from .sources.telegram_channel import TelegramChannelSource
 
     settings = load_settings()
     db = Database(settings.database_url or settings.database_path)
@@ -33,7 +32,22 @@ def build_services():
         AnekdotovNetSource(timeout=settings.http_timeout),
     ]
     if settings.telegram_sources:
-        sources.append(TelegramChannelSource(list(settings.telegram_sources), timeout=settings.http_timeout))
+        if settings.telethon_api_id and settings.telethon_api_hash and settings.telethon_session_string:
+            try:
+                from .sources.telethon_channel import TelethonChannelSource
+                sources.append(TelethonChannelSource(
+                    api_id=settings.telethon_api_id,
+                    api_hash=settings.telethon_api_hash,
+                    session_string=settings.telethon_session_string,
+                    channels=list(settings.telegram_sources),
+                    timeout=settings.http_timeout,
+                ))
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception("Failed to init Telethon source")
+        else:
+            from .sources.telegram_channel import TelegramChannelSource
+            sources.append(TelegramChannelSource(list(settings.telegram_sources), timeout=settings.http_timeout))
     ingestor = JokeIngestor(db, sources)
     publisher = TelegramPublisher(settings, db)
     return settings, db, ingestor, publisher
