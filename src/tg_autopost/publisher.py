@@ -415,6 +415,7 @@ class TelegramPublisher:
         joke1 = self.db.get_next_unpublished()
         if joke1 is None:
             return False
+        self.db.mark_published(joke1.content_hash)
         joke2 = self.db.get_next_unpublished()
         if joke2 is None:
             return False
@@ -432,7 +433,6 @@ class TelegramPublisher:
             "parse_mode": "HTML",
         })
         self._post_poll(joke1.text, joke2.text, post_number)
-        self.db.mark_published(joke1.content_hash)
         self.db.mark_published(joke2.content_hash)
         logger.info("Published battle: %s vs %s", joke1.external_id, joke2.external_id)
         return True
