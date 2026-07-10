@@ -50,6 +50,8 @@ jobs:
 
       - name: Ingest jokes
         run: python -m src.tg_autopost ingest
+        env:
+          FETCH_LIMIT: 300
 
       - name: Seed shorts candidate
         run: python scripts/seed_shorts.py

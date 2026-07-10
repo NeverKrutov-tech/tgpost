@@ -11,7 +11,7 @@ class Settings:
     channel_link: str = ""
     telegram_sources: tuple[str, ...] = ()
     post_interval_hours: int = 2
-    fetch_limit: int = 30
+    fetch_limit: int = 100
     database_path: str = "data/jokes.db"
     database_url: str = ""
     http_timeout: int = 20
