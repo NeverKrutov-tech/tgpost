@@ -114,33 +114,54 @@ class TelegramPublisher:
                 self._bot_username = "\u0431\u043E\u0442"
         return self._bot_username
 
-    def _share_button(self) -> dict | None:
-        link = self.settings.channel_link
-        if not link:
-            return None
-        share_url = f"https://t.me/share/url?url={link}"
-        return {
-            "inline_keyboard": [
-                [{"text": "\uD83D\uDCE4 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F", "url": share_url}]
-            ]
-        }
-
     def _channel_username(self) -> str:
         link = self.settings.channel_link
         return link.rstrip("/").rsplit("/", 1)[-1] if link else ""
 
-    def _bot_link(self) -> str:
-        return f"https://t.me/{self._get_bot_username()}"
+    def _share_url(self, message_id: int | None = None) -> str:
+        if message_id and self._channel_username():
+            return f"https://t.me/{self._channel_username()}/{message_id}"
+        return self.settings.channel_link or ""
 
-    def _build_keyboard(self) -> dict:
+    def _build_keyboard(self, message_id: int | None = None) -> dict:
         buttons = []
-        share = self._share_button()
-        if share:
-            buttons.extend(share["inline_keyboard"])
-        # Subscribe button
+        post_url = self._share_url(message_id)
+        if post_url:
+            buttons.append([{"text": "\uD83D\uDCE4 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F", "url": f"https://t.me/share/url?url={post_url}"}])
         if self.settings.channel_link:
             buttons.append([{"text": "\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F", "url": self.settings.channel_link}])
         return {"inline_keyboard": buttons}
+
+    def _edit_post_keyboard(self, chat_id: int | str, message_id: int) -> None:
+        try:
+            requests.post(
+                f"https://api.telegram.org/bot{self.settings.bot_token}/editMessageReplyMarkup",
+                json={
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "reply_markup": self._build_keyboard(message_id),
+                },
+                timeout=self.settings.http_timeout,
+            )
+        except Exception:
+            pass
+
+    def _edit_post_keyboard_raw(self, chat_id: int | str, message_id: int, reply_markup: dict) -> None:
+        try:
+            requests.post(
+                f"https://api.telegram.org/bot{self.settings.bot_token}/editMessageReplyMarkup",
+                json={
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "reply_markup": reply_markup,
+                },
+                timeout=self.settings.http_timeout,
+            )
+        except Exception:
+            pass
+
+    def _bot_link(self) -> str:
+        return f"https://t.me/{self._get_bot_username()}"
 
     def _welcome_new_members(self) -> None:
         try:
@@ -167,7 +188,8 @@ class TelegramPublisher:
             logger.exception("Failed to check member count")
 
     def _post_message(self, payload: dict) -> dict:
-        if "reply_markup" not in payload:
+        had_custom_markup = "reply_markup" in payload
+        if not had_custom_markup:
             payload["reply_markup"] = self._build_keyboard()
         payload.setdefault("disable_web_page_preview", True)
         response = requests.post(
@@ -180,6 +202,10 @@ class TelegramPublisher:
         data = response.json()
         if not data.get("ok"):
             raise RuntimeError(f"Telegram API error: {data.get('description', 'unknown')}")
+        if not had_custom_markup:
+            msg_id = data.get("result", {}).get("message_id")
+            if msg_id:
+                self._edit_post_keyboard(payload["chat_id"], msg_id)
         return data
 
     def _post_poll(self, joke1: str, joke2: str, post_number: int) -> dict:
@@ -231,20 +257,22 @@ class TelegramPublisher:
         )
         bot_username = self._get_bot_username()
         tip_url = f"https://t.me/{bot_username}?start=tip_{sub['id']}"
-        share = self._share_button()
-        buttons = []
-        if share:
-            buttons.extend(share["inline_keyboard"])
-        buttons.append([
-            {"text": "\u2B50 \u041F\u043E\u0431\u043B\u0430\u0433\u043E\u0434\u0430\u0440\u0438\u0442\u044C \u0430\u0432\u0442\u043E\u0440\u0430", "url": tip_url}
-        ])
-        self._post_message({
+        buttons = [
+            [{"text": "\uD83D\uDCE4 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F", "url": "https://t.me/share/url?url=" + self.settings.channel_link}],
+            [{"text": "\u2B50 \u041F\u043E\u0431\u043B\u0430\u0433\u043E\u0434\u0430\u0440\u0438\u0442\u044C \u0430\u0432\u0442\u043E\u0440\u0430", "url": tip_url}],
+        ]
+        result = self._post_message({
             "chat_id": self.settings.channel_id,
             "text": text,
             "parse_mode": "HTML",
             "reply_markup": {"inline_keyboard": buttons},
         })
         self.db.mark_submission_published(sub["id"])
+        msg_id = result.get("result", {}).get("message_id")
+        if msg_id and self._channel_username():
+            post_url = f"https://t.me/{self._channel_username()}/{msg_id}"
+            buttons[0][0]["url"] = f"https://t.me/share/url?url={post_url}"
+            self._edit_post_keyboard_raw(self.settings.channel_id, msg_id, {"inline_keyboard": buttons})
         logger.info("Published subscriber joke #%s from %s", sub["id"], author)
         if random.random() < DICE_RATIO:
             self._send_dice()
@@ -365,6 +393,10 @@ class TelegramPublisher:
             error_code = payload.get("error_code", response.status_code)
             raise RuntimeError(f"Telegram API error {error_code}: {description}")
 
+        msg_id = payload.get("result", {}).get("message_id")
+        if msg_id:
+            self._edit_post_keyboard(self.settings.channel_id, msg_id)
+
         self.db.mark_published(joke.content_hash)
         logger.info("Published image joke: %s", joke.external_id)
         return True
@@ -426,6 +458,11 @@ class TelegramPublisher:
             description = payload.get("description", "Unknown Telegram API error")
             error_code = payload.get("error_code", response.status_code)
             raise RuntimeError(f"Telegram API error {error_code}: {description}")
+
+        msg_id = payload.get("result", {}).get("message_id")
+        if msg_id:
+            self._edit_post_keyboard(self.settings.channel_id, msg_id)
+
         self.db.mark_published(joke.content_hash)
         logger.info("Published repost card: %s", joke.external_id)
         return True
