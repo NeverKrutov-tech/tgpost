@@ -207,7 +207,9 @@ class Database:
                 "SELECT text FROM jokes WHERE published_at IS NOT NULL"
             ).fetchall()
         keys = {dedup_key(row["text"]) for row in rows}
-        keys |= self._load_published_keys_file()
+        # Use file-based keys only when SQLite has no published history (cache reset)
+        if not keys:
+            keys |= self._load_published_keys_file()
         return keys
 
     def get_next_unpublished(self) -> Joke | None:
