@@ -2,6 +2,7 @@ import logging
 import os
 import threading
 
+import requests
 from flask import Flask, jsonify
 
 from .config import load_settings
@@ -12,6 +13,12 @@ app = Flask(__name__)
 _bot_thread: threading.Thread | None = None
 _handler: PollingHandler | None = None
 _settings = None
+
+
+def _channel_username() -> str:
+    if _settings is not None and _settings.channel_link:
+        return _settings.channel_link.rstrip("/").rsplit("/", 1)[-1]
+    return "Anetdodik"
 
 
 def ensure_bot_started() -> None:
@@ -48,6 +55,67 @@ def debug() -> tuple:
         info["channel_id"] = _settings.channel_id
         info["admin_id"] = _settings.admin_id
     return jsonify(info), 200
+
+
+@app.get("/p/<int:msg_id>")
+def post_card(msg_id: int) -> str:
+    uname = _channel_username()
+    post_url = f"https://t.me/{uname}/{msg_id}"
+    channel_url = f"https://t.me/{uname}"
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Анекдот — @{uname}</title>
+  <meta property="og:title" content="Анекдот из @{uname}">
+  <meta property="og:description" content="Подпишись — каждый день свежие анекдоты и битвы!">
+  <meta property="og:url" content="{post_url}">
+  <meta property="og:type" content="article">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Анекдот из @{uname}">
+  <meta name="twitter:description" content="Подпишись — каждый день свежие анекдоты и битвы!">
+  <meta http-equiv="refresh" content="0;url={post_url}">
+  <style>
+    body {{ font-family: sans-serif; display: flex; justify-content: center; align-items: center;
+           min-height: 100vh; margin: 0; background: #f5f5f5; }}
+    .card {{ text-align: center; padding: 40px; background: white; border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1); max-width: 400px; }}
+    h1 {{ font-size: 20px; color: #333; }}
+    p {{ color: #666; }}
+    a {{ color: #0088cc; text-decoration: none; font-weight: bold; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Анекдот из @{uname}</h1>
+    <p>Переходи в канал — там каждый день свежие анекдоты, битвы и конкурсы!</p>
+    <a href="{post_url}">Открыть пост в Telegram →</a>
+    <p><a href="{channel_url}">Подписаться на @{uname}</a></p>
+  </div>
+</body>
+</html>"""
+    return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+@app.get("/avatar.png")
+def avatar() -> tuple:
+    """Fetch and cache channel avatar from Telegram API."""
+    if _settings is None:
+        return "", 503
+    try:
+        chat = _api_call(_settings.bot_token, "getChat", {"chat_id": _settings.channel_id}, timeout=10)
+        if chat and chat.get("result", {}).get("photo"):
+            file_id = chat["result"]["photo"]["big_file_id"] if isinstance(chat["result"]["photo"], dict) else chat["result"]["photo"]["big_file_id"]
+            file_info = _api_call(_settings.bot_token, "getFile", {"file_id": file_id}, timeout=10)
+            if file_info and file_info.get("result", {}).get("file_path"):
+                url = f"https://api.telegram.org/file/bot{_settings.bot_token}/{file_info['result']['file_path']}"
+                resp = requests.get(url, timeout=10)
+                return resp.content, 200, {"Content-Type": "image/jpeg"}
+    except Exception:
+        pass
+    # fallback: 1x1 transparent pixel
+    return bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000"
+                         "a49444154789c62600000000200011e608ed00000000049454e44ae426082"), 200, {"Content-Type": "image/png"}
 
 
 if __name__ == "__main__":

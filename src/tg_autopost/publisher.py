@@ -119,8 +119,8 @@ class TelegramPublisher:
         return link.rstrip("/").rsplit("/", 1)[-1] if link else ""
 
     def _share_url(self, message_id: int | None = None) -> str:
-        if message_id and self._channel_username():
-            return f"https://t.me/{self._channel_username()}/{message_id}"
+        if message_id:
+            return f"https://tgpost-bot-l4wq.onrender.com/p/{message_id}"
         return self.settings.channel_link or ""
 
     def _build_keyboard(self, message_id: int | None = None) -> dict:
@@ -269,8 +269,8 @@ class TelegramPublisher:
         })
         self.db.mark_submission_published(sub["id"])
         msg_id = result.get("result", {}).get("message_id")
-        if msg_id and self._channel_username():
-            post_url = f"https://t.me/{self._channel_username()}/{msg_id}"
+        if msg_id:
+            post_url = f"https://tgpost-bot-l4wq.onrender.com/p/{msg_id}"
             buttons[0][0]["url"] = f"https://t.me/share/url?url={post_url}"
             self._edit_post_keyboard_raw(self.settings.channel_id, msg_id, {"inline_keyboard": buttons})
         logger.info("Published subscriber joke #%s from %s", sub["id"], author)
