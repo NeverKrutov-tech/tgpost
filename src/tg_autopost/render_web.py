@@ -33,6 +33,12 @@ def ensure_bot_started() -> None:
     _bot_thread = threading.Thread(target=_handler.run_forever, daemon=True)
     _bot_thread.start()
     logging.getLogger(__name__).info("Render bot thread started")
+    # ingest on startup so DB has some jokes for web routes
+    try:
+        from .app import run_ingest
+        run_ingest()
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Startup ingest skipped: %s", exc)
 
 
 @app.before_request
@@ -136,15 +142,8 @@ def top_weekly() -> str:
             for i, row in enumerate(rows, 1):
                 text = row["text"].replace("\n", " ")[:200].rstrip() + "…" if len(row["text"]) > 200 else row["text"]
                 jokes_html += f'<li><a href="https://t.me/{uname}">{html.escape(text)}</a></li>\n'
-        else:
-            # fallback: newest jokes even if not yet published
-            with db.connect() as conn:
-                rows = conn.execute(
-                    "SELECT text FROM jokes ORDER BY id DESC LIMIT 5"
-                ).fetchall()
-            for i, row in enumerate(rows, 1):
-                text = row["text"].replace("\n", " ")[:200].rstrip() + "…" if len(row["text"]) > 200 else row["text"]
-                jokes_html += f'<li>{html.escape(text)}</li>\n'
+    if not jokes_html:
+        jokes_html = "<li>Подпишись на @%s — там каждый день свежие анекдоты!</li>" % uname
 
     page = f"""<!DOCTYPE html>
 <html>
@@ -178,18 +177,12 @@ def top_weekly() -> str:
 
 @app.get("/img/<int:msg_id>")
 def joke_image(msg_id: int) -> tuple:
-    if _settings is None:
-        return "", 503
-    db = Database(_settings.database_url or _settings.database_path)
-    with db.connect() as conn:
-        row = conn.execute(
-            "SELECT text FROM jokes ORDER BY id DESC LIMIT 1"
-        ).fetchone()
-    if not row:
-        return "", 404
+    uname = _channel_username()
+    # Generate a simple branded image — no DB query needed
     try:
         from .image_gen import generate_repost_card
-        output = generate_repost_card(row["text"])
+        text = f"Свежий анекдот\nв Telegram\n\n@{uname}"
+        output = generate_repost_card(text)
         with open(output, "rb") as f:
             data = f.read()
         Path(output).unlink(missing_ok=True)
