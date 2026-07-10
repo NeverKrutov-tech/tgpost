@@ -1,6 +1,8 @@
+import html
 import logging
 import os
 import threading
+from pathlib import Path
 
 import requests
 from flask import Flask, jsonify
@@ -69,6 +71,7 @@ def post_card(msg_id: int) -> str:
   <title>Анекдот — @{uname}</title>
   <meta property="og:title" content="Анекдот из @{uname}">
   <meta property="og:description" content="Подпишись — каждый день свежие анекдоты и битвы!">
+  <meta property="og:image" content="https://tgpost-bot-l4wq.onrender.com/img/{msg_id}">
   <meta property="og:url" content="{post_url}">
   <meta property="og:type" content="article">
   <meta name="twitter:card" content="summary_large_image">
@@ -116,6 +119,73 @@ def avatar() -> tuple:
     # fallback: 1x1 transparent pixel
     return bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000"
                          "a49444154789c62600000000200011e608ed00000000049454e44ae426082"), 200, {"Content-Type": "image/png"}
+
+
+@app.get("/top")
+def top_weekly() -> str:
+    uname = _channel_username()
+    jokes_html = ""
+    if _settings is not None:
+        db = Database(_settings.database_url or _settings.database_path)
+        with db.connect() as conn:
+            rows = conn.execute(
+                "SELECT text, published_at FROM jokes WHERE published_at IS NOT NULL "
+                "ORDER BY published_at DESC LIMIT 10"
+            ).fetchall()
+        for i, row in enumerate(rows, 1):
+            text = row["text"].replace("\n", " ")[:200].rstrip() + "…" if len(row["text"]) > 200 else row["text"]
+            jokes_html += f'<li><a href="https://t.me/{uname}">{html.escape(text)}</a></li>\n'
+
+    page = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Лучшие анекдоты — @{uname}</title>
+  <meta name="description" content="Свежие анекдоты из Telegram канала @{uname}. Подпишись!">
+  <meta property="og:title" content="Лучшие анекдоты — @{uname}">
+  <meta property="og:description" content="Свежие анекдоты каждый день. Подпишись на @{uname}!">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <meta name="robots" content="index,follow">
+  <style>
+    body {{ font-family: sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; background: #f5f5f5; }}
+    h1 {{ color: #333; }}
+    a {{ color: #0088cc; text-decoration: none; }}
+    li {{ margin: 12px 0; line-height: 1.5; }}
+    .sub {{ display: block; margin-top: 30px; padding: 15px; background: #0088cc; color: white;
+            text-align: center; border-radius: 8px; font-size: 18px; }}
+  </style>
+</head>
+<body>
+  <h1>Анекдоты из @{uname}</h1>
+  <p>Свежие анекдоты, битвы и конкурсы каждый день!</p>
+  <ol>{jokes_html}</ol>
+  <a class="sub" href="https://t.me/{uname}">Подписаться на @{uname} в Telegram</a>
+</body>
+</html>"""
+    return page, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+@app.get("/img/<int:msg_id>")
+def joke_image(msg_id: int) -> tuple:
+    if _settings is None:
+        return "", 503
+    db = Database(_settings.database_url or _settings.database_path)
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT text FROM jokes WHERE published_at IS NOT NULL ORDER BY RANDOM() LIMIT 1"
+        ).fetchone()
+    if row is None:
+        return "", 404
+    try:
+        from .image_gen import generate_repost_card
+        output = generate_repost_card(row["text"])
+        with open(output, "rb") as f:
+            data = f.read()
+        Path(output).unlink(missing_ok=True)
+        return data, 200, {"Content-Type": "image/png", "Cache-Control": "public, max-age=3600"}
+    except Exception:
+        return "", 500
 
 
 if __name__ == "__main__":

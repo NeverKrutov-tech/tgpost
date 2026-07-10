@@ -123,6 +123,14 @@ CREATE TABLE IF NOT EXISTS pending_quiz (
 );
 """
 
+SUBSCRIBERS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS bot_subscribers (
+    user_id INTEGER PRIMARY KEY,
+    username TEXT,
+    subscribed_at TEXT NOT NULL
+);
+"""
+
 
 class Database:
     def __init__(self, path: str) -> None:
@@ -154,6 +162,7 @@ class Database:
             connection.execute(TIPS_TABLE_SQL)
             connection.execute(SHORTS_TABLE_SQL)
             connection.execute(LOCKED_CONTENT_SQL)
+            connection.execute(SUBSCRIBERS_TABLE_SQL)
             self._migrate(connection)
 
     def _migrate(self, connection: sqlite3.Connection) -> None:
@@ -653,6 +662,36 @@ class Database:
                 (telegram_id,),
             ).fetchone()
             return int(row["count"])
+
+    def subscribe_user(self, user_id: int, username: str | None = None) -> bool:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connect() as connection:
+            cursor = connection.execute(
+                "INSERT OR IGNORE INTO bot_subscribers (user_id, username, subscribed_at) VALUES (?, ?, ?)",
+                (user_id, username, now),
+            )
+            return cursor.rowcount > 0
+
+    def unsubscribe_user(self, user_id: int) -> bool:
+        with self.connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM bot_subscribers WHERE user_id = ?", (user_id,)
+            )
+            return cursor.rowcount > 0
+
+    def is_subscribed(self, user_id: int) -> bool:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM bot_subscribers WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            return row is not None
+
+    def get_all_subscribers(self) -> list[dict]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT user_id, username FROM bot_subscribers ORDER BY subscribed_at"
+            ).fetchall()
+            return [dict(r) for r in rows]
 
     def add_shorts_candidate(self, text: str, source: str = "battle") -> None:
         now = datetime.now(timezone.utc).isoformat()

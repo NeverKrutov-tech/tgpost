@@ -1,3 +1,4 @@
+import datetime
 import html
 import logging
 import re
@@ -24,6 +25,8 @@ START_TEXT = (
     "Лучшие публикуются в канале с указанием автора!\n\n"
     "Команды:\n"
     "/submit — прислать анекдот\n"
+    "/subscribe — получать анекдот дня в личку\n"
+    "/unsubscribe — отписаться от рассылки\n"
     "/register — стать автором\n"
     "/my_stats — моя статистика\n"
     "/author @username — профиль автора"
@@ -206,6 +209,36 @@ class PollingHandler:
                 self._handle_locked_content(chat_id, uid, content_id)
                 return
             _send_message(self.settings.bot_token, chat_id, START_TEXT)
+            return
+
+        if text.startswith("/subscribe") or text.startswith("/sub"):
+            ok = self.db.subscribe_user(uid, username)
+            if ok:
+                _send_message(
+                    self.settings.bot_token, chat_id,
+                    "\U0001F514 <b>Ты подписан на ежедневный анекдот!</b>\n"
+                    "Каждый вечер я буду присылать лучший анекдот дня.\n"
+                    "Отписаться — /unsubscribe",
+                )
+            else:
+                _send_message(
+                    self.settings.bot_token, chat_id,
+                    "\u2705 Ты уже подписан! Отписаться — /unsubscribe",
+                )
+            return
+
+        if text.startswith("/unsubscribe") or text.startswith("/unsub"):
+            ok = self.db.unsubscribe_user(uid)
+            if ok:
+                _send_message(
+                    self.settings.bot_token, chat_id,
+                    "\u274C Ты отписан от ежедневной рассылки.",
+                )
+            else:
+                _send_message(
+                    self.settings.bot_token, chat_id,
+                    "\u274C Ты и так не был подписан. /subscribe — чтобы подписаться",
+                )
             return
 
         if text.startswith("/submit"):
@@ -460,6 +493,40 @@ class PollingHandler:
                 self._handle_pre_checkout_query(update["pre_checkout_query"])
             elif "message" in update:
                 self._handle_message(update["message"])
+
+        self._try_send_daily_joke()
+
+    def _try_send_daily_joke(self) -> None:
+        today = datetime.datetime.today().strftime("%Y-%m-%d")
+        last = self.db.get_meta("daily_joke_date", "")
+        if last == today:
+            return
+        hour = datetime.datetime.today().hour
+        if hour < 18:
+            return
+        # pick a random published joke
+        text = None
+        with self.db.connect() as conn:
+            row = conn.execute(
+                "SELECT text FROM jokes WHERE published_at IS NOT NULL ORDER BY RANDOM() LIMIT 1"
+            ).fetchone()
+            if row:
+                text = row["text"]
+        if not text:
+            return
+        subscribers = self.db.get_all_subscribers()
+        for sub in subscribers:
+            try:
+                _send_message(
+                    self.settings.bot_token, sub["user_id"],
+                    f"\U0001F4EC <b>Анекдот дня</b>\n\n{html.escape(text)}\n\n"
+                    f"\u2014 @Anetdodik\n\n"
+                    f"Отписаться: /unsubscribe",
+                )
+            except Exception:
+                logger.warning("Failed to send daily joke to user %s", sub["user_id"])
+        self.db.set_meta("daily_joke_date", today)
+        logger.info("Daily joke sent to %s subscribers", len(subscribers))
 
     def run_forever(self) -> None:
         self._running = True
