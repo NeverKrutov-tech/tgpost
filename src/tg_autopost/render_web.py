@@ -132,9 +132,19 @@ def top_weekly() -> str:
                 "SELECT text, published_at FROM jokes WHERE published_at IS NOT NULL "
                 "ORDER BY published_at DESC LIMIT 10"
             ).fetchall()
-        for i, row in enumerate(rows, 1):
-            text = row["text"].replace("\n", " ")[:200].rstrip() + "…" if len(row["text"]) > 200 else row["text"]
-            jokes_html += f'<li><a href="https://t.me/{uname}">{html.escape(text)}</a></li>\n'
+        if rows:
+            for i, row in enumerate(rows, 1):
+                text = row["text"].replace("\n", " ")[:200].rstrip() + "…" if len(row["text"]) > 200 else row["text"]
+                jokes_html += f'<li><a href="https://t.me/{uname}">{html.escape(text)}</a></li>\n'
+        else:
+            # fallback: newest jokes even if not yet published
+            with db.connect() as conn:
+                rows = conn.execute(
+                    "SELECT text FROM jokes ORDER BY id DESC LIMIT 5"
+                ).fetchall()
+            for i, row in enumerate(rows, 1):
+                text = row["text"].replace("\n", " ")[:200].rstrip() + "…" if len(row["text"]) > 200 else row["text"]
+                jokes_html += f'<li>{html.escape(text)}</li>\n'
 
     page = f"""<!DOCTYPE html>
 <html>
@@ -173,9 +183,9 @@ def joke_image(msg_id: int) -> tuple:
     db = Database(_settings.database_url or _settings.database_path)
     with db.connect() as conn:
         row = conn.execute(
-            "SELECT text FROM jokes WHERE published_at IS NOT NULL ORDER BY RANDOM() LIMIT 1"
+            "SELECT text FROM jokes ORDER BY id DESC LIMIT 1"
         ).fetchone()
-    if row is None:
+    if not row:
         return "", 404
     try:
         from .image_gen import generate_repost_card
