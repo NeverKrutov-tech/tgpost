@@ -25,6 +25,7 @@ def build_services():
     from .sources.anekdot_ru import AnekdotRuSource
     from .sources.anekdotov_net import AnekdotovNetSource
     from .sources.baneks_ru import BaneksRuSource
+    from .sources.meme_api import MemeApiSource
 
     settings = load_settings()
     db = Database(settings.database_url or settings.database_path)
@@ -32,6 +33,7 @@ def build_services():
         AnekdotRuSource(timeout=settings.http_timeout),
         AnekdotovNetSource(timeout=settings.http_timeout),
         BaneksRuSource(timeout=settings.http_timeout),
+        MemeApiSource(),
     ]
     if settings.telegram_sources:
         if settings.telethon_api_id and settings.telethon_api_hash and settings.telethon_session_string:

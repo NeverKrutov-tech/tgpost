@@ -397,6 +397,43 @@ class TelegramPublisher:
         logger.info("Published anti-advice of the day")
         return msg_id
 
+    def _send_meme_image(self, joke) -> bool:
+        text = joke.text
+        if not text.startswith("MEME:"):
+            return False
+        rest = text[len("MEME:"):]
+        img_url = rest.split("\n")[0].strip()
+        caption = "\n".join(rest.split("\n")[1:]).strip()[:200]
+        try:
+            resp = requests.get(img_url, timeout=20)
+            resp.raise_for_status()
+            ct = resp.headers.get("Content-Type", "")
+            ext = img_url.rsplit(".", 1)[-1].lower()
+            fname = f"meme_{joke.content_hash}.{ext}"
+            path = Path("data") / fname
+            path.write_bytes(resp.content)
+            with open(path, "rb") as f:
+                r = requests.post(
+                    f"https://api.telegram.org/bot{self.settings.bot_token}/sendPhoto",
+                    data={
+                        "chat_id": self.settings.channel_id,
+                        "caption": caption,
+                        "reply_markup": json.dumps(self._build_keyboard()),
+                    },
+                    files={"photo": f},
+                    timeout=self.settings.http_timeout,
+                )
+            path.unlink(missing_ok=True)
+            payload = r.json()
+            if not r.ok or not payload.get("ok"):
+                raise RuntimeError(f"Telegram API error: {payload.get('description', 'unknown')}")
+            self.db.mark_published(joke.content_hash)
+            logger.info("Published meme image: %s", img_url)
+            return True
+        except Exception as e:
+            logger.warning("Failed to send meme image: %s", e)
+            return False
+
     def _send_image(self, joke, rubric: dict) -> bool:
         post_number = self.db.count_published() + 1
         image_path = generate_joke_image(joke.text, post_number, rubric_name=rubric.get("name"))
@@ -776,6 +813,8 @@ class TelegramPublisher:
             else:
                 joke = self.db.get_next_unpublished()
             if joke:
+                if joke.text.startswith("MEME:"):
+                    return self._send_meme_image(joke)
                 if len(joke.text) < 200 and random.random() < OBSERVATION_RATIO:
                     self.db.mark_published(joke.content_hash)
                     return self._send_observation(joke.text)
@@ -801,6 +840,9 @@ class TelegramPublisher:
         if joke is None:
             logger.info("No unpublished jokes available")
             return False
+
+        if joke.text.startswith("MEME:"):
+            return self._send_meme_image(joke)
 
         if len(joke.text) < 200 and random.random() < OBSERVATION_RATIO:
             self.db.mark_published(joke.content_hash)
