@@ -78,13 +78,6 @@ def debug() -> tuple:
     return jsonify(info), 200
 
 
-@app.get("/test-horoscope")
-def test_horoscope() -> tuple:
-    from .horoscope import generate_horoscope
-    text = generate_horoscope()
-    return jsonify({"len": len(text), "lines": text.count("\n"), "preview": text[:200]}), 200
-
-
 @app.post("/fix-webhook")
 def fix_webhook() -> tuple:
     if _settings is None:
