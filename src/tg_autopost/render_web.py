@@ -78,6 +78,17 @@ def debug() -> tuple:
     return jsonify(info), 200
 
 
+@app.get("/test-anti")
+def test_anti() -> tuple:
+    from .app import build_services
+    try:
+        _, _, _, p = build_services()
+        mid = p._send_anti_advice()
+        return jsonify({"ok": True, "msg_id": mid}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.post("/fix-webhook")
 def fix_webhook() -> tuple:
     if _settings is None:
