@@ -214,6 +214,24 @@ def joke_image(msg_id: int) -> tuple:
         return "", 500
 
 
+@app.get("/test-video")
+def test_video() -> tuple:
+    from .app import build_services
+    from .sources.reddit_video import RedditVideoSource
+    src = RedditVideoSource()
+    jokes = list(src.fetch(2))
+    results = []
+    for j in jokes[:1]:
+        try:
+            _, _, ing, pub = build_services()
+            ing.db.insert_joke(j)
+            ok = pub._send_video(j)
+            results.append({"ok": ok, "src": j.text[:60]})
+        except Exception as e:
+            results.append({"ok": False, "error": str(e)[:100]})
+    return jsonify({"fetched": len(jokes), "results": results}), 200
+
+
 if __name__ == "__main__":
     ensure_bot_started()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "10000")))
