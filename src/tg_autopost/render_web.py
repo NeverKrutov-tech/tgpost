@@ -90,9 +90,17 @@ def debug() -> tuple:
                 info["poll_test_err"] = "api returned None"
         except Exception as e:
             info["poll_test_err"] = str(e)
-        except Exception as e:
-            info["updates_err"] = str(e)
     return jsonify(info), 200
+
+
+@app.post("/fix-webhook")
+def fix_webhook() -> tuple:
+    if _settings is None:
+        return jsonify({"error": "not ready"}), 503
+    result = _api_call(_settings.bot_token, "deleteWebhook", {"drop_pending_updates": True}, timeout=15)
+    if result:
+        return jsonify({"ok": True, "result": result.get("result")}), 200
+    return jsonify({"ok": False}), 500
 
 
 @app.get("/p/<int:msg_id>")
