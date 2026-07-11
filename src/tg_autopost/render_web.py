@@ -1,3 +1,4 @@
+import datetime
 import html
 import logging
 import os
@@ -55,13 +56,20 @@ def health() -> tuple[str, int]:
 @app.get("/debug")
 def debug() -> tuple:
     ensure_bot_started()
-    info = {"polling_alive": bool(_bot_thread and _bot_thread.is_alive())}
+    info: dict = {"polling_alive": bool(_bot_thread and _bot_thread.is_alive())}
     if _settings is not None:
         me = _api_call(_settings.bot_token, "getMe", timeout=10)
         info["getMe"] = me.get("result") if me else None
         info["bot_token_present"] = bool(_settings.bot_token)
         info["channel_id"] = _settings.channel_id
         info["admin_id"] = _settings.admin_id
+        wh = _api_call(_settings.bot_token, "getWebhookInfo", timeout=10)
+        if wh and wh.get("result", {}).get("url"):
+            info["webhook"] = wh["result"]["url"]
+        upd = _api_call(_settings.bot_token, "getUpdates", {"limit": 1, "offset": -1}, timeout=10)
+        if upd and upd.get("result"):
+            info["last_update_id"] = upd["result"][-1]["update_id"]
+        info["last_update_ts"] = datetime.utcnow().isoformat()
     return jsonify(info), 200
 
 
