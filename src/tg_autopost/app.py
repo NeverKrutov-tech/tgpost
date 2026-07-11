@@ -73,6 +73,12 @@ def publish_horoscope() -> bool:
     return True
 
 
+def publish_anti_advice() -> bool:
+    _, _, _, publisher = build_services()
+    publisher._send_anti_advice()
+    return True
+
+
 def run_ingest_and_publish() -> None:
     run_ingest()
     run_publish()
@@ -95,6 +101,7 @@ def run_scheduler() -> None:
         scheduler.add_job(run_ingest_and_publish, "cron", hour=hour, minute=0, jitter=900)
 
     scheduler.add_job(publish_horoscope, "cron", hour=8, minute=0)
+    scheduler.add_job(publish_anti_advice, "cron", hour=13, minute=0)
 
     logging.getLogger(__name__).info(
         "Scheduler started — posts at %s:00, every %s hours (night pause 23:00–07:59)",
@@ -114,7 +121,7 @@ def run_bot() -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Telegram joke autoposting service")
-    parser.add_argument("command", nargs="?", default="run", choices=["run", "ingest", "publish", "bot", "horoscope"])
+    parser.add_argument("command", nargs="?", default="run", choices=["run", "ingest", "publish", "bot", "horoscope", "antiadvice"])
     args = parser.parse_args()
 
     configure_logging()
@@ -125,6 +132,8 @@ def main() -> int:
         run_publish()
     elif args.command == "horoscope":
         publish_horoscope()
+    elif args.command == "antiadvice":
+        publish_anti_advice()
     elif args.command == "bot":
         run_bot()
     else:
