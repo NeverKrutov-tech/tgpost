@@ -78,17 +78,6 @@ def debug() -> tuple:
     return jsonify(info), 200
 
 
-@app.get("/trigger-horoscope")
-def trigger_horoscope() -> tuple:
-    from .app import build_services
-    _, _, _, publisher = build_services()
-    try:
-        msg_id = publisher._send_horoscope()
-        return jsonify({"ok": True, "msg_id": msg_id}), 200
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-
 @app.post("/fix-webhook")
 def fix_webhook() -> tuple:
     if _settings is None:
