@@ -75,10 +75,14 @@ def debug() -> tuple:
         except Exception as e:
             info["webhook_err"] = str(e)
         try:
-            upd = _api_call(_settings.bot_token, "getUpdates", {"limit": 3}, timeout=10)
+            upd = _api_call(_settings.bot_token, "getUpdates", {"limit": 1, "offset": 0, "timeout": 5}, timeout=10)
             if upd:
                 ures = upd.get("result") or []
-                info["updates_found"] = len(ures)
+                info["poll_test_updates"] = len(ures)
+                if ures:
+                    info["poll_test_first"] = ures[0].get("update_id")
+        except Exception as e:
+            info["poll_test_err"] = str(e)
         except Exception as e:
             info["updates_err"] = str(e)
     return jsonify(info), 200
