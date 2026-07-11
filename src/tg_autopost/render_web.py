@@ -78,26 +78,6 @@ def debug() -> tuple:
     return jsonify(info), 200
 
 
-@app.get("/test-meme")
-def test_meme() -> tuple:
-    from .app import build_services
-    from .sources.meme_api import MemeApiSource
-    src = MemeApiSource()
-    jokes = list(src.fetch(3))
-    results = []
-    for j in jokes[:1]:
-        try:
-            _, _, ing, pub = build_services()
-            if ing.db.insert_joke(j):
-                ok = pub._send_meme_image(j)
-                results.append({"ok": ok, "src": j.text[:60]})
-            else:
-                results.append({"ok": False, "reason": "duplicate"})
-        except Exception as e:
-            results.append({"ok": False, "error": str(e)[:100]})
-    return jsonify({"fetched": len(jokes), "results": results}), 200
-
-
 @app.post("/fix-webhook")
 def fix_webhook() -> tuple:
     if _settings is None:
