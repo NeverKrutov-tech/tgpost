@@ -72,15 +72,22 @@ def debug() -> tuple:
             if wh:
                 whr = wh.get("result") or {}
                 info["webhook_url"] = whr.get("url") or "(none)"
+                info["webhook_pending"] = whr.get("pending_update_count", 0)
+                info["webhook_cert"] = whr.get("has_custom_certificate", False)
+                info["webhook_max"] = whr.get("max_connections")
+                info["webhook_last_err"] = whr.get("last_error_message")
+                info["webhook_last_err_date"] = whr.get("last_error_date")
         except Exception as e:
             info["webhook_err"] = str(e)
         try:
-            upd = _api_call(_settings.bot_token, "getUpdates", {"limit": 1, "offset": 0, "timeout": 5}, timeout=10)
+            upd = _api_call(_settings.bot_token, "getUpdates", {"limit": 1, "offset": _handler._offset if (_handler is not None) else 0, "timeout": 5}, timeout=10)
             if upd:
                 ures = upd.get("result") or []
                 info["poll_test_updates"] = len(ures)
                 if ures:
-                    info["poll_test_first"] = ures[0].get("update_id")
+                    info["poll_test_first_id"] = ures[0].get("update_id")
+            else:
+                info["poll_test_err"] = "api returned None"
         except Exception as e:
             info["poll_test_err"] = str(e)
         except Exception as e:
