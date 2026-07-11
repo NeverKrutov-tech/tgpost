@@ -55,35 +55,23 @@ def health() -> tuple[str, int]:
 @app.get("/debug")
 def debug() -> tuple:
     ensure_bot_started()
-    info: dict = {"polling_alive": bool(_bot_thread and _bot_thread.is_alive())}
+    info = {"polling_alive": bool(_bot_thread and _bot_thread.is_alive())}
     if _settings is not None:
+        info["bot_token_present"] = bool(_settings.bot_token)
+        info["channel_id"] = _settings.channel_id
+        info["admin_id"] = _settings.admin_id
         try:
             me = _api_call(_settings.bot_token, "getMe", timeout=10)
             info["getMe"] = me.get("result") if me else None
         except Exception as e:
             info["getMe_error"] = str(e)
-        info["bot_token_present"] = bool(_settings.bot_token)
-        info["channel_id"] = _settings.channel_id
-        info["admin_id"] = _settings.admin_id
         try:
             wh = _api_call(_settings.bot_token, "getWebhookInfo", timeout=10)
             if wh:
-                info["webhook_url"] = wh.get("result", {}).get("url") or "(none)"
-                info["webhook_pending"] = wh.get("result", {}).get("pending_update_count", 0)
-            else:
-                info["webhook_err"] = "api returned None"
+                whr = wh.get("result") or {}
+                info["webhook_url"] = whr.get("url") or "(none)"
         except Exception as e:
             info["webhook_err"] = str(e)
-        try:
-            upd = _api_call(_settings.bot_token, "getUpdates", {"limit": 1, "offset": -1}, timeout=10)
-            if upd:
-                info["updates_count"] = len(upd.get("result", []))
-                if upd.get("result"):
-                    info["last_update_id"] = upd["result"][-1]["update_id"]
-            else:
-                info["updates_err"] = "api returned None"
-        except Exception as e:
-            info["updates_err"] = str(e)
     return jsonify(info), 200
 
 
