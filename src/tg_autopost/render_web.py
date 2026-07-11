@@ -88,6 +88,14 @@ def debug() -> tuple:
                     info["poll_test_first_id"] = ures[0].get("update_id")
             else:
                 info["poll_test_err"] = "api returned None"
+                # raw call to get error details
+                try:
+                    rr = requests.post(f"https://api.telegram.org/bot{_settings.bot_token}/getUpdates",
+                                       json={"limit": 1, "offset": _handler._offset if (_handler is not None) else 0, "timeout": 2}, timeout=8)
+                    info["poll_raw_status"] = rr.status_code
+                    info["poll_raw_body"] = str(rr.json())[:300]
+                except Exception as e2:
+                    info["poll_raw_err"] = str(e2)
         except Exception as e:
             info["poll_test_err"] = str(e)
     return jsonify(info), 200
