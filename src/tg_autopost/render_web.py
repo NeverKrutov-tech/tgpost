@@ -56,6 +56,8 @@ def health() -> tuple[str, int]:
 def debug() -> tuple:
     ensure_bot_started()
     info = {"polling_alive": bool(_bot_thread and _bot_thread.is_alive())}
+    if _handler is not None:
+        info["poll_offset"] = _handler._offset
     if _settings is not None:
         info["bot_token_present"] = bool(_settings.bot_token)
         info["channel_id"] = _settings.channel_id
