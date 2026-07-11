@@ -1,0 +1,37 @@
+name: Horoscope
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Restore DB from cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/jokes.db
+          key: jokes-db-v1
+          restore-keys: |
+            jokes-db-v1-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env from secrets
+        run: |
+          echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" >> .env
+          echo "CHANNEL_ID=${{ secrets.CHANNEL_ID }}" >> .env
+          echo "ADMIN_ID=${{ secrets.ADMIN_ID }}" >> .env
+          echo "CHANNEL_LINK=${{ secrets.CHANNEL_LINK }}" >> .env
+
+      - name: Publish horoscope
+        run: python -m src.tg_autopost horoscope

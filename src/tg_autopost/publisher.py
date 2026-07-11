@@ -12,6 +12,7 @@ from .config import Settings
 from .content_filter import is_flagged
 from .database import Database
 from .handlers import PollingHandler
+from .horoscope import generate_horoscope
 from .image_gen import fits_in_image, generate_joke_image, generate_repost_card
 from .levels import get_level
 from .rubrics import classify_emoji, get_hashtags, get_preamble, get_today_rubric, is_jubilee
@@ -367,6 +368,20 @@ class TelegramPublisher:
         }
         self._post_message(payload)
         return True
+
+    def _send_horoscope(self) -> int:
+        text = generate_horoscope()
+        payload = {
+            "chat_id": self.settings.channel_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        }
+        data = self._post_message(payload)
+        msg_id = data["result"]["message_id"]
+        logger.info("Published morning horoscope")
+        self._send_dice()
+        return msg_id
 
     def _send_image(self, joke, rubric: dict) -> bool:
         post_number = self.db.count_published() + 1
