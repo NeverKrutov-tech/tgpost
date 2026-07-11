@@ -72,6 +72,13 @@ def debug() -> tuple:
                 info["webhook_url"] = whr.get("url") or "(none)"
         except Exception as e:
             info["webhook_err"] = str(e)
+        try:
+            upd = _api_call(_settings.bot_token, "getUpdates", {"limit": 3}, timeout=10)
+            if upd:
+                ures = upd.get("result") or []
+                info["updates_found"] = len(ures)
+        except Exception as e:
+            info["updates_err"] = str(e)
     return jsonify(info), 200
 
 
