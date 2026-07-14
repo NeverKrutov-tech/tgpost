@@ -214,24 +214,6 @@ def joke_image(msg_id: int) -> tuple:
         return "", 500
 
 
-@app.get("/send-video")
-def send_video():
-    from .app import build_services
-    from .sources.reddit_video import RedditVideoSource
-    import traceback
-    src = RedditVideoSource()
-    jokes = list(src.fetch(1))
-    if not jokes:
-        return jsonify({"error": "no videos fetched"}), 500
-    j = jokes[0]
-    try:
-        _, _, ing, pub = build_services()
-        ok = pub._send_video(j)
-        return jsonify({"ok": ok, "src": j.text[:80]}), 200
-    except Exception as e:
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
-
-
 if __name__ == "__main__":
     ensure_bot_started()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "10000")))
