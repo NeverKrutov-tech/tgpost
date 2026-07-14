@@ -7,6 +7,7 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 |--------|---------|
 | Drop DB + re-ingest | `del data\jokes.db && python -m src.tg_autopost ingest` |
 | Publish one post | `python -m src.tg_autopost publish` |
+| Post a story | `python -m src.tg_autopost story` |
 | Run scheduler + polling | `python -m src.tg_autopost run` |
 | `ADMIN_ID` | Add your Telegram user ID in `.env` for submission moderation |
 

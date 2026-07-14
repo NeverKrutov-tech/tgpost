@@ -27,7 +27,10 @@ if FONT_PATH is None:
 OUTPUT_DIR = Path("data/images")
 WIDTH = 1080
 HEIGHT = 1080
+STORY_WIDTH = 1080
+STORY_HEIGHT = 1920
 PADDING = 80
+STORY_PADDING = 100
 LINE_HEIGHT_RATIO = 1.35
 PARAGRAPH_SPACING = 0.6
 TOP_MARGIN = 120
@@ -273,5 +276,57 @@ def generate_repost_card(text: str) -> str:
 
     hash_val = abs(hash(text)) % 10_000_000
     filename = OUTPUT_DIR / f"card_{hash_val}.jpg"
+    img.save(filename, "JPEG", quality=92)
+    return str(filename)
+
+
+def generate_story_image(text: str, source_name: str = "") -> str:
+    ensure_dir()
+    pal = random_palette()
+    img = make_gradient(pal["bg_top"], pal["bg_bot"])
+    draw = ImageDraw.Draw(img)
+    accent = pal["accent"]
+    text_color = pal["text"]
+    max_w = STORY_WIDTH - STORY_PADDING * 2
+    max_h = STORY_HEIGHT - 300
+    font_size = pick_font_size(text, max_w, max_h)
+    if font_size < 28:
+        font_size = 28
+    font = ImageFont.truetype(FONT_PATH, font_size)
+    lh = int(font_size * LINE_HEIGHT_RATIO)
+    pg = int(font_size * PARAGRAPH_SPACING)
+    paragraphs = text.split("\n\n")
+    wrapped = []
+    total = 0
+    for pi, para in enumerate(paragraphs):
+        para_lines = []
+        for line in para.split("\n"):
+            para_lines.extend(wrap_text(line, font, max_w))
+        wrapped.append(para_lines)
+        total += len(para_lines) * lh
+        if pi < len(paragraphs) - 1:
+            total += pg
+    start_y = 140 + (max_h - total) // 2
+    draw.rectangle([0, 0, STORY_WIDTH, 6], fill=accent)
+    draw.rectangle([0, STORY_HEIGHT - 6, STORY_WIDTH, STORY_HEIGHT], fill=accent)
+    draw_dots(draw, accent)
+    y = start_y
+    for pi, para_lines in enumerate(wrapped):
+        for line in para_lines:
+            lw = font.getlength(line)
+            draw.text(((STORY_WIDTH - lw) // 2, y), line, fill=text_color, font=font)
+            y += lh
+        if pi < len(wrapped) - 1:
+            y += pg
+    handle = f"@{source_name}" if source_name else ""
+    if handle:
+        try:
+            wf = ImageFont.truetype(FONT_PATH, 28)
+        except Exception:
+            wf = ImageFont.truetype(FONT_PATH, 28)
+        hw = wf.getlength(handle)
+        draw.text(((STORY_WIDTH - hw) // 2, STORY_HEIGHT - 60), handle, fill=accent, font=wf)
+    hash_val = abs(hash(text)) % 10_000_000
+    filename = OUTPUT_DIR / f"story_{hash_val}.jpg"
     img.save(filename, "JPEG", quality=92)
     return str(filename)

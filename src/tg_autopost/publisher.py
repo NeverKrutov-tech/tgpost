@@ -28,6 +28,8 @@ BATTLE_EVERY = 5
 OBSERVATION_RATIO = 0.1
 REPOST_CARD_RATIO = 0.3
 REACTION_PROMPT_RATIO = 0.4
+MEME_ANALYSIS_RATIO = 0.15
+HEADLINE_RATIO = 0.15
 QUIZ_RATIO = 0.08
 FRIDAY_PROMPT_DAYS = [4]
 SUNDAY_DIGEST_DAYS = [6]
@@ -43,6 +45,19 @@ def _split_two_part(text: str) -> tuple[str, str] | None:
         return "\n".join(lines[:mid]), "\n".join(lines[mid:])
     mid = len(parts) // 2
     return "\n\n".join(parts[:mid]), "\n\n".join(parts[mid:])
+
+
+def _split_headline(text: str) -> tuple[str, str] | None:
+    lines = text.strip().split("\n")
+    if len(lines) < 2:
+        return None
+    last = lines[-1].strip()
+    if not last or len(last) > 100:
+        return None
+    setup = "\n".join(lines[:-1]).strip()
+    if len(setup) < 150:
+        return None
+    return setup, last
 
 
 def _build_text(joke_text: str, rubric: dict, post_number: int, preamble_override: str = "", is_part2: bool = False, channel_link: str = "") -> str:
@@ -346,7 +361,7 @@ class TelegramPublisher:
         logger.info("Published quiz prompt for joke: %s", joke.external_id)
         return True
 
-    def _send_text(self, joke, rubric: dict, preamble_override: str = "", is_part2: bool = False) -> int:
+    def _send_text(self, joke, rubric: dict, preamble_override: str = "", is_part2: bool = False, reply_to: int = 0) -> int:
         post_number = self.db.count_published() + 1
         text = _build_text(joke.text, rubric, post_number, preamble_override, is_part2, self.settings.channel_link)
         payload = {
@@ -354,6 +369,8 @@ class TelegramPublisher:
             "text": text,
             "parse_mode": "HTML",
         }
+        if reply_to:
+            payload["reply_to_message_id"] = reply_to
         data = self._post_message(payload)
         self.db.mark_published(joke.content_hash)
         logger.info("Published text joke: %s", joke.external_id)
@@ -404,19 +421,46 @@ class TelegramPublisher:
             return False
         return self._send_meme_image(joke)
 
-    def _send_meme_image(self, joke) -> bool:
-        text = joke.text
-        if not text.startswith("MEME:"):
+    def _send_story(self) -> bool:
+        try:
+            from .image_gen import generate_story_image
+            joke = self.db.get_next_unpublished()
+            if joke is None:
+                joke = self.db.get_next_popular_unpublished()
+            if joke is None:
+                logger.info("No jokes available for story")
+                return False
+            text = joke.text
+            if text.startswith("MEME:"):
+                text = text.split("\n", 1)[1].strip() if "\n" in text else ""
+            if not text:
+                return False
+            src_name = self.settings.channel_link.rstrip("/").rsplit("/", 1)[-1] if self.settings.channel_link else "Anetdodik"
+            image_path = generate_story_image(text, src_name)
+            with open(image_path, "rb") as f:
+                r = requests.post(
+                    f"https://api.telegram.org/bot{self.settings.bot_token}/sendStory",
+                    data={"chat_id": self.settings.channel_id},
+                    files={"photo": f},
+                    timeout=self.settings.http_timeout,
+                )
+            Path(image_path).unlink(missing_ok=True)
+            if r.ok and r.json().get("ok"):
+                self.db.mark_published(joke.content_hash)
+                logger.info("Posted story: %s", joke.external_id)
+                return True
+            logger.warning("sendStory failed: %s", r.text)
             return False
-        rest = text[len("MEME:"):]
-        img_url = rest.split("\n")[0].strip()
-        caption = "\n".join(rest.split("\n")[1:]).strip()[:200]
+        except Exception as e:
+            logger.warning("Failed to send story: %s", e)
+            return False
+
+    def _send_photo(self, img_url: str, caption: str, content_hash: str) -> bool:
         try:
             resp = requests.get(img_url, timeout=20)
             resp.raise_for_status()
-            ct = resp.headers.get("Content-Type", "")
             ext = img_url.rsplit(".", 1)[-1].lower()
-            fname = f"meme_{joke.content_hash}.{ext}"
+            fname = f"meme_{content_hash}.{ext}"
             path = Path("data") / fname
             path.write_bytes(resp.content)
             with open(path, "rb") as f:
@@ -425,6 +469,7 @@ class TelegramPublisher:
                     data={
                         "chat_id": self.settings.channel_id,
                         "caption": caption,
+                        "parse_mode": "HTML",
                         "reply_markup": json.dumps(self._build_keyboard()),
                     },
                     files={"photo": f},
@@ -434,12 +479,70 @@ class TelegramPublisher:
             payload = r.json()
             if not r.ok or not payload.get("ok"):
                 raise RuntimeError(f"Telegram API error: {payload.get('description', 'unknown')}")
-            self.db.mark_published(joke.content_hash)
-            logger.info("Published meme image: %s", img_url)
+            self.db.mark_published(content_hash)
             return True
         except Exception as e:
-            logger.warning("Failed to send meme image: %s", e)
+            logger.warning("Failed to send photo: %s", e)
             return False
+
+    def _send_meme_image(self, joke) -> bool:
+        text = joke.text
+        if not text.startswith("MEME:"):
+            return False
+        rest = text[len("MEME:"):]
+        img_url = rest.split("\n")[0].strip()
+        caption = "\n".join(rest.split("\n")[1:]).strip()[:200]
+        logger.info("Publishing meme image: %s", img_url)
+        return self._send_photo(img_url, caption, joke.content_hash)
+
+    _ANALYSIS_TEMPLATES = [
+        "Контекст: {title}. Соль мема в том, что ситуация узнаваема до зубной боли. "
+        "Ирония строится на контрасте между ожиданием и реальностью.",
+        "Этот мем работает за счёт неожиданного твиста. Сначала {low_title}, "
+        "а потом — бам! — полная противоположность. Классика жанра.",
+        "Почему это смешно? Потому что {low_title}. Автор поймал идеальный "
+        "тайминг и узнаваемый паттерн. Именно так это и работает в реальной жизни.",
+        "Главный приём здесь — гипербола и самоирония. {title}. "
+        "Смех сквозь слёзы узнавания — вот рецепт этого мема.",
+        "Формула мема: ситуация + неожиданная развязка. {title} — "
+        "идеальный пример. Чем больше контекста, тем смешнее.",
+    ]
+
+    def _build_meme_analysis(self, title: str) -> str:
+        template = random.choice(self._ANALYSIS_TEMPLATES)
+        low = title[0].lower() + title[1:] if len(title) > 1 else title.lower()
+        analysis = template.format(title=title, low_title=low)
+        return f"\U0001F9D0 <b>\u0420\u0430\u0437\u0431\u043E\u0440 \u043C\u0435\u043C\u0430</b>\n\n{html.escape(analysis)}\n\n#\u0440\u0430\u0437\u0431\u043E\u0440\u043C\u0435\u043C\u0430 #\u0430\u043D\u0430\u0442\u043E\u043C\u0438\u044F\u044E\u043C\u043E\u0440\u0430"
+
+    def _send_meme_analysis(self, joke) -> bool:
+        text = joke.text
+        if not text.startswith("MEME:"):
+            return False
+        rest = text[len("MEME:"):]
+        img_url = rest.split("\n")[0].strip()
+        title = "\n".join(rest.split("\n")[1:]).strip()[:200]
+        analysis = self._build_meme_analysis(title)
+        logger.info("Publishing meme analysis: %s", img_url)
+        return self._send_photo(img_url, analysis, joke.content_hash)
+
+    def _send_headline_joke(self, joke, rubric: dict) -> bool:
+        split = _split_headline(joke.text)
+        if split is None:
+            return False
+        setup, punchline = split
+        logger.info("Publishing headline joke: %s", joke.external_id)
+        # post setup as a regular text, get its message_id
+        joke.text = setup
+        msg_id = self._send_text(joke, rubric)
+        # post punchline as a reply
+        payload = {
+            "chat_id": self.settings.channel_id,
+            "text": html.escape(punchline),
+            "parse_mode": "HTML",
+            "reply_to_message_id": msg_id,
+        }
+        self._post_message(payload)
+        return True
 
     def _send_image(self, joke, rubric: dict) -> bool:
         post_number = self.db.count_published() + 1
@@ -478,10 +581,21 @@ class TelegramPublisher:
         split = _split_two_part(joke.text)
         if split is None:
             return False
-        part1, _part2 = split
+        part1, part2 = split
         self.db.mark_published(joke.content_hash)
         joke.text = part1.strip()
-        self._send_text(joke, rubric, "\u0427\u0438\u0442\u0430\u0439\u0442\u0435 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u043C \u0432\u044B\u043F\u0443\u0441\u043A\u0435:")
+        msg_id = self._send_text(joke, rubric, "\u0427\u0438\u0442\u0430\u0439\u0442\u0435 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u043C \u0432\u044B\u043F\u0443\u0441\u043A\u0435:")
+        self.db.save_pending_part(joke.content_hash, part2.strip(), joke.source_name, joke.external_id, joke.content_hash, msg_id)
+        return True
+
+    def _send_pending_part(self, rubric: dict) -> bool:
+        pending = self.db.get_pending_part()
+        if pending is None:
+            return False
+        joke, part1_msg_id = pending
+        self._send_text(joke, rubric, is_part2=True, reply_to=part1_msg_id)
+        self.db.delete_pending_part(joke.content_hash)
+        logger.info("Published continuation for part1 msg %s", part1_msg_id)
         return True
 
     def _handle_battle(self, rubric: dict) -> bool:
@@ -780,6 +894,9 @@ class TelegramPublisher:
 
         self._welcome_new_members()
 
+        if self._send_pending_part(rubric):
+            return True
+
         if self.db.count_pending_quiz() > 0:
             return self._send_quiz_answer()
 
@@ -821,10 +938,14 @@ class TelegramPublisher:
                 joke = self.db.get_next_unpublished()
             if joke:
                 if joke.text.startswith("MEME:"):
+                    if random.random() < MEME_ANALYSIS_RATIO:
+                        return self._send_meme_analysis(joke)
                     return self._send_meme_image(joke)
                 if len(joke.text) < 200 and random.random() < OBSERVATION_RATIO:
                     self.db.mark_published(joke.content_hash)
                     return self._send_observation(joke.text)
+                if random.random() < HEADLINE_RATIO and _split_headline(joke.text):
+                    return self._send_headline_joke(joke, rubric)
                 if len(joke.text) > 600 and _split_two_part(joke.text):
                     result = self._handle_two_part(joke, rubric)
                     if result:
@@ -849,11 +970,16 @@ class TelegramPublisher:
             return False
 
         if joke.text.startswith("MEME:"):
+            if random.random() < MEME_ANALYSIS_RATIO:
+                return self._send_meme_analysis(joke)
             return self._send_meme_image(joke)
 
         if len(joke.text) < 200 and random.random() < OBSERVATION_RATIO:
             self.db.mark_published(joke.content_hash)
             return self._send_observation(joke.text)
+
+        if random.random() < HEADLINE_RATIO and _split_headline(joke.text):
+            return self._send_headline_joke(joke, rubric)
 
         if len(joke.text) > 600 and _split_two_part(joke.text):
             result = self._handle_two_part(joke, rubric)

@@ -5,11 +5,12 @@ import threading
 from pathlib import Path
 
 import requests
-from flask import Flask, jsonify
+from flask import Flask, jsonify, abort
 
 from .config import load_settings
 from .database import Database
 from .handlers import PollingHandler, _api_call
+from .rubrics import RUBRICS
 
 app = Flask(__name__)
 _bot_thread: threading.Thread | None = None
@@ -179,6 +180,7 @@ def top_weekly() -> str:
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary">
   <meta name="robots" content="index,follow">
+  <link rel="alternate" type="application/rss+xml" title="@{uname} RSS" href="https://tgpost-bot-l4wq.onrender.com/rss.xml">
   <style>
     body {{ font-family: sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; background: #f5f5f5; }}
     h1 {{ color: #333; }}
@@ -212,6 +214,124 @@ def joke_image(msg_id: int) -> tuple:
         return data, 200, {"Content-Type": "image/png", "Cache-Control": "public, max-age=3600"}
     except Exception:
         return "", 500
+
+
+_RUBRIC_SLUGS: dict[str, int] = {
+    "semeynoe": 0,
+    "rabochee": 1,
+    "zhivotnye": 2,
+    "armeyskoe": 3,
+    "chernyy-yumor": 4,
+    "zastolnoe": 5,
+    "zhiznennoe": 6,
+}
+
+
+@app.get("/rubric/<slug>")
+def rubric_page(slug: str) -> tuple:
+    idx = _RUBRIC_SLUGS.get(slug)
+    if idx is None:
+        abort(404)
+    rubric = RUBRICS[idx]
+    uname = _channel_username()
+    jokes_html = ""
+    canonical = f"https://tgpost-bot-l4wq.onrender.com/rubric/{slug}"
+    if _settings is not None:
+        db = Database(_settings.database_url or _settings.database_path)
+        jokes = db.get_published_by_keywords(rubric["keywords"], limit=30)
+        if jokes:
+            for joke in jokes:
+                text = joke["text"].replace("\n", " ")[:200].rstrip() + "\u2026" if len(joke["text"]) > 200 else joke["text"]
+                jokes_html += f'<li><a href="https://t.me/{uname}">{html.escape(text)}</a></li>\n'
+    if not jokes_html:
+        jokes_html = f"<li>\u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C \u043D\u0430 @{uname} \u2014 \u0442\u0430\u043C \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C \u0441\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B!</li>"
+    rubric_emoji = rubric.get("emoji", "")
+    rubric_name = rubric["name"]
+    page = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>\u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043F\u0440\u043E {rubric_name.lower()} \u2014 @{uname}</title>
+  <meta name="description" content="\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043F\u0440\u043E {rubric_name.lower()}. \u041A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C \u043D\u043E\u0432\u044B\u0435 \u043F\u043E\u0441\u0442\u044B \u0432 Telegram @{uname}!">
+  <meta property="og:title" content="{rubric_emoji} \u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043F\u0440\u043E {rubric_name.lower()}">
+  <meta property="og:description" content="\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043F\u0440\u043E {rubric_name.lower()} \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C. \u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C!">
+  <meta property="og:url" content="{canonical}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="{canonical}">
+  <style>
+    body {{ font-family: sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; background: #f5f5f5; }}
+    h1 {{ color: #333; }}
+    a {{ color: #0088cc; text-decoration: none; }}
+    li {{ margin: 12px 0; line-height: 1.5; }}
+    .sub {{ display: block; margin-top: 30px; padding: 15px; background: #0088cc; color: white;
+            text-align: center; border-radius: 8px; font-size: 18px; }}
+  </style>
+</head>
+<body>
+  <h1>{rubric_emoji} \u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043F\u0440\u043E {rubric_name.lower()}</h1>
+  <p>\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0438\u0437 Telegram \u043A\u0430\u043D\u0430\u043B\u0430 @{uname}.</p>
+  <ol>{jokes_html}</ol>
+  <a class="sub" href="https://t.me/{uname}">\u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname} \u0432 Telegram</a>
+  <p style="margin-top:20px;text-align:center"><a href="/top">\u0412\u0441\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</a> \u2022 <a href="/sitemap.xml">\u041A\u0430\u0440\u0442\u0430 \u0441\u0430\u0439\u0442\u0430</a></p>
+</body>
+</html>"""
+    return page, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+@app.get("/rss.xml")
+def rss_feed() -> tuple:
+    uname = _channel_username()
+    channel_url = f"https://t.me/{uname}"
+    base = "https://tgpost-bot-l4wq.onrender.com"
+    items = ""
+    if _settings is not None:
+        db = Database(_settings.database_url or _settings.database_path)
+        with db.connect() as conn:
+            rows = conn.execute(
+                "SELECT text, published_at FROM jokes WHERE published_at IS NOT NULL "
+                "ORDER BY published_at DESC LIMIT 20"
+            ).fetchall()
+        for row in rows:
+            title = row["text"].split("\n")[0][:100].rstrip() + "\u2026" if len(row["text"]) > 100 else row["text"]
+            desc = html.escape(row["text"].replace("\n", "<br>"))
+            pub_date = row["published_at"]
+            items += f"""    <item>
+      <title>{html.escape(title)}</title>
+      <link>{channel_url}</link>
+      <description><![CDATA[{desc}]]></description>
+      <pubDate>{pub_date}</pubDate>
+      <guid isPermaLink="false">{row["published_at"]}</guid>
+    </item>
+"""
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>\u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0438\u0437 @{uname}</title>
+    <link>{channel_url}</link>
+    <description>\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C \u0432 Telegram</description>
+    <language>ru</language>
+    <atom:link href="{base}/rss.xml" rel="self" type="application/rss+xml"/>
+{items}  </channel>
+</rss>"""
+    return xml, 200, {"Content-Type": "application/rss+xml; charset=utf-8"}
+
+
+@app.get("/sitemap.xml")
+def sitemap() -> tuple:
+    uname = _channel_username()
+    base = "https://tgpost-bot-l4wq.onrender.com"
+    urls = [
+        f"  <url><loc>{base}/top</loc><changefreq>daily</changefreq><priority>0.8</priority></url>",
+    ]
+    for slug in _RUBRIC_SLUGS:
+        urls.append(f"  <url><loc>{base}/rubric/{slug}</loc><changefreq>daily</changefreq><priority>0.7</priority></url>")
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{chr(10).join(urls)}
+</urlset>"""
+    return xml, 200, {"Content-Type": "application/xml; charset=utf-8"}
 
 
 if __name__ == "__main__":

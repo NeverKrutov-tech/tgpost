@@ -17,6 +17,9 @@ class MemeApiSource(JokeSource):
     API_URLS = [
         "https://meme-api.com/gimme",
         "https://meme-api.com/gimme/wholesomememes",
+        "https://meme-api.com/gimme/ProgrammerHumor",
+        "https://meme-api.com/gimme/techhumor",
+        "https://meme-api.com/gimme/CryptoCurrency",
     ]
 
     def fetch(self, limit: int) -> Iterable[Joke]:

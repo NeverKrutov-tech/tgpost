@@ -26,6 +26,8 @@ def build_services():
     from .sources.anekdotov_net import AnekdotovNetSource
     from .sources.baneks_ru import BaneksRuSource
     from .sources.meme_api import MemeApiSource
+    from .sources.it_jokes import ItJokesSource
+    from .sources.reddit_jokes import RedditJokesSource
 
     settings = load_settings()
     db = Database(settings.database_url or settings.database_path)
@@ -34,6 +36,8 @@ def build_services():
         AnekdotovNetSource(timeout=settings.http_timeout),
         BaneksRuSource(timeout=settings.http_timeout),
         MemeApiSource(),
+        ItJokesSource(),
+        RedditJokesSource(),
     ]
     if settings.telegram_sources:
         if settings.telethon_api_id and settings.telethon_api_hash and settings.telethon_session_string:
@@ -86,6 +90,11 @@ def publish_meme_image() -> bool:
     return publisher._publish_meme()
 
 
+def publish_story() -> bool:
+    _, _, _, publisher = build_services()
+    return publisher._send_story()
+
+
 def run_ingest_and_publish() -> None:
     run_ingest()
     run_publish()
@@ -111,6 +120,7 @@ def run_scheduler() -> None:
     scheduler.add_job(publish_anti_advice, "cron", hour=13, minute=0)
     scheduler.add_job(publish_meme_image, "cron", hour=12, minute=0)
     scheduler.add_job(publish_meme_image, "cron", hour=18, minute=0)
+    scheduler.add_job(publish_story, "cron", hour=20, minute=0)
 
     logging.getLogger(__name__).info(
         "Scheduler started — posts at %s:00, every %s hours (night pause 23:00–07:59)",
@@ -130,7 +140,7 @@ def run_bot() -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Telegram joke autoposting service")
-    parser.add_argument("command", nargs="?", default="run", choices=["run", "ingest", "publish", "bot", "horoscope", "antiadvice", "meme"])
+    parser.add_argument("command", nargs="?", default="run", choices=["run", "ingest", "publish", "bot", "horoscope", "antiadvice", "meme", "story"])
     args = parser.parse_args()
 
     configure_logging()
@@ -145,6 +155,8 @@ def main() -> int:
         publish_anti_advice()
     elif args.command == "meme":
         publish_meme_image()
+    elif args.command == "story":
+        publish_story()
     elif args.command == "bot":
         run_bot()
     else:

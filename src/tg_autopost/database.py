@@ -422,6 +422,20 @@ class Database:
                 break
         return result
 
+    def get_published_by_keywords(self, keywords: list[str], limit: int = 50) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT text, published_at FROM jokes WHERE published_at IS NOT NULL "
+                "ORDER BY published_at DESC"
+            ).fetchall()
+        results = []
+        for row in rows:
+            if not keywords or any(kw.lower() in row["text"].lower() for kw in keywords):
+                results.append({"text": row["text"], "published_at": row["published_at"]})
+                if len(results) >= limit:
+                    break
+        return results
+
     def save_pending_part(self, part1_hash: str, text: str, source_name: str, external_id: str, content_hash: str, part1_msg_id: int = 0) -> None:
         now = datetime.now(timezone.utc).isoformat()
         with self.connect() as connection:
