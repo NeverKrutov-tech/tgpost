@@ -397,6 +397,13 @@ class TelegramPublisher:
         logger.info("Published anti-advice of the day")
         return msg_id
 
+    def _publish_meme(self) -> bool:
+        joke = self.db.get_unpublished_meme()
+        if joke is None:
+            logger.info("No unpublished memes available")
+            return False
+        return self._send_meme_image(joke)
+
     def _send_meme_image(self, joke) -> bool:
         text = joke.text
         if not text.startswith("MEME:"):

@@ -299,6 +299,27 @@ class Database:
                 )
         return None
 
+    def get_unpublished_meme(self) -> Joke | None:
+        published_keys = self._get_published_dedup_keys()
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT text, source_name, source_url, external_id, content_hash, source_views, created_at, published_at "
+                "FROM jokes WHERE published_at IS NULL AND source_name = 'meme_api' ORDER BY RANDOM()"
+            ).fetchall()
+        for row in rows:
+            if dedup_key(row["text"]) not in published_keys:
+                return Joke(
+                    text=row["text"],
+                    source_name=row["source_name"],
+                    source_url=row["source_url"],
+                    external_id=row["external_id"],
+                    content_hash=row["content_hash"],
+                    source_views=row["source_views"],
+                    created_at=datetime.fromisoformat(row["created_at"]),
+                    published_at=datetime.fromisoformat(row["published_at"]) if row["published_at"] else None,
+                )
+        return None
+
     def mark_published(self, content_hash: str) -> None:
         published_at = datetime.now(timezone.utc).isoformat()
         with self.connect() as connection:

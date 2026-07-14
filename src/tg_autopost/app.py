@@ -81,6 +81,11 @@ def publish_anti_advice() -> bool:
     return True
 
 
+def publish_meme_image() -> bool:
+    _, _, _, publisher = build_services()
+    return publisher._publish_meme()
+
+
 def run_ingest_and_publish() -> None:
     run_ingest()
     run_publish()
@@ -104,6 +109,8 @@ def run_scheduler() -> None:
 
     scheduler.add_job(publish_horoscope, "cron", hour=8, minute=0)
     scheduler.add_job(publish_anti_advice, "cron", hour=13, minute=0)
+    scheduler.add_job(publish_meme_image, "cron", hour=12, minute=0)
+    scheduler.add_job(publish_meme_image, "cron", hour=18, minute=0)
 
     logging.getLogger(__name__).info(
         "Scheduler started — posts at %s:00, every %s hours (night pause 23:00–07:59)",
@@ -123,7 +130,7 @@ def run_bot() -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Telegram joke autoposting service")
-    parser.add_argument("command", nargs="?", default="run", choices=["run", "ingest", "publish", "bot", "horoscope", "antiadvice"])
+    parser.add_argument("command", nargs="?", default="run", choices=["run", "ingest", "publish", "bot", "horoscope", "antiadvice", "meme"])
     args = parser.parse_args()
 
     configure_logging()
@@ -136,6 +143,8 @@ def main() -> int:
         publish_horoscope()
     elif args.command == "antiadvice":
         publish_anti_advice()
+    elif args.command == "meme":
+        publish_meme_image()
     elif args.command == "bot":
         run_bot()
     else:
