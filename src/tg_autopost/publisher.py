@@ -434,44 +434,6 @@ class TelegramPublisher:
             logger.warning("Failed to send meme image: %s", e)
             return False
 
-    def _send_video(self, joke) -> bool:
-        text = joke.text
-        if not text.startswith("VIDEO:"):
-            return False
-        rest = text[len("VIDEO:"):]
-        video_url = rest.split("\n")[0].strip()
-        caption = "\n".join(rest.split("\n")[1:]).strip()[:200]
-        try:
-            resp = requests.get(video_url, timeout=60, stream=True)
-            resp.raise_for_status()
-            ext = video_url.rsplit(".", 1)[-1].split("?")[0] or "mp4"
-            fname = f"vid_{joke.content_hash}.{ext}"
-            path = Path("data") / fname
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(resp.content)
-            with open(path, "rb") as f:
-                r = requests.post(
-                    f"https://api.telegram.org/bot{self.settings.bot_token}/sendVideo",
-                    data={
-                        "chat_id": self.settings.channel_id,
-                        "caption": caption,
-                        "supports_streaming": True,
-                        "reply_markup": json.dumps(self._build_keyboard()),
-                    },
-                    files={"video": f},
-                    timeout=120,
-                )
-            path.unlink(missing_ok=True)
-            payload = r.json()
-            if not r.ok or not payload.get("ok"):
-                raise RuntimeError(f"Telegram API error: {payload.get('description', 'unknown')}")
-            self.db.mark_published(joke.content_hash)
-            logger.info("Published video: %s", video_url)
-            return True
-        except Exception as e:
-            logger.warning("Failed to send video: %s", e)
-            return False
-
     def _send_image(self, joke, rubric: dict) -> bool:
         post_number = self.db.count_published() + 1
         image_path = generate_joke_image(joke.text, post_number, rubric_name=rubric.get("name"))
@@ -853,8 +815,6 @@ class TelegramPublisher:
             if joke:
                 if joke.text.startswith("MEME:"):
                     return self._send_meme_image(joke)
-                if joke.text.startswith("VIDEO:"):
-                    return self._send_video(joke)
                 if len(joke.text) < 200 and random.random() < OBSERVATION_RATIO:
                     self.db.mark_published(joke.content_hash)
                     return self._send_observation(joke.text)
@@ -883,8 +843,6 @@ class TelegramPublisher:
 
         if joke.text.startswith("MEME:"):
             return self._send_meme_image(joke)
-        if joke.text.startswith("VIDEO:"):
-            return self._send_video(joke)
 
         if len(joke.text) < 200 and random.random() < OBSERVATION_RATIO:
             self.db.mark_published(joke.content_hash)
