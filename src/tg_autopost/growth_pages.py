@@ -8,6 +8,19 @@ from .config import load_settings
 from .database import Database
 
 
+@growth_pages.get("/yandex_7047ab34f737b66e.html")
+def yandex_verification() -> tuple:
+    """Yandex site verification endpoint."""
+    html = """<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+    <body>Verification: 7047ab34f737b66e</body>
+</html>"""
+    return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
 growth_pages = Blueprint("growth_pages", __name__)
 BASE_URL = "https://tgpost-bot-l4wq.onrender.com"
 
