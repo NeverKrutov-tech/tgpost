@@ -173,6 +173,17 @@ CREATE TABLE IF NOT EXISTS user_stats (
 );
 """
 
+VIRAL_CHALLENGES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS viral_challenges (
+    id TEXT PRIMARY KEY,
+    challenger_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    accepted_at TEXT
+);
+"""
+
 
 class Database:
     def __init__(self, path: str) -> None:
@@ -209,6 +220,7 @@ class Database:
             connection.execute(USER_STREAKS_TABLE_SQL)
             connection.execute(USER_ACHIEVEMENTS_TABLE_SQL)
             connection.execute(USER_STATS_TABLE_SQL)
+            connection.execute(VIRAL_CHALLENGES_TABLE_SQL)
             self._migrate(connection)
 
     def _migrate(self, connection: sqlite3.Connection) -> None:

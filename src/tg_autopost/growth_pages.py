@@ -156,6 +156,54 @@ def viral_share_unlock() -> tuple:
     })
 
 
+@growth_pages.post("/api/viral/challenge")
+def viral_challenge() -> tuple:
+    """Create or accept a friend challenge."""
+    from flask import request, jsonify
+    settings = load_settings()
+    if settings is None:
+        return jsonify({"error": "not ready"}), 503
+    data = request.get_json(silent=True) or {}
+    action = data.get("action")  # "create" or "accept"
+    user_id = data.get("user_id")
+    challenge_type = data.get("type", "read_count")  # "read_count", "streak", "shares"
+    target_user_id = data.get("target_user_id")  # for accept
+    if not user_id:
+        return jsonify({"error": "user_id required"}), 400
+    
+    db = Database(settings.database_url or settings.database_path)
+    if action == "create":
+        # Create a new challenge
+        import uuid
+        challenge_id = str(uuid.uuid4())[:8]
+        with db.connect() as conn:
+            conn.execute(
+                """INSERT INTO viral_challenges (id, challenger_id, type, created_at)
+                VALUES (?, ?, ?, ?)""",
+                (challenge_id, user_id, challenge_type, datetime.now(timezone.utc).isoformat()),
+            )
+        return jsonify({"challenge_id": challenge_id, "type": challenge_type})
+    
+    elif action == "accept":
+        if not target_user_id:
+            return jsonify({"error": "target_user_id required"}), 400
+        # Check if challenge exists and is pending
+        with db.connect() as conn:
+            row = conn.execute(
+                "SELECT id, challenger_id, type, status FROM viral_challenges WHERE id = ? AND challenger_id = ? AND status = 'pending'",
+                (target_user_id, user_id),
+            ).fetchone()
+            if not row:
+                return jsonify({"error": "Challenge not found or already accepted"}), 404
+            conn.execute(
+                "UPDATE viral_challenges SET status = 'accepted', accepted_at = ? WHERE id = ?",
+                (datetime.now(timezone.utc).isoformat(), target_user_id),
+            )
+        return jsonify({"success": True, "challenge_id": target_user_id})
+    
+    return jsonify({"error": "invalid action"}), 400
+
+
 @growth_pages.get("/api/social-proof/subscriber-count")
 def get_subscriber_count() -> tuple:
     """Get live subscriber count for social proof widgets."""
