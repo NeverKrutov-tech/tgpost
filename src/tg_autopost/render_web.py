@@ -71,6 +71,7 @@ _STYLE = """
     .rubrics { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
     .rb { padding: 8px 14px; border-radius: 8px; background: white; color: #333 !important; font-size: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
     .rb:hover { background: #0088cc; color: white !important; }
+    .pagi { text-align: center; margin: 16px 0; color: #666; font-size: 14px; }
     .footer { text-align: center; margin-top: 30px; color: #888; font-size: 14px; }
     li { margin: 12px 0; line-height: 1.5; }
 """
@@ -125,13 +126,14 @@ def home() -> tuple:
         db = Database(_settings.database_url or _settings.database_path)
         with db.connect() as conn:
             rows = conn.execute(
-                "SELECT text, published_at FROM jokes WHERE published_at IS NOT NULL "
+                "SELECT id, text, published_at FROM jokes WHERE published_at IS NOT NULL "
                 "ORDER BY published_at DESC LIMIT 5"
             ).fetchall()
         for row in rows:
             text = row["text"]
+            jid = row["id"]
             display = text.replace("\n", " ")[:150].rstrip() + "\u2026" if len(text) > 150 else text
-            jokes_html += f"""<li>{html_mod.escape(display)}</li>"""
+            jokes_html += f"""<li><a href="/joke/{jid}">{html_mod.escape(display)}</a></li>"""
     rubric_links = "".join(
         f'<a href="/rubric/{slug}" class="rb">{r["emoji"]} {r["name"]}</a>'
         for slug, r in [(k, RUBRICS[v]) for k, v in _RUBRIC_SLUGS.items()]
@@ -272,6 +274,103 @@ def joke_image(msg_id: int) -> tuple:
         return "", 500
 
 
+@app.get("/joke/<int:joke_id>")
+def joke_page(joke_id: int) -> tuple:
+    ensure_bot_started()
+    if _settings is None:
+        return abort(503)
+    uname = _channel_username()
+    channel_url = f"https://t.me/{uname}"
+    db = Database(_settings.database_url or _settings.database_path)
+    row = db.get_joke_by_id(joke_id)
+    if not row or row.get("published_at") is None:
+        abort(404)
+    text = row["text"]
+    first_line = text.split("\n")[0][:70].strip()
+    title = f"\u0410\u043D\u0435\u043A\u0434\u043E\u0442: {first_line}\u2026" if len(first_line) >= 70 else f"\u0410\u043D\u0435\u043A\u0434\u043E\u0442: {first_line}"
+    og_desc = text.replace("\n", " ")[:200].strip()
+    safe_text = html_mod.escape(text)
+    telegram_msg_id = row.get("telegram_msg_id")
+    post_url = f"https://t.me/{uname}/{telegram_msg_id}" if telegram_msg_id else channel_url
+    page_url = f"{_BASE}/joke/{joke_id}"
+    shares = _share_urls_joke(joke_id, text, uname, telegram_msg_id)
+    pub_date = row["published_at"]
+    # related jokes
+    related = ""
+    try:
+        with db.connect() as c:
+            rel_rows = c.execute(
+                "SELECT id, text FROM jokes WHERE id != ? AND published_at IS NOT NULL ORDER BY RANDOM() LIMIT 3",
+                (joke_id,),
+            ).fetchall()
+        for r in rel_rows:
+            short = r["text"].replace("\n", " ")[:100].strip()
+            related += f'<li><a href="/joke/{r["id"]}">{html_mod.escape(short)}\u2026</a></li>'
+    except Exception:
+        pass
+    schema = f"""{{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "{html_mod.escape(first_line)}",
+  "description": "{html_mod.escape(og_desc)}",
+  "author": {{ "@type": "Organization", "name": "@{uname}" }},
+  "datePublished": "{pub_date}"
+}}"""
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{html_mod.escape(title)} — @{uname}</title>
+  <meta name="description" content="{og_desc}">
+  <meta property="og:title" content="{html_mod.escape(title)}">
+  <meta property="og:description" content="{og_desc}">
+  <meta property="og:url" content="{page_url}">
+  <meta property="og:type" content="article">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{html_mod.escape(title)}">
+  <meta name="twitter:description" content="{og_desc}">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="{page_url}">
+  <style>{_STYLE}</style>
+  <script type="application/ld+json">{schema}</script>
+</head>
+<body>
+  <h1>\U0001F923 {html_mod.escape(first_line)}</h1>
+  <div class="joke">{safe_text}</div>
+  {shares}
+  <a class="sub" href="{channel_url}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
+  <p class="meta"><a href="{post_url}">\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0432 Telegram \u2192</a></p>
+  <h2>\u0415\u0449\u0451 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</h2>
+  <ol>{related}</ol>
+  <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="/top">\u041B\u0443\u0447\u0448\u0438\u0435</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/rss.xml">RSS</a></p>
+</body>
+</html>"""
+    return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+def _share_urls_joke(joke_id: int, text: str, uname: str, telegram_msg_id: int | None) -> str:
+    page_url = f"{_BASE}/joke/{joke_id}"
+    short_text = text.replace("\n", " ")[:100].strip()
+    share_base = short_text + f"\n\n\U0001F923 \u0411\u043E\u043B\u044C\u0448\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432 \u0432 @{uname}"
+    hashtags = "%23\u0430\u043D\u0435\u043A\u0434\u043E\u0442 %23\u044E\u043C\u043E\u0440 %23\u0441\u043C\u0435\u0445"
+    tg = f"https://t.me/share/url?url={page_url}&text={html_mod.quote(share_base)}"
+    tw = f"https://twitter.com/intent/tweet?text={html_mod.quote(share_base + ' ' + hashtags)}&url={page_url}"
+    vk = f"https://vk.com/share.php?url={page_url}&title={html_mod.quote(share_base)}"
+    wa = f"https://wa.me/?text={html_mod.quote(share_base + ' ' + page_url)}"
+    fb = f"https://www.facebook.com/sharer/sharer.php?u={page_url}&quote={html_mod.quote(share_base)}"
+    return f"""
+    <div class="shares" style="margin-top:20px">
+      <div style="font-size:12px;color:#888;margin-bottom:6px">\u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F \u0441 \u0434\u0440\u0443\u0437\u044C\u044F\u043C\u0438:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <a href="{tg}" target="_blank" class="s tg">Telegram</a>
+        <a href="{tw}" target="_blank" class="s tw">X</a>
+        <a href="{vk}" target="_blank" class="s vk">VK</a>
+        <a href="{wa}" target="_blank" class="s wa">WhatsApp</a>
+        <a href="{fb}" target="_blank" class="s fb">Facebook</a>
+      </div>
+    </div>"""
+
+
 @app.get("/avatar.png")
 def avatar() -> tuple:
     if _settings is None:
@@ -296,26 +395,42 @@ def avatar() -> tuple:
 @app.get("/top")
 def top_weekly() -> tuple:
     uname = _channel_username()
+    page = requests.args.get("page", 1, type=int)
+    per_page = 20
+    offset = (page - 1) * per_page
     jokes_html = ""
+    total = 0
     if _settings is not None:
         db = Database(_settings.database_url or _settings.database_path)
         with db.connect() as conn:
+            total = conn.execute(
+                "SELECT COUNT(*) AS c FROM jokes WHERE published_at IS NOT NULL"
+            ).fetchone()["c"]
             rows = conn.execute(
-                "SELECT text, published_at FROM jokes WHERE published_at IS NOT NULL "
-                "ORDER BY published_at DESC LIMIT 10"
+                "SELECT id, text, published_at FROM jokes WHERE published_at IS NOT NULL "
+                "ORDER BY published_at DESC LIMIT ? OFFSET ?",
+                (per_page, offset),
             ).fetchall()
         if rows:
             for i, row in enumerate(rows, 1):
                 text = row["text"]
+                joke_id = row["id"]
                 display = text.replace("\n", " ")[:200].rstrip() + "\u2026" if len(text) > 200 else text
                 short = text.replace("\n", " ")[:120].strip()
-                share_tg = f"https://t.me/share/url?url=https://t.me/{uname}&text={html_mod.quote(short)}"
+                share_tg = f"https://t.me/share/url?url={_BASE}/joke/{joke_id}&text={html_mod.quote(short)}"
                 jokes_html += f"""<li>
-          <a href="https://t.me/{uname}">{html_mod.escape(display)}</a>
+          <a href="/joke/{joke_id}">{html_mod.escape(display)}</a>
           <br><small><a href="{share_tg}" target="_blank">\u2197 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F</a></small>
         </li>"""
     if not jokes_html:
         jokes_html = "<li>\u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C \u043D\u0430 @%s \u2014 \u0442\u0430\u043C \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C \u0441\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B!</li>" % uname
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    pagi = f'<div class="pagi">\u0421\u0442\u0440\u0430\u043D\u0438\u0446\u0430 {page} \u0438\u0437 {total_pages}'
+    if page > 1:
+        pagi += f' &nbsp; <a href="/top?page={page-1}">\u2190 \u041F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0430\u044F</a>'
+    if page < total_pages:
+        pagi += f' &nbsp; <a href="/top?page={page+1}">\u0421\u043B\u0435\u0434\u0443\u044E\u0449\u0430\u044F \u2192</a>'
+    pagi += "</div>"
 
     page = f"""<!DOCTYPE html>
 <html>
@@ -335,6 +450,7 @@ def top_weekly() -> tuple:
   <h1>\U0001F923 \u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0438\u0437 @{uname}</h1>
   <p>\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B, \u0431\u0438\u0442\u0432\u044B \u0438 \u043A\u043E\u043D\u043A\u0443\u0440\u0441\u044B \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C!</p>
   <ol>{jokes_html}</ol>
+  {pagi}
   <a class="sub" href="https://t.me/{uname}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
   <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/rss.xml">RSS</a> \u2022 <a href="/sitemap.xml">\u041A\u0430\u0440\u0442\u0430 \u0441\u0430\u0439\u0442\u0430</a></p>
 </body>
@@ -368,11 +484,13 @@ def rubric_page(slug: str) -> tuple:
         if jokes:
             for joke in jokes:
                 text = joke["text"]
+                joke_id = joke.get("id", "")
                 display = text.replace("\n", " ")[:200].rstrip() + "\u2026" if len(text) > 200 else text
                 short = text.replace("\n", " ")[:120].strip()
-                share_tg = f"https://t.me/share/url?url=https://t.me/{uname}&text={html_mod.quote(short)}"
+                share_tg = f"https://t.me/share/url?url={_BASE}/joke/{joke_id}&text={html_mod.quote(short)}" if joke_id else ""
+                link = f"/joke/{joke_id}" if joke_id else f"https://t.me/{uname}"
                 jokes_html += f"""<li>
-          <a href="https://t.me/{uname}">{html_mod.escape(display)}</a>
+          <a href="{link}">{html_mod.escape(display)}</a>
           <br><small><a href="{share_tg}" target="_blank">\u2197 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F</a></small>
         </li>"""
     if not jokes_html:
@@ -451,6 +569,14 @@ def sitemap() -> tuple:
     ]
     for slug in _RUBRIC_SLUGS:
         urls.append(f"  <url><loc>{base}/rubric/{slug}</loc><changefreq>daily</changefreq><priority>0.7</priority></url>")
+    if _settings is not None:
+        db = Database(_settings.database_url or _settings.database_path)
+        with db.connect() as conn:
+            rows = conn.execute(
+                "SELECT id FROM jokes WHERE published_at IS NOT NULL ORDER BY published_at DESC LIMIT 500"
+            ).fetchall()
+        for row in rows:
+            urls.append(f"  <url><loc>{base}/joke/{row['id']}</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>")
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 {chr(10).join(urls)}

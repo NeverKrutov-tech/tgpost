@@ -437,16 +437,24 @@ class Database:
                 break
         return result
 
+    def get_joke_by_id(self, joke_id: int) -> dict | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT id, text, source_name, published_at, telegram_msg_id FROM jokes WHERE id = ?",
+                (joke_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
     def get_published_by_keywords(self, keywords: list[str], limit: int = 50) -> list[dict]:
         with self.connect() as conn:
             rows = conn.execute(
-                "SELECT text, published_at FROM jokes WHERE published_at IS NOT NULL "
+                "SELECT id, text, published_at FROM jokes WHERE published_at IS NOT NULL "
                 "ORDER BY published_at DESC"
             ).fetchall()
         results = []
         for row in rows:
             if not keywords or any(kw.lower() in row["text"].lower() for kw in keywords):
-                results.append({"text": row["text"], "published_at": row["published_at"]})
+                results.append({"id": row["id"], "text": row["text"], "published_at": row["published_at"]})
                 if len(results) >= limit:
                     break
         return results
