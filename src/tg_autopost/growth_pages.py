@@ -121,6 +121,41 @@ def get_user_stats(user_id: int) -> tuple:
     })
 
 
+@growth_pages.post("/api/viral/share-unlock")
+def viral_share_unlock() -> tuple:
+    """
+    Track a share and unlock content for the user.
+    Expected JSON: {user_id, content_id, share_platform}
+    """
+    from flask import request, jsonify
+    settings = load_settings()
+    if settings is None:
+        return jsonify({"error": "not ready"}), 503
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+    content_id = data.get("content_id")
+    platform = data.get("platform", "unknown")
+    if not user_id or not content_id:
+        return jsonify({"error": "user_id and content_id required"}), 400
+
+    db = Database(settings.database_url or settings.database_path)
+    # Record the share
+    db.record_share(user_id)
+    # Check if user has shared enough to unlock (e.g., 3 shares per unlock)
+    stats = db.get_user_stats(user_id)
+    shares = stats.get("shares_count", 0)
+    # Simple unlock logic: every 3 shares unlocks 1 premium content
+    unlocked = shares >= 3 and (shares // 3) > (shares - 1) // 3
+    # Award viral achievement
+    new_achievements = db.check_and_award_achievements(user_id)
+    return jsonify({
+        "unlocked": unlocked,
+        "shares_total": shares,
+        "next_unlock_at": ((shares // 3) + 1) * 3,
+        "new_achievements": new_achievements,
+    })
+
+
 @growth_pages.get("/api/social-proof/subscriber-count")
 def get_subscriber_count() -> tuple:
     """Get live subscriber count for social proof widgets."""
