@@ -142,9 +142,9 @@ class TelegramPublisher:
 
     def _build_keyboard(self, message_id: int | None = None) -> dict:
         buttons = []
-        post_url = self._share_url(message_id)
-        if post_url:
-            buttons.append([{"text": "\uD83D\uDCE4 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F", "url": f"https://t.me/share/url?url={post_url}"}])
+        if message_id:
+            share_url = f"https://tgpost-bot-l4wq.onrender.com/share/{message_id}"
+            buttons.append([{"text": "\uD83D\uDCE4 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F", "url": share_url}])
         if self.settings.channel_link:
             buttons.append([{"text": "\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F", "url": self.settings.channel_link}])
         return {"inline_keyboard": buttons}

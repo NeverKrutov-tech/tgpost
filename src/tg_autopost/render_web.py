@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 
 import requests
-from flask import Flask, jsonify, abort
+from flask import Flask, jsonify, abort, redirect
 
 from .config import load_settings
 from .database import Database
@@ -33,12 +33,19 @@ def _share_urls(msg_id: int, text: str, uname: str) -> str:
     tw = f"https://twitter.com/intent/tweet?text={html_mod.quote(short_text)}&url={page_url}"
     vk = f"https://vk.com/share.php?url={page_url}&title={html_mod.quote(short_text)}"
     wa = f"https://wa.me/?text={html_mod.quote(short_text + ' ' + page_url)}"
+    fb = f"https://www.facebook.com/sharer/sharer.php?u={page_url}&quote={html_mod.quote(short_text)}"
+    copy_btn = f'<button class="s cp" onclick="navigator.clipboard.writeText(\'{page_url}\').then(()=>this.textContent=\'\\u2705 \\u0421\\u043a\\u043e\\u043f\\u0438\\u0440\\u043e\\u0432\\u0430\\u043d\\u043e!\').catch(()=>this.textContent=\'\\u274c \\u041e\\u0448\\u0438\\u0431\\u043a\\u0430\')">\\uD83D\\uDCCB \\u041A\\u043E\\u043F\\u0438\\u0440\\u043E\\u0432\\u0430\\u0442\\u044C</button>'
     return f"""
-    <div class="shares">
-      <a href="{tg}" target="_blank" class="s tg">Telegram</a>
-      <a href="{tw}" target="_blank" class="s tw">X</a>
-      <a href="{vk}" target="_blank" class="s vk">VK</a>
-      <a href="{wa}" target="_blank" class="s wa">WhatsApp</a>
+    <div class="shares" style="margin-top:20px">
+      <div style="font-size:12px;color:#888;margin-bottom:6px">\u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F \u0441 \u0434\u0440\u0443\u0437\u044C\u044F\u043C\u0438:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <a href="{tg}" target="_blank" class="s tg">Telegram</a>
+        <a href="{tw}" target="_blank" class="s tw">X</a>
+        <a href="{vk}" target="_blank" class="s vk">VK</a>
+        <a href="{wa}" target="_blank" class="s wa">WhatsApp</a>
+        <a href="{fb}" target="_blank" class="s fb">Facebook</a>
+        {copy_btn}
+      </div>
     </div>"""
 
 
@@ -55,6 +62,9 @@ _STYLE = """
     .tw { background: #1DA1F2; }
     .vk { background: #4A76A8; }
     .wa { background: #25D366; }
+    .fb { background: #1877F2; }
+    .cp { background: #555; cursor: pointer; border: none; font-size: 14px; font-weight: bold; color: white; padding: 8px 16px; border-radius: 6px; }
+    .cp:hover { background: #444; }
     .meta { color: #888; font-size: 14px; text-align: center; margin: 12px 0; }
     .footer { text-align: center; margin-top: 30px; color: #888; font-size: 14px; }
     li { margin: 12px 0; line-height: 1.5; }
@@ -180,6 +190,16 @@ def post_card(msg_id: int) -> tuple:
 </body>
 </html>"""
     return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+@app.get("/share/<int:msg_id>")
+def share_redirect(msg_id: int) -> tuple:
+    uname = _channel_username()
+    page_url = f"{_BASE}/p/{msg_id}"
+    joke_text = _fetch_message_text(msg_id) or ""
+    short_text = joke_text.replace("\n", " ")[:120].strip()
+    tg_url = f"https://t.me/share/url?url={page_url}&text={html_mod.quote(short_text)}"
+    return redirect(tg_url), 302
 
 
 @app.get("/img/<int:msg_id>")
