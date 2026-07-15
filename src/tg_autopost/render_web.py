@@ -591,6 +591,29 @@ _RUBRIC_SLUGS: dict[str, int] = {
     "zhiznennoe": 6,
 }
 
+_SEO_LANDING: list[tuple[str, str, str, str]] = [
+    ("smeshnye", "смешные", "смешных анекдотов", "анекдот", "Самые смешные анекдоты — топ смешных шуток"),
+    ("korotkie", "короткие", "коротких анекдотов", "анекдот", "Короткие анекдоты — смешные до слез"),
+    ("pro-rabotu", "про работу", "анекдотов про работу", "анекдот", "Анекдоты про работу — смешные истории из офиса"),
+    ("pro-programmistov", "про программистов", "анекдотов про программистов", "анекдот", "Анекдоты про программистов — IT юмор"),
+    ("pro-vovochku", "про Вовочку", "анекдотов про Вовочку", "анекдот", "Анекдоты про Вовочку — школьный юмор"),
+    ("do-slez", "до слез", "анекдотов до слез", "анекдот", "Анекдоты до слез — самые смешные истории"),
+    ("pro-semyu", "про семью", "анекдотов про семью", "анекдот", "Анекдоты про семью — смешные истории"),
+    ("pro-muzha-i-zhenu", "про мужа и жену", "анекдотов про семью", "анекдот", "Анекдоты про мужа и жену — семейный юмор"),
+    ("pro-zhivotnyh", "про животных", "анекдотов про животных", "анекдот", "Анекдоты про животных — смешные зверюшки"),
+    ("pro-armiyu", "про армию", "анекдотов про армию", "анекдот", "Анекдоты про армию — военный юмор"),
+    ("chernyy-yumor", "с черным юмором", "чёрных анекдотов", "анекдот", "Чёрный юмор — анекдоты с перчинкой"),
+    ("pro-vyzivanie", "про выпивку", "анекдотов про выпивку", "анекдот", "Анекдоты про выпивку — застольный юмор"),
+    ("pro-vrachey", "про врачей", "анекдотов про врачей", "анекдот", "Анекдоты про врачей — медицинский юмор"),
+    ("pro-nachalnikov", "про начальников", "анекдотов про начальников", "анекдот", "Анекдоты про начальников — офисный юмор"),
+    ("pro-detei", "про детей", "анекдотов про детей", "анекдот", "Анекдоты про детей — смешные истории"),
+    ("pro-studenty", "про студентов", "анекдотов про студентов", "анекдот", "Анекдоты про студентов — школьный юмор"),
+    ("pro-ukrainu", "про Украину", "анекдотов про Украину", "анекдот", "Анекдоты про Украину — политический юмор"),
+    ("novye", "новые", "новых анекдотов", "анекдот", "Новые анекдоты — свежие шутки каждый день"),
+    ("pro-teshu", "про тёщу", "анекдотов про тёщу", "анекдот", "Анекдоты про тёщу — семейный юмор"),
+    ("svezhie", "свежие", "свежих анекдотов", "анекдот", "Свежие анекдоты — новые истории каждый день"),
+]
+
 
 @app.get("/rubric/<slug>")
 def rubric_page(slug: str) -> tuple:
@@ -641,6 +664,89 @@ def rubric_page(slug: str) -> tuple:
   <ol>{jokes_html}</ol>
   <a class="sub" href="https://t.me/{uname}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
   <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/rss.xml">RSS</a></p>
+</body>
+</html>"""
+    return page, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+@app.get("/<slug>")
+def seo_landing(slug: str) -> tuple:
+    if slug in ("api", "img", "p", "share", "joke", "rubric", "widget", "search", "random", "top", "debug", "fix-webhook", "avatar", "robots", "rss", "sitemap"):
+        abort(404)
+    match = None
+    for s, _, _, _, _ in _SEO_LANDING:
+        if s == slug:
+            match = s
+            break
+    if match is None:
+        abort(404)
+    # rebuild list for the matching entry
+    entry = next(e for e in _SEO_LANDING if e[0] == slug)
+    _, label, genitive, joke_word, meta_title = entry
+    uname = _channel_username()
+    channel_url = f"https://t.me/{uname}"
+    canonical = f"{_BASE}/{slug}"
+    jokes_html = ""
+    # Extract keywords from the label for DB search
+    keywords = label.replace(",", "").split()
+    if _settings is not None:
+        db = Database(_settings.database_url or _settings.database_path)
+        rows = []
+        with db.connect() as conn:
+            for kw in keywords:
+                like = f"%{kw}%"
+                found = conn.execute(
+                    "SELECT id, text, published_at FROM jokes WHERE published_at IS NOT NULL AND text LIKE ? "
+                    "ORDER BY published_at DESC LIMIT 20",
+                    (like,),
+                ).fetchall()
+                rows.extend(found)
+            if not rows:
+                rows = conn.execute(
+                    "SELECT id, text, published_at FROM jokes WHERE published_at IS NOT NULL "
+                    "ORDER BY published_at DESC LIMIT 10"
+                ).fetchall()
+        seen = set()
+        for row in rows:
+            if row["id"] in seen:
+                continue
+            seen.add(row["id"])
+            text = row["text"]
+            joke_id = row["id"]
+            display = text.replace("\n", " ")[:200].rstrip() + "\u2026" if len(text) > 200 else text
+            short = text.replace("\n", " ")[:120].strip()
+            share_tg = f"https://t.me/share/url?url={_BASE}/joke/{joke_id}&text={html_mod.quote(short)}"
+            jokes_html += f"""<li>
+          <a href="/joke/{joke_id}">{html_mod.escape(display)}</a>
+          <br><small><a href="{share_tg}" target="_blank">\u2197 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F</a></small>
+        </li>"""
+            if len(seen) >= 20:
+                break
+    if not jokes_html:
+        jokes_html = f"<li>\u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C \u043D\u0430 @{uname} \u2014 \u0442\u0430\u043C \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C \u0441\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B!</li>"
+    og_desc = f"\u041B\u0443\u0447\u0448\u0438\u0435 {genitive}. \u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C \u043D\u0430 @{uname} \u0438 \u0447\u0438\u0442\u0430\u0439 \u0441\u0432\u0435\u0436\u0438\u0435 {joke_word}\u044B \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C!"
+    heading = f"\U0001F923 {meta_title}"
+    page = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{meta_title} — @{uname}</title>
+  <meta name="description" content="{og_desc}">
+  <meta property="og:title" content="{meta_title}">
+  <meta property="og:description" content="{og_desc}">
+  <meta property="og:url" content="{canonical}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="{canonical}">
+  <style>{_STYLE}</style>
+</head>
+<body>
+  <h1>{heading}</h1>
+  <p>{og_desc}</p>
+  <ol>{jokes_html}</ol>
+  <a class="sub" href="{channel_url}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
+  <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/top">\u041B\u0443\u0447\u0448\u0438\u0435</a> \u2022 <a href="/rss.xml">RSS</a></p>
 </body>
 </html>"""
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
@@ -706,6 +812,8 @@ def sitemap_pages() -> tuple:
     ]
     for slug in _RUBRIC_SLUGS:
         urls.append(f"  <url><loc>{base}/rubric/{slug}</loc><changefreq>daily</changefreq><priority>0.7</priority></url>")
+    for s, _, _, _, _ in _SEO_LANDING:
+        urls.append(f"  <url><loc>{base}/{s}</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>")
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 {chr(10).join(urls)}
