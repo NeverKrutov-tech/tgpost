@@ -95,6 +95,16 @@ def publish_story() -> bool:
     return publisher._send_story()
 
 
+def pin_best() -> None:
+    _, _, _, publisher = build_services()
+    publisher._pin_best_post()
+
+
+def publish_challenge() -> None:
+    _, _, _, publisher = build_services()
+    publisher._send_challenge()
+
+
 def run_ingest_and_publish() -> None:
     run_ingest()
     run_publish()
@@ -126,9 +136,11 @@ def run_scheduler() -> None:
     scheduler.add_job(publish_meme_image, "cron", hour=17, minute=0)
     scheduler.add_job(publish_meme_image, "cron", hour=19, minute=30)
     scheduler.add_job(publish_story, "cron", hour=22, minute=0)
+    scheduler.add_job(publish_challenge, "cron", hour=12, minute=0)
+    scheduler.add_job(pin_best, "cron", hour=23, minute=0)
 
     logging.getLogger(__name__).info(
-        "Scheduler started — every 30 min 07:00–23:30 + memes at 9,11,14,17,19:30 + story at 22:00 (night pause 00:00–06:59)",
+        "Scheduler started — every 30 min 07:00–23:30 + memes at 9,11,14,17,19:30 + story at 22:00 + pin at 23:00 (night pause 00:00–06:59)",
     )
 
     run_ingest_and_publish()

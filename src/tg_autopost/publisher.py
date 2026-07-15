@@ -377,6 +377,7 @@ class TelegramPublisher:
         msg_id = data["result"]["message_id"]
         self.db.mark_published(joke.content_hash, msg_id)
         logger.info("Published text joke: %s (msg_id=%s)", joke.external_id, msg_id)
+        self._record_post_for_pin(msg_id)
         if not is_part2:
             if random.random() < DICE_RATIO:
                 self._send_dice()
@@ -388,6 +389,52 @@ class TelegramPublisher:
                 post_to_vk(self.settings.vk_token, self.settings.vk_owner_id, vk_msg)
         return msg_id
 
+    def _record_post_for_pin(self, msg_id: int) -> None:
+        today = datetime.datetime.today().strftime("%Y-%m-%d")
+        existing = self.db.get_meta("today_posts", "")
+        if existing:
+            ids = existing.split(",")
+        else:
+            ids = []
+        ids.append(str(msg_id))
+        self.db.set_meta("today_posts", ",".join(ids))
+        self.db.set_meta("pin_date", today)
+
+    def _pin_best_post(self) -> None:
+        today = datetime.datetime.today().strftime("%Y-%m-%d")
+        pin_date = self.db.get_meta("pin_date", "")
+        if pin_date != today:
+            logger.info("No posts recorded today, skipping pin")
+            return
+        raw = self.db.get_meta("today_posts", "")
+        if not raw:
+            return
+        msg_ids = [int(x) for x in raw.split(",") if x.strip()]
+        if not msg_ids:
+            return
+        best_id = msg_ids[-1]
+        best_views = 0
+        for mid in msg_ids:
+            try:
+                data = _api_call(self.settings.bot_token, "getMessage", {
+                    "chat_id": self.settings.channel_id,
+                    "message_id": mid,
+                }, timeout=10)
+                if data and data.get("ok"):
+                    views = data["result"].get("views", 0)
+                    if views > best_views:
+                        best_views = views
+                        best_id = mid
+            except Exception:
+                pass
+        _api_call(self.settings.bot_token, "pinChatMessage", {
+            "chat_id": self.settings.channel_id,
+            "message_id": best_id,
+            "disable_notification": True,
+        }, timeout=10)
+        logger.info("Pinned best post msg_id=%s with %s views", best_id, best_views)
+        self.db.set_meta("today_posts", "")
+
     def _send_observation(self, text: str) -> bool:
         payload = {
             "chat_id": self.settings.channel_id,
@@ -396,6 +443,31 @@ class TelegramPublisher:
         }
         self._post_message(payload)
         return True
+
+    def _send_challenge(self) -> None:
+        post_number = self.db.count_published() + 1
+        text = (
+            f"\U0001F3AF <b>\u0427\u0435\u043B\u043B\u0435\u043D\u0434\u0436 \u0434\u043D\u044F!</b>\n\n"
+            f"\u041F\u0440\u0438\u0434\u0443\u043C\u0430\u0439 \u0441\u0430\u043C\u0443\u044E \u0441\u043C\u0435\u0448\u043D\u0443\u044E \u043A\u043E\u043D\u0446\u043E\u0432\u043A\u0443 \u043A \u044D\u0442\u043E\u043C\u0443 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u0443 \u2192"
+            f"\n\n\u0417\u0432\u043E\u043D\u0438\u0442 \u043C\u0443\u0436 \u0436\u0435\u043D\u0435 \u0438\u0437 \u043A\u043E\u043C\u0430\u043D\u0434\u0438\u0440\u043E\u0432\u043A\u0438:\n"
+            f"\u2014 \u0414\u043E\u0440\u043E\u0433\u0430\u044F, \u044F \u043A\u0443\u043F\u0438\u043B \u0442\u0435\u0431\u0435 \u0448\u0443\u0431\u0443!\n"
+            f"\u2014 \u041E\u0439, \u043C\u0438\u043B\u044B\u0439, \u043D\u043E \u044F \u0436\u0435 \u0442\u0435\u0431\u0435 \u043D\u0435 \u0438\u0437\u043C\u0435\u043D\u044F\u043B\u0430!\n"
+            f"\u2014 ...\n\n"
+            f"\u041D\u0430\u043F\u0438\u0448\u0438 \u0441\u0432\u043E\u0439 \u0432\u0430\u0440\u0438\u0430\u043D\u0442 \u0432 \u043A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u044F\u0445 \u0438\u043B\u0438 \u0431\u043E\u0442\u0443 /submit!\n\n"
+            f"\u041B\u0443\u0447\u0448\u0438\u0435 \u043E\u0442\u0432\u0435\u0442\u044B \u043F\u043E\u043F\u0430\u0434\u0443\u0442 \u0432 \u044D\u0444\u0438\u0440!"
+        )
+        payload = {
+            "chat_id": self.settings.channel_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "reply_markup": json.dumps({
+                "inline_keyboard": [
+                    [{"text": "\U0001F4DD \u041F\u0440\u0435\u0434\u043B\u043E\u0436\u0438\u0442\u044C \u043A\u043E\u043D\u0446\u043E\u0432\u043A\u0443", "url": f"https://t.me/{self.settings.channel_link.split('/')[-1]}?start=submit"}]
+                ]
+            }),
+        }
+        self._post_message(payload)
+        logger.info("Posted daily challenge")
 
     def _send_horoscope(self) -> int:
         text = generate_horoscope()
