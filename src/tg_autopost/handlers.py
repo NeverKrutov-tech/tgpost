@@ -23,10 +23,11 @@ START_TEXT = (
     "Я бот для сбора анекдотов. Хочешь поделиться смешной историей?\n"
     "Просто отправь мне текст анекдота — и он уйдёт на модерацию.\n"
     "Лучшие публикуются в канале с указанием автора!\n\n"
+    "\U0001F514 <a href=\"https://t.me/Anetdodik\">Подпишись на канал!</a> — каждый день свежие анекдоты!\n\n"
     "Команды:\n"
     "/submit — прислать анекдот\n"
     "/subscribe — получать анекдот дня в личку\n"
-    "/unsubscribe — отписаться от рассылки\n"
+    "/invite — получить реферальную ссылку\n"
     "/register — стать автором\n"
     "/my_stats — моя статистика\n"
     "/author @username — профиль автора"
@@ -172,6 +173,21 @@ class PollingHandler:
             return
 
         if text.startswith("/start"):
+            if text.startswith("/start ref_"):
+                try:
+                    ref_id = int(text.split("ref_", 1)[1].split()[0])
+                except (ValueError, IndexError):
+                    _send_message(self.settings.bot_token, chat_id, START_TEXT)
+                    return
+                self.db.save_referral(ref_id, uid)
+                _send_message(
+                    self.settings.bot_token, chat_id,
+                    f"\U0001F44B <b>Привет!</b> Ты пришёл по ссылке! "
+                    f"Обязательно подпишись на канал @Anetdodik — каждый день свежие анекдоты! \U0001F923\n\n"
+                    f"{START_TEXT}",
+                )
+                logger.info("Referral tracked: %s -> %s", ref_id, uid)
+                return
             if text.startswith("/start tip_"):
                 try:
                     sub_id = int(text.split("tip_", 1)[1].split()[0])
@@ -298,6 +314,20 @@ class PollingHandler:
             if rank:
                 msg += f"Место в топе: <b>{rank}</b> из {len(top)}\n"
             msg += f"\nПрисылай ещё — /submit"
+            _send_message(self.settings.bot_token, chat_id, msg)
+            return
+
+        if text.startswith("/invite"):
+            ref_count = self.db.get_referral_count(uid)
+            bot_username = self._get_bot_username()
+            ref_link = f"https://t.me/{bot_username}?start=ref_{uid}"
+            msg = (
+                f"\U0001F517 <b>Твоя реферальная ссылка:</b>\n"
+                f"<code>{html.escape(ref_link)}</code>\n\n"
+                f"\U0001F4C8 Приведено друзей: <b>{ref_count}</b>\n\n"
+                f"\U0001F389 Делись ссылкой с друзьями и поднимайся в топе рефералов!\n"
+                f"Топ рефералов: https://tgpost-bot-l4wq.onrender.com/top"
+            )
             _send_message(self.settings.bot_token, chat_id, msg)
             return
 

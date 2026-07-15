@@ -550,6 +550,30 @@ def top_weekly() -> tuple:
   <p>\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B, \u0431\u0438\u0442\u0432\u044B \u0438 \u043A\u043E\u043D\u043A\u0443\u0440\u0441\u044B \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C!</p>
   <ol>{jokes_html}</ol>
   {pagi}
+  <div id="refLeaderboard" style="background:white;border-radius:12px;padding:16px;margin:16px 0;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+    <h2 style="margin:0 0 10px;font-size:18px">\U0001F3C6 \u0422\u043E\u043F \u0440\u0435\u0444\u0435\u0440\u0430\u043B\u043E\u0432</h2>
+    <div id="refList" style="font-size:14px;color:#666">\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430...</div>
+    <p style="font-size:12px;color:#999;margin:8px 0 0">\u0427\u0442\u043E\u0431\u044B \u043F\u043E\u043F\u0430\u0441\u0442\u044C \u0432 \u0442\u043E\u043F, \u043F\u0438\u0448\u0438 \u0431\u043E\u0442\u0443 /invite</p>
+  </div>
+  <script>
+    (function(){{
+      var x = new XMLHttpRequest();
+      x.open('GET', '{_BASE}/api/top-referrers', true);
+      x.onload = function() {{
+        if (x.status === 200) {{
+          var data = JSON.parse(x.responseText);
+          var html = '<ol style="margin:0;padding-left:20px">';
+          for (var i = 0; i < data.length; i++) {{
+            var name = data[i].name || 'ID ' + data[i].user_id;
+            html += '<li><b>' + name + '</b> — ' + data[i].count + ' \u0434\u0440\u0443\u0437\u0435\u0439</li>';
+          }}
+          html += '</ol>';
+          document.getElementById('refList').innerHTML = html;
+        }}
+      }};
+      x.send();
+    }})();
+  </script>
   <a class="sub" href="https://t.me/{uname}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
   <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/rss.xml">RSS</a> \u2022 <a href="/sitemap.xml">\u041A\u0430\u0440\u0442\u0430 \u0441\u0430\u0439\u0442\u0430</a></p>
 </body>
@@ -791,6 +815,16 @@ def random_joke() -> tuple:
     if msg_id:
         return redirect(f"/p/{msg_id}"), 302
     return redirect("/top"), 302
+
+
+@app.get("/api/top-referrers")
+def api_top_referrers() -> tuple:
+    ensure_bot_started()
+    if _settings is None:
+        return jsonify([]), 503
+    db = Database(_settings.database_url or _settings.database_path)
+    top = db.get_top_referrers(limit=10)
+    return jsonify(top), 200, {"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=300"}
 
 
 @app.get("/api/random-joke")

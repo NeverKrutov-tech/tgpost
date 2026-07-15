@@ -131,6 +131,15 @@ CREATE TABLE IF NOT EXISTS bot_subscribers (
 );
 """
 
+REFERRALS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS referrals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    referrer_id INTEGER NOT NULL,
+    referee_id INTEGER NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+);
+"""
+
 
 class Database:
     def __init__(self, path: str) -> None:
@@ -163,6 +172,7 @@ class Database:
             connection.execute(SHORTS_TABLE_SQL)
             connection.execute(LOCKED_CONTENT_SQL)
             connection.execute(SUBSCRIBERS_TABLE_SQL)
+            connection.execute(REFERRALS_TABLE_SQL)
             self._migrate(connection)
 
     def _migrate(self, connection: sqlite3.Connection) -> None:
@@ -781,3 +791,42 @@ class Database:
 
     def set_youtube_last_video_id(self, video_id: str) -> None:
         self.set_meta("youtube_last_video_id", video_id)
+
+    def save_referral(self, referrer_id: int, referee_id: int) -> bool:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connect() as connection:
+            try:
+                connection.execute(
+                    "INSERT OR IGNORE INTO referrals (referrer_id, referee_id, created_at) VALUES (?, ?, ?)",
+                    (referrer_id, referee_id, now),
+                )
+                return connection.total_changes > 0
+            except Exception:
+                return False
+
+    def get_referral_count(self, user_id: int) -> int:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) AS count FROM referrals WHERE referrer_id = ?", (user_id,)
+            ).fetchone()
+            return int(row["count"]) if row else 0
+
+    def get_top_referrers(self, limit: int = 10) -> list[dict]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT referrer_id, COUNT(*) AS count FROM referrals "
+                "GROUP BY referrer_id ORDER BY count DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            result = []
+            for r in rows:
+                author = connection.execute(
+                    "SELECT name, username FROM authors WHERE telegram_id = ?", (r["referrer_id"],)
+                ).fetchone()
+                result.append({
+                    "user_id": r["referrer_id"],
+                    "count": r["count"],
+                    "name": author["name"] if author else f"ID {r['referrer_id']}",
+                    "username": author["username"] if author else None,
+                })
+            return result
