@@ -19,14 +19,24 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 | `/p/<msg_id>` | Landing page per joke — shows joke, share buttons (TG/X/VK/WA/FB), copy link |
 | `/share/<msg_id>` | Redirects to `t.me/share/url` with joke text + subscribe CTA pre-filled |
 | `/img/<msg_id>` | OG image card with joke text rendered as JPEG |
-| `/top` | Top 10 published jokes |
+| `/joke/<id>` | SEO page per joke — all published jokes indexed, schema.org, exit-intent, sticky bar |
+| `/img/joke/<id>` | OG image + download card for any joke |
+| `/top` | Top 20 paginated jokes (`?page=N`) |
 | `/rubric/<slug>` | Jokes by category (semeynoe, rabochee, zhivotnye, etc.) |
 | `/search?q=` | Keyword search with result highlighting |
 | `/random` | Redirect to a random published joke |
+| `/api/random-joke` | JSON API — random joke (CORS enabled, for widgets) |
+| `/widget.js` | Embeddable widget — paste `<script src=".../widget.js"></script>` on any site |
+| `/widget` | Widget documentation page with live preview |
 | `/rss.xml` | RSS 2.0 feed (last 20 jokes) |
-| `/sitemap.xml` | XML sitemap for search engines |
+| `/sitemap.xml` | Sitemap index → `sitemap-pages.xml` + `sitemap-jokes.xml` (ALL jokes) |
 | `/robots.txt` | Robots disallows nothing, points to sitemap |
 | `/avatar.png` | Channel avatar image |
+
+## On-page conversion tactics
+- **Sticky subscribe bar** — appears on scroll on all pages
+- **Exit-intent popup** — "Уже уходите?" popup on mouse leave (once per visitor)
+- **Copy attribution** — copying joke text appends "— Подпишись: t.me/Anetdodik"
 
 ## YouTube OAuth — DONE ✅
 - OAuth refresh token obtained via `urn:ietf:wg:oauth:2.0:oob` + manual code copy
