@@ -72,6 +72,12 @@ _STYLE = """
     .rb { padding: 8px 14px; border-radius: 8px; background: white; color: #333 !important; font-size: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
     .rb:hover { background: #0088cc; color: white !important; }
     .pagi { text-align: center; margin: 16px 0; color: #666; font-size: 14px; }
+    .sticky-sub { position: fixed; bottom: 0; left: 0; right: 0; background: linear-gradient(135deg,#0088cc,#005f8a); color: white; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; z-index: 999; transform: translateY(100%); transition: transform 0.4s; box-shadow: 0 -4px 20px rgba(0,0,0,0.2); }
+    .sticky-sub.show { transform: translateY(0); }
+    .sticky-sub a { background: #fff; color: #0088cc; padding: 8px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 15px; white-space: nowrap; }
+    .sticky-sub span { font-size: 14px; margin-right: 10px; }
+    .sticky-sub .close { cursor: pointer; opacity: 0.7; font-size: 20px; margin-left: 8px; }
+    body { padding-bottom: 60px; }
     .footer { text-align: center; margin-top: 30px; color: #888; font-size: 14px; }
     li { margin: 12px 0; line-height: 1.5; }
 """
@@ -240,7 +246,20 @@ def post_card(msg_id: int) -> tuple:
   {shares}
   <a class="sub" href="{channel_url}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
   <p class="meta"><a href="{post_url}">\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0432 Telegram \u2192</a></p>
-  <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/rss.xml">RSS</a></p>
+  <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/widget">\u0412\u0438\u0434\u0436\u0435\u0442</a> \u2022 <a href="/rss.xml">RSS</a></p>
+  <div class="sticky-sub" id="stickySub">
+    <span>\U0001F514 \u041F\u043E\u043D\u0440\u0430\u0432\u0438\u043B\u043E\u0441\u044C? \u0412 Telegram \u0435\u0449\u0451 \u0431\u043E\u043B\u044C\u0448\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432!</span>
+    <div style="display:flex;align-items:center">
+      <a href="{channel_url}" target="_blank">\u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F</a>
+      <span class="close" onclick="document.getElementById('stickySub').classList.remove('show')">\u2716</span>
+    </div>
+  </div>
+  <script>
+    setTimeout(function(){{ document.getElementById('stickySub').classList.add('show'); }}, 3000);
+    window.addEventListener('scroll', function(){{
+      if (window.scrollY > 300) document.getElementById('stickySub').classList.add('show');
+    }});
+  </script>
 </body>
 </html>"""
     return html, 200, {"Content-Type": "text/html; charset=utf-8"}
@@ -366,6 +385,21 @@ def joke_page(joke_id: int) -> tuple:
   <h2>\u0415\u0449\u0451 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</h2>
   <ol>{related}</ol>
   <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="/top">\u041B\u0443\u0447\u0448\u0438\u0435</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/rss.xml">RSS</a></p>
+  <div class="sticky-sub" id="stickySub">
+    <span>\U0001F514 \u041F\u043E\u043D\u0440\u0430\u0432\u0438\u043B\u043E\u0441\u044C? \u0412 Telegram \u0435\u0449\u0451 \u0431\u043E\u043B\u044C\u0448\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432!</span>
+    <div style="display:flex;align-items:center">
+      <a href="{channel_url}" target="_blank">\u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F</a>
+      <span class="close" onclick="document.getElementById('stickySub').classList.remove('show')">\u2716</span>
+    </div>
+  </div>
+  <script>
+    setTimeout(function(){{ document.getElementById('stickySub').classList.add('show'); }}, 3000);
+    var lastScroll = 0;
+    window.addEventListener('scroll', function(){{
+      var st = window.scrollY;
+      if (st > 300) document.getElementById('stickySub').classList.add('show');
+    }});
+  </script>
 </body>
 </html>"""
     return html, 200, {"Content-Type": "text/html; charset=utf-8"}
@@ -583,7 +617,21 @@ def rss_feed() -> tuple:
 
 
 @app.get("/sitemap.xml")
-def sitemap() -> tuple:
+def sitemap_index() -> tuple:
+    base = _BASE
+    sitemaps = [
+        f"  <sitemap><loc>{base}/sitemap-pages.xml</loc></sitemap>",
+        f"  <sitemap><loc>{base}/sitemap-jokes.xml</loc></sitemap>",
+    ]
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{chr(10).join(sitemaps)}
+</sitemapindex>"""
+    return xml, 200, {"Content-Type": "application/xml; charset=utf-8"}
+
+
+@app.get("/sitemap-pages.xml")
+def sitemap_pages() -> tuple:
     base = _BASE
     urls = [
         f"  <url><loc>{base}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>",
@@ -592,13 +640,24 @@ def sitemap() -> tuple:
     ]
     for slug in _RUBRIC_SLUGS:
         urls.append(f"  <url><loc>{base}/rubric/{slug}</loc><changefreq>daily</changefreq><priority>0.7</priority></url>")
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{chr(10).join(urls)}
+</urlset>"""
+    return xml, 200, {"Content-Type": "application/xml; charset=utf-8"}
+
+
+@app.get("/sitemap-jokes.xml")
+def sitemap_jokes() -> tuple:
+    base = _BASE
+    urls = []
     if _settings is not None:
         db = Database(_settings.database_url or _settings.database_path)
         with db.connect() as conn:
-            rows = conn.execute(
-                "SELECT id FROM jokes WHERE published_at IS NOT NULL ORDER BY published_at DESC LIMIT 500"
+            all_ids = conn.execute(
+                "SELECT id FROM jokes WHERE published_at IS NOT NULL ORDER BY published_at DESC"
             ).fetchall()
-        for row in rows:
+        for row in all_ids:
             urls.append(f"  <url><loc>{base}/joke/{row['id']}</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>")
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
