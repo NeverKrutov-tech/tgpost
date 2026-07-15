@@ -66,6 +66,9 @@ _STYLE = """
     .cp { background: #555; cursor: pointer; border: none; font-size: 14px; font-weight: bold; color: white; padding: 8px 16px; border-radius: 6px; }
     .cp:hover { background: #444; }
     .meta { color: #888; font-size: 14px; text-align: center; margin: 12px 0; }
+    .rubrics { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+    .rb { padding: 8px 14px; border-radius: 8px; background: white; color: #333 !important; font-size: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .rb:hover { background: #0088cc; color: white !important; }
     .footer { text-align: center; margin-top: 30px; color: #888; font-size: 14px; }
     li { margin: 12px 0; line-height: 1.5; }
 """
@@ -111,9 +114,56 @@ def _boot() -> None:
 
 
 @app.get("/")
-def health() -> tuple[str, int]:
+def home() -> tuple:
     ensure_bot_started()
-    return "ok", 200
+    uname = _channel_username()
+    channel_url = f"https://t.me/{uname}"
+    jokes_html = ""
+    if _settings is not None:
+        db = Database(_settings.database_url or _settings.database_path)
+        with db.connect() as conn:
+            rows = conn.execute(
+                "SELECT text, published_at FROM jokes WHERE published_at IS NOT NULL "
+                "ORDER BY published_at DESC LIMIT 5"
+            ).fetchall()
+        for row in rows:
+            text = row["text"]
+            display = text.replace("\n", " ")[:150].rstrip() + "\u2026" if len(text) > 150 else text
+            jokes_html += f"""<li>{html_mod.escape(display)}</li>"""
+    rubric_links = "".join(
+        f'<a href="/rubric/{slug}" class="rb">{r["emoji"]} {r["name"]}</a>'
+        for slug, r in [(k, RUBRICS[v]) for k, v in _RUBRIC_SLUGS.items()]
+    )
+    if not jokes_html:
+        jokes_html = "<li>\u0421\u043A\u043E\u0440\u043E \u0431\u0443\u0434\u0443\u0442 \u043F\u0435\u0440\u0432\u044B\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B!</li>"
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>\u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0438\u0437 Telegram \u043A\u0430\u043D\u0430\u043B\u0430 @{uname}</title>
+  <meta name="description" content="\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C \u0432 Telegram \u043A\u0430\u043D\u0430\u043B\u0435 @{uname}. \u042E\u043C\u043E\u0440, \u0431\u0438\u0442\u0432\u044B, \u043A\u043E\u043D\u043A\u0443\u0440\u0441\u044B \u0438 \u0442\u043E\u043B\u044C\u043A\u043E \u043B\u0443\u0447\u0448\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0438\u0437 \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0430!">
+  <meta property="og:title" content="\u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0438\u0437 @{uname}">
+  <meta property="og:description" content="\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C. \u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C \u043D\u0430 @{uname}!">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{_BASE}/">
+  <meta name="twitter:card" content="summary">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="{_BASE}/">
+  <link rel="alternate" type="application/rss+xml" title="@{uname} RSS" href="{_BASE}/rss.xml">
+  <style>{_STYLE}</style>
+</head>
+<body>
+  <h1>\U0001F923 \u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0438\u0437 @{uname}</h1>
+  <p>\u041B\u0443\u0447\u0448\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B, \u0438\u0441\u0442\u043E\u0440\u0438\u0438 \u0438 \u0431\u0430\u044F\u043D\u044B \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C \u0432 Telegram. \u0411\u0438\u0442\u0432\u044B, \u043A\u043E\u043D\u043A\u0443\u0440\u0441\u044B, \u0438\u043D\u0442\u0435\u0440\u0430\u043A\u0442\u0438\u0432! \u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C \u0438 \u043D\u0435 \u043F\u0440\u043E\u043F\u0443\u0441\u0442\u0438 \u043D\u0438 \u043E\u0434\u043D\u043E\u0439 \u0448\u0443\u0442\u043A\u0438.</p>
+  <h2>\u0420\u0443\u0431\u0440\u0438\u043A\u0438</h2>
+  <div class="rubrics">{rubric_links}</div>
+  <h2>\u041F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</h2>
+  <ol>{jokes_html}</ol>
+  <a class="sub" href="{channel_url}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
+  <p class="footer"><a href="/top">\u0412\u0441\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/rss.xml">RSS</a> \u2022 <a href="/sitemap.xml">\u041A\u0430\u0440\u0442\u0430 \u0441\u0430\u0439\u0442\u0430</a></p>
+</body>
+</html>"""
+    return html, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
 @app.get("/debug")
@@ -186,7 +236,7 @@ def post_card(msg_id: int) -> tuple:
   {shares}
   <a class="sub" href="{channel_url}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
   <p class="meta"><a href="{post_url}">\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0432 Telegram \u2192</a></p>
-  <p class="footer"><a href="/top">\u0412\u0441\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</a> \u2022 <a href="/rss.xml">RSS</a></p>
+  <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/rss.xml">RSS</a></p>
 </body>
 </html>"""
     return html, 200, {"Content-Type": "text/html; charset=utf-8"}
@@ -283,7 +333,7 @@ def top_weekly() -> tuple:
   <p>\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B, \u0431\u0438\u0442\u0432\u044B \u0438 \u043A\u043E\u043D\u043A\u0443\u0440\u0441\u044B \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C!</p>
   <ol>{jokes_html}</ol>
   <a class="sub" href="https://t.me/{uname}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
-  <p class="footer"><a href="/rss.xml">RSS</a> \u2022 <a href="/sitemap.xml">\u041A\u0430\u0440\u0442\u0430 \u0441\u0430\u0439\u0442\u0430</a></p>
+  <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/rss.xml">RSS</a> \u2022 <a href="/sitemap.xml">\u041A\u0430\u0440\u0442\u0430 \u0441\u0430\u0439\u0442\u0430</a></p>
 </body>
 </html>"""
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
@@ -346,7 +396,7 @@ def rubric_page(slug: str) -> tuple:
   <p>\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0438\u0437 Telegram \u043A\u0430\u043D\u0430\u043B\u0430 @{uname}.</p>
   <ol>{jokes_html}</ol>
   <a class="sub" href="https://t.me/{uname}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
-  <p class="footer"><a href="/top">\u0412\u0441\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</a> \u2022 <a href="/rss.xml">RSS</a></p>
+  <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/rss.xml">RSS</a></p>
 </body>
 </html>"""
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
@@ -401,6 +451,53 @@ def sitemap() -> tuple:
 {chr(10).join(urls)}
 </urlset>"""
     return xml, 200, {"Content-Type": "application/xml; charset=utf-8"}
+
+
+@app.get("/search")
+def search() -> tuple:
+    q = requests.args.get("q", "").strip()
+    uname = _channel_username()
+    results_html = ""
+    if q and _settings is not None:
+        db = Database(_settings.database_url or _settings.database_path)
+        with db.connect() as conn:
+            like = f"%{q}%"
+            rows = conn.execute(
+                "SELECT text, published_at FROM jokes WHERE published_at IS NOT NULL AND text LIKE ? "
+                "ORDER BY published_at DESC LIMIT 30",
+                (like,),
+            ).fetchall()
+        for row in rows:
+            text = row["text"]
+            needle = html_mod.escape(q)
+            display = html_mod.escape(text[:300])
+            display = display.replace(needle, f"<mark>{needle}</mark>")
+            results_html += f"<li>{display}</li>"
+    title = f"\u041F\u043E\u0438\u0441\u043A: {html_mod.escape(q)} — @{uname}" if q else f"\u041F\u043E\u0438\u0441\u043A \u043F\u043E \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u0430\u043C — @{uname}"
+    desc = f"\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u043F\u043E\u0438\u0441\u043A\u0430 \u043F\u043E \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u0430\u043C: {html_mod.escape(q)}" if q else "\u041F\u043E\u0438\u0441\u043A \u043F\u043E \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u0430\u043C \u0438\u0437 Telegram \u043A\u0430\u043D\u0430\u043B\u0430"
+    if not results_html:
+        results_html = f"<li>\u041D\u0438\u0447\u0435\u0433\u043E \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E \u043F\u043E \u0437\u0430\u043F\u0440\u043E\u0441\u0443 \xAB{html_mod.escape(q)}\xBB</li>" if q else "<li>\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043F\u043E\u0438\u0441\u043A\u043E\u0432\u044B\u0439 \u0437\u0430\u043F\u0440\u043E\u0441 \u0432\u044B\u0448\u0435</li>"
+    page = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,follow">
+  <title>{title}</title>
+  <meta name="description" content="{desc[:200]}">
+  <style>{_STYLE}</style>
+  <style>mark {{ background: #ffd54f; padding: 0 2px; }}</style>
+</head>
+<body>
+  <h1>\U0001F50D \u041F\u043E\u0438\u0441\u043A \u043F\u043E \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u0430\u043C</h1>
+  <form action="/search" method="get" style="margin:16px 0">
+    <input type="text" name="q" value="{html_mod.escape(q)}" placeholder="\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043A\u043B\u044E\u0447\u0435\u0432\u043E\u0435 \u0441\u043B\u043E\u0432\u043E..." style="padding:10px;font-size:16px;width:70%;border:2px solid #0088cc;border-radius:8px">
+    <button type="submit" style="padding:10px 20px;font-size:16px;background:#0088cc;color:white;border:none;border-radius:8px;cursor:pointer">\u041D\u0430\u0439\u0442\u0438</button>
+  </form>
+  <ol>{results_html}</ol>
+  <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="https://t.me/{uname}">\u041A\u0430\u043D\u0430\u043B Telegram</a></p>
+</body>
+</html>"""
+    return page, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
 @app.get("/robots.txt")
