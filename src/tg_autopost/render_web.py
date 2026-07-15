@@ -1,4 +1,4 @@
-import html
+import html as html_mod
 import logging
 import os
 import threading
@@ -16,12 +16,49 @@ app = Flask(__name__)
 _bot_thread: threading.Thread | None = None
 _handler: PollingHandler | None = None
 _settings = None
+_BASE = "https://tgpost-bot-l4wq.onrender.com"
 
 
 def _channel_username() -> str:
     if _settings is not None and _settings.channel_link:
         return _settings.channel_link.rstrip("/").rsplit("/", 1)[-1]
     return "Anetdodik"
+
+
+def _share_urls(msg_id: int, text: str, uname: str) -> str:
+    post_url = f"https://t.me/{uname}/{msg_id}"
+    page_url = f"{_BASE}/p/{msg_id}"
+    short_text = text.replace("\n", " ")[:120].strip()
+    tg = f"https://t.me/share/url?url={page_url}&text={html_mod.quote(short_text)}"
+    tw = f"https://twitter.com/intent/tweet?text={html_mod.quote(short_text)}&url={page_url}"
+    vk = f"https://vk.com/share.php?url={page_url}&title={html_mod.quote(short_text)}"
+    wa = f"https://wa.me/?text={html_mod.quote(short_text + ' ' + page_url)}"
+    return f"""
+    <div class="shares">
+      <a href="{tg}" target="_blank" class="s tg">Telegram</a>
+      <a href="{tw}" target="_blank" class="s tw">X</a>
+      <a href="{vk}" target="_blank" class="s vk">VK</a>
+      <a href="{wa}" target="_blank" class="s wa">WhatsApp</a>
+    </div>"""
+
+
+_STYLE = """
+    body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+    h1 { color: #333; font-size: 22px; }
+    a { color: #0088cc; text-decoration: none; }
+    .joke { background: white; border-radius: 12px; padding: 24px; margin: 16px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08); line-height: 1.6; white-space: pre-wrap; font-size: 16px; }
+    .sub { display: block; margin-top: 20px; padding: 15px; background: #0088cc; color: white; text-align: center; border-radius: 8px; font-size: 18px; font-weight: bold; }
+    .sub:hover { background: #0077b5; }
+    .shares { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+    .s { padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: bold; color: white !important; }
+    .tg { background: #0088cc; }
+    .tw { background: #1DA1F2; }
+    .vk { background: #4A76A8; }
+    .wa { background: #25D366; }
+    .meta { color: #888; font-size: 14px; text-align: center; margin: 12px 0; }
+    .footer { text-align: center; margin-top: 30px; color: #888; font-size: 14px; }
+    li { margin: 12px 0; line-height: 1.5; }
+"""
 
 
 def ensure_bot_started() -> None:
@@ -34,12 +71,28 @@ def ensure_bot_started() -> None:
     _bot_thread = threading.Thread(target=_handler.run_forever, daemon=True)
     _bot_thread.start()
     logging.getLogger(__name__).info("Render bot thread started")
-    # ingest on startup so DB has some jokes for web routes
     try:
         from .app import run_ingest
         run_ingest()
     except Exception as exc:
         logging.getLogger(__name__).warning("Startup ingest skipped: %s", exc)
+
+
+def _fetch_message_text(msg_id: int) -> str | None:
+    if _settings is None:
+        return None
+    try:
+        resp = _api_call(_settings.bot_token, "getMessage", {
+            "chat_id": _settings.channel_id,
+            "message_id": msg_id,
+        }, timeout=10)
+        if resp and resp.get("ok"):
+            msg = resp["result"]
+            text = msg.get("text") or msg.get("caption") or ""
+            return text.strip() or None
+    except Exception as e:
+        logging.getLogger(__name__).warning("Failed to fetch message %s: %s", msg_id, e)
+    return None
 
 
 @app.before_request
@@ -90,69 +143,85 @@ def fix_webhook() -> tuple:
 
 
 @app.get("/p/<int:msg_id>")
-def post_card(msg_id: int) -> str:
+def post_card(msg_id: int) -> tuple:
     uname = _channel_username()
     post_url = f"https://t.me/{uname}/{msg_id}"
     channel_url = f"https://t.me/{uname}"
+    page_url = f"{_BASE}/p/{msg_id}"
+    joke_text = _fetch_message_text(msg_id) or f"\u0421\u0432\u0435\u0436\u0438\u0439 \u0430\u043D\u0435\u043A\u0434\u043E\u0442 \u0438\u0437 @{uname}"
+    og_desc = joke_text.replace("\n", " ")[:200].strip()
+    safe_text = html_mod.escape(joke_text)
+    shares = _share_urls(msg_id, joke_text, uname)
     html = f"""<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Анекдот — @{uname}</title>
-  <meta property="og:title" content="Анекдот из @{uname}">
-  <meta property="og:description" content="Подпишись — каждый день свежие анекдоты и битвы!">
-  <meta property="og:image" content="https://tgpost-bot-l4wq.onrender.com/img/{msg_id}">
-  <meta property="og:url" content="{post_url}">
+  <title>\u0410\u043D\u0435\u043A\u0434\u043E\u0442 \u0438\u0437 @{uname}</title>
+  <meta name="description" content="{og_desc}">
+  <meta property="og:title" content="\u0410\u043D\u0435\u043A\u0434\u043E\u0442 \u0438\u0437 @{uname}">
+  <meta property="og:description" content="{og_desc}">
+  <meta property="og:image" content="{_BASE}/img/{msg_id}">
+  <meta property="og:url" content="{page_url}">
   <meta property="og:type" content="article">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Анекдот из @{uname}">
-  <meta name="twitter:description" content="Подпишись — каждый день свежие анекдоты и битвы!">
-  <meta http-equiv="refresh" content="0;url={post_url}">
-  <style>
-    body {{ font-family: sans-serif; display: flex; justify-content: center; align-items: center;
-           min-height: 100vh; margin: 0; background: #f5f5f5; }}
-    .card {{ text-align: center; padding: 40px; background: white; border-radius: 12px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.1); max-width: 400px; }}
-    h1 {{ font-size: 20px; color: #333; }}
-    p {{ color: #666; }}
-    a {{ color: #0088cc; text-decoration: none; font-weight: bold; }}
-  </style>
+  <meta name="twitter:title" content="\u0410\u043D\u0435\u043A\u0434\u043E\u0442 \u0438\u0437 @{uname}">
+  <meta name="twitter:description" content="{og_desc}">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="{page_url}">
+  <style>{_STYLE}</style>
 </head>
 <body>
-  <div class="card">
-    <h1>Анекдот из @{uname}</h1>
-    <p>Переходи в канал — там каждый день свежие анекдоты, битвы и конкурсы!</p>
-    <a href="{post_url}">Открыть пост в Telegram →</a>
-    <p><a href="{channel_url}">Подписаться на @{uname}</a></p>
-  </div>
+  <h1>\U0001F923 \u0410\u043D\u0435\u043A\u0434\u043E\u0442 \u0438\u0437 @{uname}</h1>
+  <div class="joke">{safe_text}</div>
+  {shares}
+  <a class="sub" href="{channel_url}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
+  <p class="meta"><a href="{post_url}">\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0432 Telegram \u2192</a></p>
+  <p class="footer"><a href="/top">\u0412\u0441\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</a> \u2022 <a href="/rss.xml">RSS</a></p>
 </body>
 </html>"""
     return html, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
+@app.get("/img/<int:msg_id>")
+def joke_image(msg_id: int) -> tuple:
+    joke_text = _fetch_message_text(msg_id)
+    if not joke_text:
+        uname = _channel_username()
+        joke_text = f"\u0421\u0432\u0435\u0436\u0438\u0439 \u0430\u043D\u0435\u043A\u0434\u043E\u0442 \u0432 Telegram\n\n@{uname}"
+    try:
+        from .image_gen import generate_repost_card
+        output = generate_repost_card(joke_text)
+        with open(output, "rb") as f:
+            data = f.read()
+        Path(output).unlink(missing_ok=True)
+        return data, 200, {"Content-Type": "image/jpeg", "Cache-Control": "public, max-age=3600"}
+    except Exception:
+        return "", 500
+
+
 @app.get("/avatar.png")
 def avatar() -> tuple:
-    """Fetch and cache channel avatar from Telegram API."""
     if _settings is None:
         return "", 503
     try:
         chat = _api_call(_settings.bot_token, "getChat", {"chat_id": _settings.channel_id}, timeout=10)
         if chat and chat.get("result", {}).get("photo"):
-            file_id = chat["result"]["photo"]["big_file_id"] if isinstance(chat["result"]["photo"], dict) else chat["result"]["photo"]["big_file_id"]
-            file_info = _api_call(_settings.bot_token, "getFile", {"file_id": file_id}, timeout=10)
-            if file_info and file_info.get("result", {}).get("file_path"):
-                url = f"https://api.telegram.org/file/bot{_settings.bot_token}/{file_info['result']['file_path']}"
-                resp = requests.get(url, timeout=10)
-                return resp.content, 200, {"Content-Type": "image/jpeg"}
+            photo = chat["result"]["photo"]
+            file_id = photo.get("big_file_id") if isinstance(photo, dict) else photo.get("big_file_id")
+            if file_id:
+                file_info = _api_call(_settings.bot_token, "getFile", {"file_id": file_id}, timeout=10)
+                if file_info and file_info.get("result", {}).get("file_path"):
+                    url = f"https://api.telegram.org/file/bot{_settings.bot_token}/{file_info['result']['file_path']}"
+                    resp = requests.get(url, timeout=10)
+                    return resp.content, 200, {"Content-Type": "image/jpeg"}
     except Exception:
         pass
-    # fallback: 1x1 transparent pixel
     return bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000"
                          "a49444154789c62600000000200011e608ed00000000049454e44ae426082"), 200, {"Content-Type": "image/png"}
 
 
 @app.get("/top")
-def top_weekly() -> str:
+def top_weekly() -> tuple:
     uname = _channel_username()
     jokes_html = ""
     if _settings is not None:
@@ -164,56 +233,40 @@ def top_weekly() -> str:
             ).fetchall()
         if rows:
             for i, row in enumerate(rows, 1):
-                text = row["text"].replace("\n", " ")[:200].rstrip() + "…" if len(row["text"]) > 200 else row["text"]
-                jokes_html += f'<li><a href="https://t.me/{uname}">{html.escape(text)}</a></li>\n'
+                text = row["text"]
+                display = text.replace("\n", " ")[:200].rstrip() + "\u2026" if len(text) > 200 else text
+                short = text.replace("\n", " ")[:120].strip()
+                share_tg = f"https://t.me/share/url?url=https://t.me/{uname}&text={html_mod.quote(short)}"
+                jokes_html += f"""<li>
+          <a href="https://t.me/{uname}">{html_mod.escape(display)}</a>
+          <br><small><a href="{share_tg}" target="_blank">\u2197 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F</a></small>
+        </li>"""
     if not jokes_html:
-        jokes_html = "<li>Подпишись на @%s — там каждый день свежие анекдоты!</li>" % uname
+        jokes_html = "<li>\u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C \u043D\u0430 @%s \u2014 \u0442\u0430\u043C \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C \u0441\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B!</li>" % uname
 
     page = f"""<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Лучшие анекдоты — @{uname}</title>
-  <meta name="description" content="Свежие анекдоты из Telegram канала @{uname}. Подпишись!">
-  <meta property="og:title" content="Лучшие анекдоты — @{uname}">
-  <meta property="og:description" content="Свежие анекдоты каждый день. Подпишись на @{uname}!">
+  <title>\u041B\u0443\u0447\u0448\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B — @{uname}</title>
+  <meta name="description" content="\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0438\u0437 Telegram \u043A\u0430\u043D\u0430\u043B\u0430 @{uname}. \u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C!">
+  <meta property="og:title" content="\u041B\u0443\u0447\u0448\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B — @{uname}">
+  <meta property="og:description" content="\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C. \u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C \u043D\u0430 @{uname}!">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary">
   <meta name="robots" content="index,follow">
-  <link rel="alternate" type="application/rss+xml" title="@{uname} RSS" href="https://tgpost-bot-l4wq.onrender.com/rss.xml">
-  <style>
-    body {{ font-family: sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; background: #f5f5f5; }}
-    h1 {{ color: #333; }}
-    a {{ color: #0088cc; text-decoration: none; }}
-    li {{ margin: 12px 0; line-height: 1.5; }}
-    .sub {{ display: block; margin-top: 30px; padding: 15px; background: #0088cc; color: white;
-            text-align: center; border-radius: 8px; font-size: 18px; }}
-  </style>
+  <link rel="alternate" type="application/rss+xml" title="@{uname} RSS" href="{_BASE}/rss.xml">
+  <style>{_STYLE}</style>
 </head>
 <body>
-  <h1>Анекдоты из @{uname}</h1>
-  <p>Свежие анекдоты, битвы и конкурсы каждый день!</p>
+  <h1>\U0001F923 \u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0438\u0437 @{uname}</h1>
+  <p>\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B, \u0431\u0438\u0442\u0432\u044B \u0438 \u043A\u043E\u043D\u043A\u0443\u0440\u0441\u044B \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C!</p>
   <ol>{jokes_html}</ol>
-  <a class="sub" href="https://t.me/{uname}">Подписаться на @{uname} в Telegram</a>
+  <a class="sub" href="https://t.me/{uname}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
+  <p class="footer"><a href="/rss.xml">RSS</a> \u2022 <a href="/sitemap.xml">\u041A\u0430\u0440\u0442\u0430 \u0441\u0430\u0439\u0442\u0430</a></p>
 </body>
 </html>"""
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
-
-
-@app.get("/img/<int:msg_id>")
-def joke_image(msg_id: int) -> tuple:
-    uname = _channel_username()
-    # Generate a simple branded image — no DB query needed
-    try:
-        from .image_gen import generate_repost_card
-        text = f"Свежий анекдот\nв Telegram\n\n@{uname}"
-        output = generate_repost_card(text)
-        with open(output, "rb") as f:
-            data = f.read()
-        Path(output).unlink(missing_ok=True)
-        return data, 200, {"Content-Type": "image/png", "Cache-Control": "public, max-age=3600"}
-    except Exception:
-        return "", 500
 
 
 _RUBRIC_SLUGS: dict[str, int] = {
@@ -234,15 +287,21 @@ def rubric_page(slug: str) -> tuple:
         abort(404)
     rubric = RUBRICS[idx]
     uname = _channel_username()
+    canonical = f"{_BASE}/rubric/{slug}"
     jokes_html = ""
-    canonical = f"https://tgpost-bot-l4wq.onrender.com/rubric/{slug}"
     if _settings is not None:
         db = Database(_settings.database_url or _settings.database_path)
         jokes = db.get_published_by_keywords(rubric["keywords"], limit=30)
         if jokes:
             for joke in jokes:
-                text = joke["text"].replace("\n", " ")[:200].rstrip() + "\u2026" if len(joke["text"]) > 200 else joke["text"]
-                jokes_html += f'<li><a href="https://t.me/{uname}">{html.escape(text)}</a></li>\n'
+                text = joke["text"]
+                display = text.replace("\n", " ")[:200].rstrip() + "\u2026" if len(text) > 200 else text
+                short = text.replace("\n", " ")[:120].strip()
+                share_tg = f"https://t.me/share/url?url=https://t.me/{uname}&text={html_mod.quote(short)}"
+                jokes_html += f"""<li>
+          <a href="https://t.me/{uname}">{html_mod.escape(display)}</a>
+          <br><small><a href="{share_tg}" target="_blank">\u2197 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F</a></small>
+        </li>"""
     if not jokes_html:
         jokes_html = f"<li>\u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C \u043D\u0430 @{uname} \u2014 \u0442\u0430\u043C \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C \u0441\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B!</li>"
     rubric_emoji = rubric.get("emoji", "")
@@ -251,7 +310,7 @@ def rubric_page(slug: str) -> tuple:
 <html>
 <head>
   <meta charset="utf-8">
-  <title>\u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043F\u0440\u043E {rubric_name.lower()} \u2014 @{uname}</title>
+  <title>\u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043F\u0440\u043E {rubric_name.lower()} — @{uname}</title>
   <meta name="description" content="\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043F\u0440\u043E {rubric_name.lower()}. \u041A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C \u043D\u043E\u0432\u044B\u0435 \u043F\u043E\u0441\u0442\u044B \u0432 Telegram @{uname}!">
   <meta property="og:title" content="{rubric_emoji} \u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043F\u0440\u043E {rubric_name.lower()}">
   <meta property="og:description" content="\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043F\u0440\u043E {rubric_name.lower()} \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C. \u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C!">
@@ -260,21 +319,14 @@ def rubric_page(slug: str) -> tuple:
   <meta name="twitter:card" content="summary">
   <meta name="robots" content="index,follow">
   <link rel="canonical" href="{canonical}">
-  <style>
-    body {{ font-family: sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; background: #f5f5f5; }}
-    h1 {{ color: #333; }}
-    a {{ color: #0088cc; text-decoration: none; }}
-    li {{ margin: 12px 0; line-height: 1.5; }}
-    .sub {{ display: block; margin-top: 30px; padding: 15px; background: #0088cc; color: white;
-            text-align: center; border-radius: 8px; font-size: 18px; }}
-  </style>
+  <style>{_STYLE}</style>
 </head>
 <body>
   <h1>{rubric_emoji} \u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043F\u0440\u043E {rubric_name.lower()}</h1>
   <p>\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0438\u0437 Telegram \u043A\u0430\u043D\u0430\u043B\u0430 @{uname}.</p>
   <ol>{jokes_html}</ol>
-  <a class="sub" href="https://t.me/{uname}">\u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname} \u0432 Telegram</a>
-  <p style="margin-top:20px;text-align:center"><a href="/top">\u0412\u0441\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</a> \u2022 <a href="/sitemap.xml">\u041A\u0430\u0440\u0442\u0430 \u0441\u0430\u0439\u0442\u0430</a></p>
+  <a class="sub" href="https://t.me/{uname}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
+  <p class="footer"><a href="/top">\u0412\u0441\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</a> \u2022 <a href="/rss.xml">RSS</a></p>
 </body>
 </html>"""
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
@@ -284,7 +336,6 @@ def rubric_page(slug: str) -> tuple:
 def rss_feed() -> tuple:
     uname = _channel_username()
     channel_url = f"https://t.me/{uname}"
-    base = "https://tgpost-bot-l4wq.onrender.com"
     items = ""
     if _settings is not None:
         db = Database(_settings.database_url or _settings.database_path)
@@ -295,16 +346,15 @@ def rss_feed() -> tuple:
             ).fetchall()
         for row in rows:
             title = row["text"].split("\n")[0][:100].rstrip() + "\u2026" if len(row["text"]) > 100 else row["text"]
-            desc = html.escape(row["text"].replace("\n", "<br>"))
+            desc = html_mod.escape(row["text"].replace("\n", "<br>"))
             pub_date = row["published_at"]
             items += f"""    <item>
-      <title>{html.escape(title)}</title>
+      <title>{html_mod.escape(title)}</title>
       <link>{channel_url}</link>
       <description><![CDATA[{desc}]]></description>
       <pubDate>{pub_date}</pubDate>
       <guid isPermaLink="false">{row["published_at"]}</guid>
-    </item>
-"""
+    </item>"""
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
@@ -312,7 +362,7 @@ def rss_feed() -> tuple:
     <link>{channel_url}</link>
     <description>\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C \u0432 Telegram</description>
     <language>ru</language>
-    <atom:link href="{base}/rss.xml" rel="self" type="application/rss+xml"/>
+    <atom:link href="{_BASE}/rss.xml" rel="self" type="application/rss+xml"/>
 {items}  </channel>
 </rss>"""
     return xml, 200, {"Content-Type": "application/rss+xml; charset=utf-8"}
@@ -320,8 +370,7 @@ def rss_feed() -> tuple:
 
 @app.get("/sitemap.xml")
 def sitemap() -> tuple:
-    uname = _channel_username()
-    base = "https://tgpost-bot-l4wq.onrender.com"
+    base = _BASE
     urls = [
         f"  <url><loc>{base}/top</loc><changefreq>daily</changefreq><priority>0.8</priority></url>",
     ]
@@ -332,6 +381,15 @@ def sitemap() -> tuple:
 {chr(10).join(urls)}
 </urlset>"""
     return xml, 200, {"Content-Type": "application/xml; charset=utf-8"}
+
+
+@app.get("/robots.txt")
+def robots() -> tuple:
+    txt = f"""User-agent: *
+Allow: /
+Sitemap: {_BASE}/sitemap.xml
+"""
+    return txt, 200, {"Content-Type": "text/plain; charset=utf-8"}
 
 
 if __name__ == "__main__":
