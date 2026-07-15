@@ -28,12 +28,14 @@ def _channel_username() -> str:
 def _share_urls(msg_id: int, text: str, uname: str) -> str:
     post_url = f"https://t.me/{uname}/{msg_id}"
     page_url = f"{_BASE}/p/{msg_id}"
-    short_text = text.replace("\n", " ")[:120].strip()
-    tg = f"https://t.me/share/url?url={page_url}&text={html_mod.quote(short_text)}"
-    tw = f"https://twitter.com/intent/tweet?text={html_mod.quote(short_text)}&url={page_url}"
-    vk = f"https://vk.com/share.php?url={page_url}&title={html_mod.quote(short_text)}"
-    wa = f"https://wa.me/?text={html_mod.quote(short_text + ' ' + page_url)}"
-    fb = f"https://www.facebook.com/sharer/sharer.php?u={page_url}&quote={html_mod.quote(short_text)}"
+    short_text = text.replace("\n", " ")[:100].strip()
+    share_base = short_text + f"\n\n\U0001F923 \u0411\u043E\u043B\u044C\u0448\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432 \u0432 @{uname}"
+    hashtags = "%23\u0430\u043D\u0435\u043A\u0434\u043E\u0442 %23\u044E\u043C\u043E\u0440 %23\u0441\u043C\u0435\u0445"
+    tg = f"https://t.me/share/url?url={page_url}&text={html_mod.quote(share_base)}"
+    tw = f"https://twitter.com/intent/tweet?text={html_mod.quote(share_base + ' ' + hashtags)}&url={page_url}"
+    vk = f"https://vk.com/share.php?url={page_url}&title={html_mod.quote(share_base)}"
+    wa = f"https://wa.me/?text={html_mod.quote(share_base + ' ' + page_url)}"
+    fb = f"https://www.facebook.com/sharer/sharer.php?u={page_url}&quote={html_mod.quote(share_base)}"
     copy_btn = f'<button class="s cp" onclick="navigator.clipboard.writeText(\'{page_url}\').then(()=>this.textContent=\'\\u2705 \\u0421\\u043a\\u043e\\u043f\\u0438\\u0440\\u043e\\u0432\\u0430\\u043d\\u043e!\').catch(()=>this.textContent=\'\\u274c \\u041e\\u0448\\u0438\\u0431\\u043a\\u0430\')">\\uD83D\\uDCCB \\u041A\\u043E\\u043F\\u0438\\u0440\\u043E\\u0432\\u0430\\u0442\\u044C</button>'
     return f"""
     <div class="shares" style="margin-top:20px">
@@ -247,8 +249,9 @@ def share_redirect(msg_id: int) -> tuple:
     uname = _channel_username()
     page_url = f"{_BASE}/p/{msg_id}"
     joke_text = _fetch_message_text(msg_id) or ""
-    short_text = joke_text.replace("\n", " ")[:120].strip()
-    tg_url = f"https://t.me/share/url?url={page_url}&text={html_mod.quote(short_text)}"
+    short_text = joke_text.replace("\n", " ")[:100].strip()
+    share_text = short_text + f"\n\n\U0001F923 \u0411\u043E\u043B\u044C\u0448\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432 \u0432 @{uname}"
+    tg_url = f"https://t.me/share/url?url={page_url}&text={html_mod.quote(share_text)}"
     return redirect(tg_url), 302
 
 
