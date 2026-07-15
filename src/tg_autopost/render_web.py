@@ -160,6 +160,8 @@ def home() -> tuple:
   <meta name="robots" content="index,follow">
   <link rel="canonical" href="{_BASE}/">
   <link rel="alternate" type="application/rss+xml" title="@{uname} RSS" href="{_BASE}/rss.xml">
+  <link rel="manifest" href="{_BASE}/manifest.json">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>{_STYLE}</style>
 </head>
 <body>
@@ -988,3 +990,55 @@ Sitemap: {_BASE}/sitemap.xml
 if __name__ == "__main__":
     ensure_bot_started()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "10000")))
+
+
+@app.get("/manifest.json")
+def manifest() -> tuple:
+    uname = _channel_username()
+    return {
+        "name": f"\u0410\u043D\u0435\u043A\u0434\u043E\u0442\u044B @{uname}",
+        "short_name": "@{uname}",
+        "description": "\u0421\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#f5f5f5",
+        "theme_color": "#0088cc",
+        "icons": [{"src": f"{_BASE}/avatar.png", "sizes": "192x192", "type": "image/png"}],
+    }, 200, {"Content-Type": "application/manifest+json; charset=utf-8"}
+
+
+@app.get("/sw.js")
+def service_worker() -> tuple:
+    js = f"""self.addEventListener('install', function(e) {{ e.waitUntil(self.skipWaiting()); }});
+self.addEventListener('activate', function(e) {{ e.waitUntil(self.clients.claim()); }});
+self.addEventListener('fetch', function(e) {{ e.respondWith(fetch(e.request).catch(function() {{ return new Response('\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0443', {{ status: 503 }}); }})); }});"""
+    return js, 200, {"Content-Type": "text/javascript; charset=utf-8"}
+
+
+@app.get("/chat")
+def chat_page() -> tuple:
+    uname = _channel_username()
+    channel_url = f"https://t.me/{uname}"
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>\u041E\u0431\u0441\u0443\u0436\u0434\u0435\u043D\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432 — @{uname}</title>
+  <meta name="description" content="\u041E\u0431\u0441\u0443\u0436\u0434\u0430\u0439 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0441 \u0434\u0440\u0443\u0433\u0438\u043C\u0438 \u043F\u043E\u0434\u043F\u0438\u0441\u0447\u0438\u043A\u0430\u043C\u0438 \u0432 Telegram \u043A\u0430\u043D\u0430\u043B\u0435 @{uname}">
+  <meta name="robots" content="index,follow">
+  <style>{_STYLE}</style>
+  <link rel="manifest" href="{_BASE}/manifest.json">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <h1>\U0001F4AC \u041E\u0431\u0441\u0443\u0436\u0434\u0435\u043D\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432</h1>
+  <p>\u041F\u043E\u0434\u0435\u043B\u0438\u0441\u044C \u0441\u0432\u043E\u0438\u043C \u043B\u044E\u0431\u0438\u043C\u044B\u043C \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u043C \u0438\u043B\u0438 \u043E\u0431\u0441\u0443\u0434\u0438 \u043D\u043E\u0432\u044B\u0439 \u0432\u044B\u043F\u0443\u0441\u043A \u0432 \u043A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u044F\u0445!</p>
+  <p>\u0427\u0442\u043E\u0431\u044B \u043E\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u043A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u0439, \u043F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C \u043D\u0430 \u043A\u0430\u043D\u0430\u043B \u0438 \u043D\u0430\u0436\u043C\u0438 \u043A\u043D\u043E\u043F\u043A\u0443 «\u041A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u0438» \u043F\u043E\u0434 \u043B\u044E\u0431\u044B\u043C \u043F\u043E\u0441\u0442\u043E\u043C.</p>
+  <a class="sub" href="{channel_url}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
+  <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="/top">\u041B\u0443\u0447\u0448\u0438\u0435</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a></p>
+  <script>
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('{_BASE}/sw.js');
+  </script>
+</body>
+</html>"""
+    return html, 200, {"Content-Type": "text/html; charset=utf-8"}
