@@ -21,15 +21,20 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 | `/img/<msg_id>` | OG image card with joke text rendered as JPEG |
 | `/joke/<id>` | SEO page per joke — all published jokes indexed, schema.org, exit-intent, sticky bar |
 | `/img/joke/<id>` | OG image + download card for any joke |
-| `/top` | Top 20 paginated jokes (`?page=N`) |
+| `/top` | Top 20 paginated jokes (`?page=N`) + referrer leaderboard |
 | `/rubric/<slug>` | Jokes by category (semeynoe, rabochee, zhivotnye, etc.) |
+| `/<slug>` | **66 SEO landing pages** for keyword queries (smeshnye, korotkie, pro-rabotu, etc.) |
 | `/search?q=` | Keyword search with result highlighting |
 | `/random` | Redirect to a random published joke |
+| `/chat` | Page about discussing jokes in channel comments |
+| `/manifest.json` | PWA manifest for mobile app install |
+| `/sw.js` | Service worker for PWA |
 | `/api/random-joke` | JSON API — random joke (CORS enabled, for widgets) |
-| `/widget.js` | Embeddable widget — paste `<script src=".../widget.js"></script>` on any site |
+| `/api/top-referrers` | JSON API — top 10 referrers |
+| `/widget.js` | Embeddable widget — paste `<script src=".../widget.js">` on any site |
 | `/widget` | Widget documentation page with live preview |
 | `/rss.xml` | RSS 2.0 feed (last 20 jokes) |
-| `/sitemap.xml` | Sitemap index → `sitemap-pages.xml` + `sitemap-jokes.xml` (ALL jokes) |
+| `/sitemap.xml` | Sitemap index → `sitemap-pages.xml` (pages + rubrics + 66 SEO landings) + `sitemap-jokes.xml` (ALL jokes) |
 | `/robots.txt` | Robots disallows nothing, points to sitemap |
 | `/avatar.png` | Channel avatar image |
 
