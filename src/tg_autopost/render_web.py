@@ -392,12 +392,25 @@ def joke_page(joke_id: int) -> tuple:
       <span class="close" onclick="document.getElementById('stickySub').classList.remove('show')">\u2716</span>
     </div>
   </div>
+  <div id="exitPopup" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:none;align-items:center;justify-content:center">
+    <div style="background:white;border-radius:16px;padding:30px;max-width:360px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
+      <div style="font-size:48px;margin-bottom:10px">\U0001F514</div>
+      <h2 style="margin:0 0 8px;color:#333;font-size:20px">\u0423\u0436\u0435 \u0443\u0445\u043E\u0434\u0438\u0442\u0435?</h2>
+      <p style="color:#666;margin:0 0 16px;font-size:15px">\u0412 Telegram \u043A\u0430\u043D\u0430\u043B\u0435 \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C \u0441\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B, \u0431\u0438\u0442\u0432\u044B \u0438 \u043A\u043E\u043D\u043A\u0443\u0440\u0441\u044B!</p>
+      <a href="{channel_url}" target="_blank" style="display:block;padding:12px;background:#0088cc;color:white;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F</a>
+      <button onclick="document.getElementById('exitPopup').style.display='none'" style="margin-top:10px;border:none;background:none;color:#888;cursor:pointer;font-size:14px">\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C \u0447\u0442\u0435\u043D\u0438\u0435</button>
+    </div>
+  </div>
   <script>
     setTimeout(function(){{ document.getElementById('stickySub').classList.add('show'); }}, 3000);
-    var lastScroll = 0;
     window.addEventListener('scroll', function(){{
-      var st = window.scrollY;
-      if (st > 300) document.getElementById('stickySub').classList.add('show');
+      if (window.scrollY > 300) document.getElementById('stickySub').classList.add('show');
+    }});
+    document.addEventListener('mouseleave', function(e){{
+      if (e.clientY < 0 && !localStorage.getItem('exitShown')) {{
+        localStorage.setItem('exitShown', '1');
+        document.getElementById('exitPopup').style.display = 'flex';
+      }}
     }});
   </script>
 </body>
