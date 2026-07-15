@@ -14,6 +14,7 @@ from .database import Database
 from .handlers import PollingHandler
 from .horoscope import generate_horoscope
 from .anti_advice import generate_anti_advice
+from .crossposter import post_to_vk
 from .image_gen import fits_in_image, generate_joke_image, generate_repost_card
 from .levels import get_level
 from .rubrics import classify_emoji, get_hashtags, get_preamble, get_today_rubric, is_jubilee
@@ -23,6 +24,7 @@ from .youtube import get_channel_stats, get_latest_videos
 logger = logging.getLogger(__name__)
 
 IMAGE_RATIO = 0.2
+VIDEO_RATIO = 0.08
 DICE_RATIO = 0.15
 BATTLE_EVERY = 5
 OBSERVATION_RATIO = 0.1
@@ -375,8 +377,15 @@ class TelegramPublisher:
         msg_id = data["result"]["message_id"]
         self.db.mark_published(joke.content_hash, msg_id)
         logger.info("Published text joke: %s (msg_id=%s)", joke.external_id, msg_id)
-        if not is_part2 and random.random() < DICE_RATIO:
-            self._send_dice()
+        if not is_part2:
+            if random.random() < DICE_RATIO:
+                self._send_dice()
+            if self.settings.vk_token:
+                from .rubrics import strip_html
+                clean_text = strip_html(text)
+                hashtags = " ".join(get_hashtags(rubric))
+                vk_msg = f"{clean_text}\n\n{hashtags}\n\n— Подпишись: t.me/{self.settings.channel_link.split('/')[-1]}"
+                post_to_vk(self.settings.vk_token, self.settings.vk_owner_id, vk_msg)
         return msg_id
 
     def _send_observation(self, text: str) -> bool:
@@ -495,6 +504,33 @@ class TelegramPublisher:
         caption = "\n".join(rest.split("\n")[1:]).strip()[:200]
         logger.info("Publishing meme image: %s", img_url)
         return self._send_photo(img_url, caption, joke.content_hash)
+
+    def _send_video(self, joke) -> bool:
+        try:
+            from .video_gen import generate_video
+            video_path = generate_video(joke.text)
+            with open(video_path, "rb") as f:
+                r = requests.post(
+                    f"https://api.telegram.org/bot{self.settings.bot_token}/sendVideo",
+                    data={
+                        "chat_id": self.settings.channel_id,
+                        "caption": f"\U0001F3AC \u0410\u043D\u0435\u043A\u0434\u043E\u0442 \u0432 \u0432\u0438\u0434\u0435\u043E\u0444\u043E\u0440\u043C\u0430\u0442\u0435",
+                        "parse_mode": "HTML",
+                        "reply_markup": json.dumps(self._build_keyboard()),
+                    },
+                    files={"video": f},
+                    timeout=120,
+                )
+            Path(video_path).unlink(missing_ok=True)
+            data = r.json()
+            if not r.ok or not data.get("ok"):
+                raise RuntimeError(f"Telegram API error: {data.get('description', 'unknown')}")
+            self.db.mark_published(joke.content_hash)
+            logger.info("Published video joke: %s", joke.external_id)
+            return True
+        except Exception as e:
+            logger.warning("Failed to send video: %s", e)
+            return False
 
     _ANALYSIS_TEMPLATES = [
         "Контекст: {title}. Соль мема в том, что ситуация узнаваема до зубной боли. "
@@ -956,6 +992,8 @@ class TelegramPublisher:
                     return True
                 if random.random() < REPOST_CARD_RATIO and fits_in_image(joke.text):
                     return self._send_repost_card(joke)
+                if random.random() < VIDEO_RATIO and len(joke.text) > 100:
+                    return self._send_video(joke)
                 if random.random() < IMAGE_RATIO and fits_in_image(joke.text):
                     return self._send_image(joke, rubric)
                 return self._send_text(joke, rubric)
@@ -993,6 +1031,8 @@ class TelegramPublisher:
 
         if random.random() < REPOST_CARD_RATIO and fits_in_image(joke.text):
             return self._send_repost_card(joke)
+        if random.random() < VIDEO_RATIO and len(joke.text) > 100:
+            return self._send_video(joke)
         if random.random() < IMAGE_RATIO and fits_in_image(joke.text):
             return self._send_image(joke, rubric)
         return self._send_text(joke, rubric)

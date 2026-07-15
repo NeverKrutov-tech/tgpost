@@ -24,6 +24,8 @@ class Settings:
     cf_account_id: str = ""
     cf_api_token: str = ""
     kie_api_key: str = ""
+    vk_token: str = ""
+    vk_owner_id: int = 0
     telethon_api_id: int = 0
     telethon_api_hash: str = ""
     telethon_session_string: str = ""
@@ -65,6 +67,8 @@ def load_settings() -> Settings:
         cf_account_id=os.getenv("CF_ACCOUNT_ID", "").strip(),
         cf_api_token=os.getenv("CF_API_TOKEN", "").strip(),
         kie_api_key=os.getenv("KIE_API_KEY", "").strip(),
+        vk_token=os.getenv("VK_TOKEN", "").strip(),
+        vk_owner_id=int(os.getenv("VK_OWNER_ID", "0")),
         telethon_api_id=int(os.getenv("TELETHON_API_ID", "0")) if os.getenv("TELETHON_API_ID", "").strip() else 0,
         telethon_api_hash=os.getenv("TELETHON_API_HASH", "").strip(),
         telethon_session_string=os.getenv("TELETHON_SESSION_STRING", "").strip(),

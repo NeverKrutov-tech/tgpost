@@ -113,18 +113,22 @@ def run_scheduler() -> None:
 
     scheduler = BlockingScheduler()
 
-    for hour in range(6, 24, settings.post_interval_hours):
+    # regular posts every 30 min from 07:00 to 23:30
+    for hour in range(7, 23):
         scheduler.add_job(run_ingest_and_publish, "cron", hour=hour, minute=0, jitter=900)
+        scheduler.add_job(run_ingest_and_publish, "cron", hour=hour, minute=30, jitter=900)
 
     scheduler.add_job(publish_horoscope, "cron", hour=8, minute=0)
-    scheduler.add_job(publish_anti_advice, "cron", hour=13, minute=0)
-    scheduler.add_job(publish_meme_image, "cron", hour=12, minute=0)
-    scheduler.add_job(publish_meme_image, "cron", hour=18, minute=0)
-    scheduler.add_job(publish_story, "cron", hour=20, minute=0)
+    scheduler.add_job(publish_anti_advice, "cron", hour=13, minute=30)
+    scheduler.add_job(publish_meme_image, "cron", hour=9, minute=0)
+    scheduler.add_job(publish_meme_image, "cron", hour=11, minute=0)
+    scheduler.add_job(publish_meme_image, "cron", hour=14, minute=0)
+    scheduler.add_job(publish_meme_image, "cron", hour=17, minute=0)
+    scheduler.add_job(publish_meme_image, "cron", hour=19, minute=30)
+    scheduler.add_job(publish_story, "cron", hour=22, minute=0)
 
     logging.getLogger(__name__).info(
-        "Scheduler started — posts at %s:00, every %s hours (night pause 23:00–07:59)",
-        "8", settings.post_interval_hours,
+        "Scheduler started — every 30 min 07:00–23:30 + memes at 9,11,14,17,19:30 + story at 22:00 (night pause 00:00–06:59)",
     )
 
     run_ingest_and_publish()

@@ -38,6 +38,12 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 - **Exit-intent popup** — "Уже уходите?" popup on mouse leave (once per visitor)
 - **Copy attribution** — copying joke text appends "— Подпишись: t.me/Anetdodik"
 
+## Referral system
+- Bot command `/invite` gives personal referral link `t.me/bot?start=ref_<id>`
+- When someone joins via link, tracked in `referrals` table
+- Leaderboard on `/top` page
+- API: `/api/top-referrers` (CORS, cached 5 min)
+
 ## YouTube OAuth — DONE ✅
 - OAuth refresh token obtained via `urn:ietf:wg:oauth:2.0:oob` + manual code copy
 - Client type: Desktop ("installed"), NOT "web"

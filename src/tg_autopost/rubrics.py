@@ -245,6 +245,10 @@ def get_hashtags(text: str) -> str:
     return " ".join(found)
 
 
+def strip_html(text: str) -> str:
+    return re.sub(r"<[^>]+>", "", text)
+
+
 def is_jubilee(post_number: int) -> str:
     if post_number == 1:
         return ""
