@@ -1,0 +1,8 @@
+- generic [active] [ref=e1]:
+  - img [ref=e2]
+  - heading "We strongly condemn Russia's ongoing and illegal war in Ukraine." [level=1] [ref=e5]
+  - paragraph [ref=e6]:
+    - text: Due to Russia's invasion of Ukraine, Pixabay is no longer available in Russia and the regions under sanctions. For reliable information about what is happening in Ukraine, visit the
+    - link "United Nations website" [ref=e7] [cursor=pointer]:
+      - /url: https://news.un.org/en/focus/ukraine
+    - text: .

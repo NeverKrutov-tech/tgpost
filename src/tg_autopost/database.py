@@ -1,6 +1,6 @@
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, Tuple
 
@@ -140,6 +140,39 @@ CREATE TABLE IF NOT EXISTS referrals (
 );
 """
 
+USER_STREAKS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS user_streaks (
+    user_id INTEGER PRIMARY KEY,
+    current_streak INTEGER NOT NULL DEFAULT 0,
+    longest_streak INTEGER NOT NULL DEFAULT 0,
+    last_activity_date TEXT,
+    updated_at TEXT NOT NULL
+);
+"""
+
+USER_ACHIEVEMENTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS user_achievements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    achievement_key TEXT NOT NULL,
+    earned_at TEXT NOT NULL,
+    UNIQUE(user_id, achievement_key)
+);
+"""
+
+USER_STATS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS user_stats (
+    user_id INTEGER PRIMARY KEY,
+    jokes_read INTEGER NOT NULL DEFAULT 0,
+    shares_count INTEGER NOT NULL DEFAULT 0,
+    referrals_count INTEGER NOT NULL DEFAULT 0,
+    submissions_count INTEGER NOT NULL DEFAULT 0,
+    quizzes_solved INTEGER NOT NULL DEFAULT 0,
+    last_read_at TEXT,
+    updated_at TEXT NOT NULL
+);
+"""
+
 
 class Database:
     def __init__(self, path: str) -> None:
@@ -173,6 +206,9 @@ class Database:
             connection.execute(LOCKED_CONTENT_SQL)
             connection.execute(SUBSCRIBERS_TABLE_SQL)
             connection.execute(REFERRALS_TABLE_SQL)
+            connection.execute(USER_STREAKS_TABLE_SQL)
+            connection.execute(USER_ACHIEVEMENTS_TABLE_SQL)
+            connection.execute(USER_STATS_TABLE_SQL)
             self._migrate(connection)
 
     def _migrate(self, connection: sqlite3.Connection) -> None:
@@ -830,3 +866,146 @@ class Database:
                     "username": author["username"] if author else None,
                 })
             return result
+
+    # Streak methods
+    def update_streak(self, user_id: int) -> tuple[int, int]:
+        """Update user's streak and return (current_streak, longest_streak)."""
+        today = datetime.now(timezone.utc).date().isoformat()
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT current_streak, longest_streak, last_activity_date FROM user_streaks WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            if row is None:
+                current, longest = 1, 1
+                connection.execute(
+                    "INSERT INTO user_streaks (user_id, current_streak, longest_streak, last_activity_date, updated_at) "
+                    "VALUES (?, 1, 1, ?, ?)",
+                    (user_id, today, datetime.now(timezone.utc).isoformat()),
+                )
+            else:
+                last_date = row["last_activity_date"]
+                if last_date == today:
+                    current, longest = row["current_streak"], row["longest_streak"]
+                else:
+                    yesterday = (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat()
+                    if last_date == yesterday:
+                        current = row["current_streak"] + 1
+                    else:
+                        current = 1
+                    longest = max(row["longest_streak"], current)
+                    connection.execute(
+                        "UPDATE user_streaks SET current_streak = ?, longest_streak = ?, last_activity_date = ?, updated_at = ? "
+                        "WHERE user_id = ?",
+                        (current, longest, today, datetime.now(timezone.utc).isoformat(), user_id),
+                    )
+            return current, longest
+
+    def get_streak(self, user_id: int) -> tuple[int, int]:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT current_streak, longest_streak FROM user_streaks WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            if row:
+                return int(row["current_streak"]), int(row["longest_streak"])
+            return 0, 0
+
+    # Achievement methods
+    def award_achievement(self, user_id: int, achievement_key: str) -> bool:
+        """Award an achievement if not already earned. Returns True if newly awarded."""
+        with self.connect() as connection:
+            try:
+                connection.execute(
+                    "INSERT INTO user_achievements (user_id, achievement_key, earned_at) VALUES (?, ?, ?)",
+                    (user_id, achievement_key, datetime.now(timezone.utc).isoformat()),
+                )
+                return True
+            except sqlite3.IntegrityError:
+                return False
+
+    def get_user_achievements(self, user_id: int) -> list[str]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT achievement_key FROM user_achievements WHERE user_id = ?", (user_id,)
+            ).fetchall()
+            return [r["achievement_key"] for r in rows]
+
+    def check_and_award_achievements(self, user_id: int) -> list[str]:
+        """Check conditions and award new achievements. Returns list of newly awarded keys."""
+        stats = self.get_user_stats(user_id)
+        current_streak, _ = self.get_streak(user_id)
+        existing = set(self.get_user_achievements(user_id))
+        newly_awarded = []
+
+        checks = [
+            ("streak_3", current_streak >= 3),
+            ("streak_7", current_streak >= 7),
+            ("streak_14", current_streak >= 14),
+            ("streak_30", current_streak >= 30),
+            ("read_10", stats.get("jokes_read", 0) >= 10),
+            ("read_50", stats.get("jokes_read", 0) >= 50),
+            ("read_100", stats.get("jokes_read", 0) >= 100),
+            ("shares_5", stats.get("shares_count", 0) >= 5),
+            ("shares_20", stats.get("shares_count", 0) >= 20),
+            ("referrals_1", stats.get("referrals_count", 0) >= 1),
+            ("referrals_5", stats.get("referrals_count", 0) >= 5),
+            ("referrals_10", stats.get("referrals_count", 0) >= 10),
+            ("submissions_1", stats.get("submissions_count", 0) >= 1),
+            ("submissions_10", stats.get("submissions_count", 0) >= 10),
+            ("quizzes_5", stats.get("quizzes_solved", 0) >= 5),
+        ]
+
+        for key, condition in checks:
+            if condition and key not in existing:
+                if self.award_achievement(user_id, key):
+                    newly_awarded.append(key)
+        return newly_awarded
+
+    # User stats methods
+    def increment_user_stat(self, user_id: int, field: str, amount: int = 1) -> None:
+        valid_fields = {"jokes_read", "shares_count", "referrals_count", "submissions_count", "quizzes_solved"}
+        if field not in valid_fields:
+            return
+        with self.connect() as connection:
+            connection.execute(
+                f"""
+                INSERT INTO user_stats (user_id, {field}, updated_at) VALUES (?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    {field} = {field} + excluded.{field},
+                    updated_at = excluded.updated_at
+                """,
+                (user_id, amount, datetime.now(timezone.utc).isoformat()),
+            )
+
+    def record_joke_read(self, user_id: int) -> None:
+        self.increment_user_stat(user_id, "jokes_read")
+        with self.connect() as connection:
+            connection.execute(
+                "UPDATE user_stats SET last_read_at = ? WHERE user_id = ?",
+                (datetime.now(timezone.utc).isoformat(), user_id),
+            )
+
+    def record_share(self, user_id: int) -> None:
+        self.increment_user_stat(user_id, "shares_count")
+
+    def record_referral(self, user_id: int) -> None:
+        self.increment_user_stat(user_id, "referrals_count")
+
+    def record_submission(self, user_id: int) -> None:
+        self.increment_user_stat(user_id, "submissions_count")
+
+    def record_quiz_solved(self, user_id: int) -> None:
+        self.increment_user_stat(user_id, "quizzes_solved")
+
+    def get_user_stats(self, user_id: int) -> dict:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT jokes_read, shares_count, referrals_count, submissions_count, quizzes_solved, last_read_at "
+                "FROM user_stats WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            if row:
+                return dict(row)
+            return {
+                "jokes_read": 0, "shares_count": 0, "referrals_count": 0,
+                "submissions_count": 0, "quizzes_solved": 0, "last_read_at": None,
+            }

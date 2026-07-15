@@ -1,0 +1,20 @@
+[    1600ms] [LOG] Pageview limit exceeded: Banner disabled @ https://cdn-cookieyes.com/client_data/bdfc1c4e33625e1b47b0c452/script.js:0
+[    2207ms] No Login
+[    2285ms] [INFO] [Tue, 07 Jul 2026 06:39:49 GMT] : [] : @azure/msal-browser@4.20.0 : Info - MSAL.js was last initialized by version: 4.20.0 @ https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:0
+[    2286ms] [INFO] [Tue, 07 Jul 2026 06:39:49 GMT] : [] : @azure/msal-browser@4.20.0 : Info - handleRedirectPromise called but there is no interaction in progress, returning null. @ https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:0
+[    2338ms] No Login
+[    2339ms] [INFO] [Tue, 07 Jul 2026 06:39:49 GMT] : [] : @azure/msal-react@3.0.18 : Info - MsalProvider - handleRedirectPromise resolved, setting inProgress to 'none' @ https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:0
+[    2810ms] [WARNING] clarity TypeError: window.clarity is not a function
+    at h.setClarityIdentify (https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:7:129884) @ https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:6
+[    2847ms] [WARNING] clarity TypeError: window.clarity is not a function
+    at h.setClarityIdentify (https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:7:129884) @ https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:6
+[    3035ms] [ERROR] Not signed in with the identity provider. @ https://kie.ai/veo-3-1:0
+[    6403ms] [ERROR] [GSI_LOGGER]: FedCM get() rejects with NetworkError: Error retrieving a token. @ https://accounts.google.com/gsi/client:87
+[   39271ms] [WARNING] [GSI_LOGGER]: google.accounts.id.initialize() is called multiple times. This could cause unexpected behavior and only the last initialized instance will be used. @ https://accounts.google.com/gsi/client:86
+[   39274ms] [WARNING] [GSI_LOGGER]: Provided button width is invalid: 100% @ https://accounts.google.com/gsi/client:86
+[   39283ms] [WARNING] [GSI_LOGGER]: google.accounts.id.initialize() is called multiple times. This could cause unexpected behavior and only the last initialized instance will be used. @ https://accounts.google.com/gsi/client:86
+[   39301ms] [WARNING] [GSI_LOGGER]: google.accounts.id.initialize() is called multiple times. This could cause unexpected behavior and only the last initialized instance will be used. @ https://accounts.google.com/gsi/client:86
+[   39310ms] [ERROR] Not signed in with the identity provider. @ https://kie.ai/veo-3-1:0
+[   74899ms] [ERROR] [GSI_LOGGER]: FedCM get() rejects with NetworkError: Error retrieving a token. @ https://accounts.google.com/gsi/client:87
+[  175398ms] [ERROR] Cross-Origin-Opener-Policy policy would block the window.postMessage call. @ https://accounts.google.com/gsi/client:382
+[  175398ms] [ERROR] Cross-Origin-Opener-Policy policy would block the window.postMessage call. @ https://accounts.google.com/gsi/client:382

@@ -1,0 +1,61 @@
+- generic [active] [ref=f33e1]:
+  - generic [ref=f33e3]:
+    - generic [ref=f33e4]:
+      - region "Site announcement" [ref=f33e5]:
+        - generic [ref=f33e6]:
+          - link "Seedance 2.0 — open the kie.ai page" [ref=f33e7] [cursor=pointer]:
+            - /url: https://kie.ai/seedance-2-0-mini
+            - img [ref=f33e8]
+            - generic [ref=f33e12]: Seedance 2.0 Mini from ByteDance has officially landed on Kie! 🚀
+          - button "Close announcement" [ref=f33e13] [cursor=pointer]:
+            - img [ref=f33e14]
+      - navigation [ref=f33e16]:
+        - generic [ref=f33e17]:
+          - link "kie.ai KIE API" [ref=f33e20] [cursor=pointer]:
+            - /url: /
+            - img "kie.ai" [ref=f33e21]
+            - paragraph [ref=f33e22]: KIE API
+          - list [ref=f33e23]
+          - list [ref=f33e24]:
+            - listitem [ref=f33e25]:
+              - button [ref=f33e26] [cursor=pointer]:
+                - img [ref=f33e27]
+            - listitem [ref=f33e31]:
+              - button [ref=f33e33] [cursor=pointer]:
+                - img [ref=f33e34]
+            - listitem [ref=f33e36]:
+              - button "Get Started" [ref=f33e37] [cursor=pointer]
+    - main [ref=f33e39]:
+      - generic [ref=f33e41]:
+        - generic [ref=f33e42]:
+          - paragraph [ref=f33e43]: Welcome Back
+          - paragraph [ref=f33e44]: Log in to your account to continue
+        - iframe [ref=f33e48]:
+          - button "Вход через аккаунт Google. Откроется в новой вкладке." [ref=f35e3] [cursor=pointer]:
+            - generic [ref=f35e5]:
+              - img [ref=f35e7]
+              - generic [ref=f35e14]: Вход через аккаунт Google
+        - button "Sign in with Microsoft" [ref=f33e50] [cursor=pointer]:
+          - img [ref=f33e51]
+          - generic [ref=f33e56]: Sign in with Microsoft
+        - generic [ref=f33e57]:
+          - separator [ref=f33e58]
+          - paragraph [ref=f33e59]: OR
+          - separator [ref=f33e60]
+        - generic [ref=f33e61]:
+          - generic [ref=f33e63]:
+            - generic [ref=f33e64]: Email Address*
+            - textbox "Email Address Email Address*" [ref=f33e66]:
+              - /placeholder: Enter your email
+          - generic [ref=f33e68]:
+            - generic [ref=f33e69]: Password*
+            - generic [ref=f33e70]:
+              - textbox "Password Password*" [ref=f33e71]:
+                - /placeholder: Enter your password
+              - button [ref=f33e72] [cursor=pointer]:
+                - img
+          - button "Sign In" [ref=f33e73] [cursor=pointer]
+        - paragraph [ref=f33e74]:
+          - text: Need to create an account?
+          - button "Sign Up" [ref=f33e75] [cursor=pointer]
+  - alert [ref=f33e76]

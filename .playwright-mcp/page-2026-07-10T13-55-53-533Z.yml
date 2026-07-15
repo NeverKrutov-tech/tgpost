@@ -1,0 +1,45 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - heading [level=1] [ref=e4]:
+      - link "Анекдоты категории Б" [ref=e5] [cursor=pointer]:
+        - /url: /
+    - generic [ref=e6]:
+      - article [ref=e7]:
+        - heading "Главная страница" [level=2] [ref=e8]
+        - paragraph [ref=e9]: Анекдоты категории Б — это как фильмы категории Б, только анекдоты.
+        - paragraph [ref=e10]:
+          - link "Случайный анек" [ref=e11] [cursor=pointer]:
+            - /url: random
+          - link "Лучшие анеки" [ref=e12] [cursor=pointer]:
+            - /url: top
+          - link "Анекдоты категории Б в Telegram" [ref=e13] [cursor=pointer]:
+            - /url: https://t.me/baneksru
+          - link "Золотые анекдоты в Telegram" [ref=e14] [cursor=pointer]:
+            - /url: https://t.me/gold_anekdot
+          - link "Анекдоты с подливой" [ref=e15] [cursor=pointer]:
+            - /url: https://t.me/nyam_nyam_nyamka
+        - paragraph [ref=e16]:
+          - text: Пожелания, угрозы и рекомендации
+          - link "сюда" [ref=e17] [cursor=pointer]:
+            - /url: https://t.me/yobebka
+          - text: .
+      - generic [ref=e19]:
+        - link [ref=e20] [cursor=pointer]:
+          - /url: "#"
+        - link [ref=e24] [cursor=pointer]:
+          - /url: "#"
+        - link [ref=e28] [cursor=pointer]:
+          - /url: "#"
+    - generic [ref=e32]:
+      - link "Лучшие анеки" [ref=e33] [cursor=pointer]:
+        - /url: top
+      - link "Канал в Telegram" [ref=e34] [cursor=pointer]:
+        - /url: https://t.me/baneksru
+  - generic [ref=e37]:
+    - img "Telegram_logo" [ref=e39]
+    - heading "Анекдоты категории Б теперь и в телеграм" [level=3] [ref=e44]
+    - paragraph [ref=e45]: Лучшие анеки и баяны на каждый день!
+    - generic [ref=e46]:
+      - link "Канал в телеге" [ref=e47] [cursor=pointer]:
+        - /url: https://t.me/baneksru
+      - button "Спасибо, закрыть" [ref=e48] [cursor=pointer]

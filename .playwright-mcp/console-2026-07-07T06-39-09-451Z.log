@@ -1,0 +1,5 @@
+[     882ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://kie.ai/register:0
+[    1075ms] [LOG] Pageview limit exceeded: Banner disabled @ https://cdn-cookieyes.com/client_data/bdfc1c4e33625e1b47b0c452/script.js:0
+[    1110ms] [INFO] [Tue, 07 Jul 2026 06:39:10 GMT] : [] : @azure/msal-browser@4.20.0 : Info - MSAL.js was last initialized by version: 4.20.0 @ https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:0
+[    1111ms] [INFO] [Tue, 07 Jul 2026 06:39:10 GMT] : [] : @azure/msal-browser@4.20.0 : Info - handleRedirectPromise called but there is no interaction in progress, returning null. @ https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:0
+[    1114ms] [INFO] [Tue, 07 Jul 2026 06:39:10 GMT] : [] : @azure/msal-react@3.0.18 : Info - MsalProvider - handleRedirectPromise resolved, setting inProgress to 'none' @ https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:0

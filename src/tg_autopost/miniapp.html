@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0088cc">
+  <title>Шутка дня — @Anetdodik</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f5f5; min-height: 100vh; color: #1a1a1a;
+      overscroll-behavior: none; -webkit-tap-highlight-color: transparent;
+    }
+    .app { display: flex; flex-direction: column; min-height: 100vh; }
+    
+    /* Header */
+    header {
+      background: linear-gradient(135deg, #0088cc, #005f8a);
+      color: white; padding: 12px 16px; position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .logo { font-weight: 800; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+    .logo::before { content: "🤣"; font-size: 20px; }
+    .header-actions { display: flex; gap: 8px; }
+    .btn-icon {
+      background: rgba(255,255,255,0.2); border: none; border-radius: 50%;
+      width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: white; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-icon:active { background: rgba(255,255,255,0.35); }
+    
+    /* Swipe container */
+    .swiper { flex: 1; overflow: hidden; position: relative; }
+    .slides {
+      display: flex; height: 100%; width: 100%;
+      transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      touch-action: pan-y;
+    }
+    .slide {
+      flex: 0 0 100%; width: 100%; padding: 24px 16px 100px;
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    
+    /* Joke card */
+    .joke-card {
+      background: white; border-radius: 20px; padding: 28px 24px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      max-width: 100%; flex: 1; display: flex; flex-direction: column; justify-content: center;
+      position: relative; overflow: hidden;
+    }
+    .joke-card::before {
+      content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+      background: linear-gradient(90deg, #0088cc, #00bfff, #0088cc);
+      background-size: 200% 100%; animation: shimmer 3s linear infinite;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    
+    .joke-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 12px; color: #888; }
+    .joke-meta .rubric { background: #f0f7ff; color: #0088cc; padding: 4px 10px; border-radius: 12px; font-weight: 600; }
+    .joke-text { font-size: 17px; line-height: 1.65; white-space: pre-wrap; flex: 1; }
+    .joke-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; padding-top: 16px; border-top: 1px solid #f0f0f0; }
+    .joke-id { font-size: 11px; color: #aaa; }
+    .share-hint { font-size: 12px; color: #0088cc; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+    
+    /* Bottom bar */
+    .bottom-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: white; border-top: 1px solid #eee;
+      padding: 12px 16px 16px; display: flex; gap: 12px; z-index: 50;
+      background-image: linear-gradient(to top, white 80%, transparent);
+    }
+    .btn-primary {
+      flex: 1; background: linear-gradient(135deg, #0088cc, #005f8a); color: white;
+      border: none; border-radius: 14px; padding: 14px; font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: transform 0.1s, box-shadow 0.2s;
+      box-shadow: 0 4px 16px rgba(0,136,204,0.3);
+    }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-secondary {
+      flex: 1; background: #f5f5f5; color: #333; border: none; border-radius: 14px;
+      padding: 14px; font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    .btn-secondary:active { background: #eee; }
+    
+    /* Category pills */
+    .categories { padding: 16px; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+    .categories::-webkit-scrollbar { display: none; }
+    .cat-pill {
+      background: white; border: 1px solid #e0e0e0; border-radius: 20px;
+      padding: 8px 16px; font-size: 13px; font-weight: 500; color: #333;
+      white-space: nowrap; cursor: pointer; transition: all 0.2s;
+    }
+    .cat-pill.active { background: #0088cc; border-color: #0088cc; color: white; }
+    .cat-pill:active { transform: scale(0.96); }
+    
+    /* Empty state */
+    .empty { text-align: center; padding: 40px 20px; color: #888; }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    
+    /* Loading */
+    .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; gap: 12px; color: #888; }
+    .spinner { width: 32px; height: 32px; border: 3px solid #e0e0e0; border-top-color: #0088cc; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    /* Share modal */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; display: none; align-items: flex-end; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: white; border-radius: 20px 20px 0 0; width: 100%; max-height: 80vh; overflow-y: auto; animation: slideUp 0.3s ease; }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #eee; }
+    .modal-title { font-weight: 700; font-size: 17px; }
+    .modal-close { background: none; border: none; font-size: 22px; color: #888; cursor: pointer; }
+    .share-options { padding: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .share-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      padding: 16px; background: #fafafa; border: 1px solid #eee; border-radius: 16px;
+      cursor: pointer; transition: all 0.2s; text-decoration: none; color: #333;
+    }
+    .share-btn:active { background: #f0f0f0; transform: scale(0.98); }
+    .share-btn-icon { font-size: 28px; }
+    .share-btn-label { font-size: 12px; font-weight: 600; }
+    
+    /* Swipe indicator */
+    .swipe-hint { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; color: #aaa; font-size: 12px; animation: bounce 2s infinite; pointer-events: none; }
+    @keyframes bounce { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-6px); } }
+    .swipe-hint svg { width: 28px; height: 28px; stroke: #aaa; }
+    
+    /* Daily challenge banner */
+    .challenge-banner {
+      background: linear-gradient(135deg, #ff6b35, #f7931e); color: white;
+      margin: 16px; border-radius: 16px; padding: 16px; display: none;
+    }
+    .challenge-banner.show { display: block; }
+    .challenge-title { font-weight: 800; font-size: 15px; margin-bottom: 4px; }
+    .challenge-desc { font-size: 13px; opacity: 0.95; margin-bottom: 12px; }
+    .challenge-btn { background: white; color: #ff6b35; border: none; border-radius: 10px; padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer; }
+    
+    /* Stats bar */
+    .stats-bar { display: flex; gap: 16px; padding: 12px 16px; font-size: 12px; color: #666; border-bottom: 1px solid #eee; }
+    .stat { display: flex; align-items: center; gap: 6px; }
+    
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .slides { transition: none; }
+      .swipe-hint { animation: none; }
+      @keyframes shimmer { }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="header-row">
+      <div class="logo">@Anetdodik</div>
+      <div class="header-actions">
+        <button class="btn-icon" id="btnCategories" aria-label="Рубрики">📂</button>
+        <button class="btn-icon" id="btnShare" aria-label="Поделиться">📤</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="stats-bar" id="statsBar" style="display:none">
+    <div class="stat">👁 <span id="statViews">—</span></div>
+    <div class="stat">↗️ <span id="statShares">—</span></div>
+    <div class="stat">🔥 <span id="statStreak">0</span> дн.</div>
+  </div>
+
+  <div class="categories" id="categories" role="tablist" aria-label="Рубрики"></div>
+
+  <div class="challenge-banner" id="challengeBanner">
+    <div class="challenge-title">🎯 Челлендж дня</div>
+    <div class="challenge-desc" id="challengeDesc">Придумай концовку анекдота и получи достижение!</div>
+    <button class="challenge-btn" id="challengeBtn">Участвовать</button>
+  </div>
+
+  <div class="swiper">
+    <div class="slides" id="slides">
+      <div class="slide">
+        <div class="loading" id="loading">
+          <div class="spinner"></div>
+          <span>Загружаю лучшие анекдоты…</span>
+        </div>
+      </div>
+    </div>
+    <div class="swipe-hint" id="swipeHint">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      <span>Свайпни для следующего</span>
+    </div>
+  </div>
+
+  <div class="bottom-bar">
+    <button class="btn-secondary" id="btnPrev">← Назад</button>
+    <button class="btn-primary" id="btnNext">Следующий →</button>
+  </div>
+</div>
+
+<!-- Share Modal -->
+<div class="modal-overlay" id="shareModal" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title" id="shareTitle">Поделиться анекдотом</h3>
+      <button class="modal-close" id="modalClose" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="share-options" id="shareOptions"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ==== CONFIG ====
+  const API_BASE = 'https://tgpost-bot-l4wq.onrender.com';
+  const CHANNEL_URL = 'https://t.me/Anetdodik';
+  const BOT_USERNAME = 'postbotanekdodik_bot';
+  
+  // ==== STATE ====
+  let jokes = [];
+  let currentIndex = 0;
+  let currentCategory = 'all';
+  let isLoading = false;
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let userStreak = parseInt(localStorage.getItem('miniapp_streak') || '0', 10);
+  let lastVisit = localStorage.getItem('miniapp_last_visit');
+
+  // ==== DOM ====
+  const slides = document.getElementById('slides');
+  const loading = document.getElementById('loading');
+  const categoriesEl = document.getElementById('categories');
+  const swipeHint = document.getElementById('swipeHint');
+  const challengeBanner = document.getElementById('challengeBanner');
+  const challengeDesc = document.getElementById('challengeDesc');
+  const challengeBtn = document.getElementById('challengeBtn');
+  const shareModal = document.getElementById('shareModal');
+  const shareOptions = document.getElementById('shareOptions');
+  const statViews = document.getElementById('statViews');
+  const statShares = document.getElementById('statShares');
+  const statStreak = document.getElementById('statStreak');
+  const statsBar = document.getElementById('statsBar');
+
+  // ==== TELEGRAM WEB APP ====
+  const tg = window.Telegram?.WebApp;
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    tg.MainButton?.hide();
+    tg.BackButton?.hide();
+    
+    // Theme adaptation
+    const applyTheme = () => {
+      document.documentElement.style.setProperty('--tg-bg', tg.backgroundColor || '#f5f5f5');
+      document.documentElement.style.setProperty('--tg-text', tg.textColor || '#1a1a1a');
+      document.documentElement.style.setProperty('--tg-hint', tg.hintColor || '#888');
+    };
+    applyTheme();
+  }
+
+  // ==== STREAK LOGIC ====
+  function updateStreak() {
+    const today = new Date().toDateString();
+    if (lastVisit !== today) {
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      userStreak = (lastVisit === yesterday) ? userStreak + 1 : 1;
+      localStorage.setItem('miniapp_streak', String(userStreak));
+      localStorage.setItem('miniapp_last_visit', today);
+      lastVisit = today;
+    }
+    statStreak.textContent = userStreak;
+  }
+
+  // ==== API ====
+  async function fetchJokes(category = 'all') {
+    if (isLoading) return;
+    isLoading = true;
+    loading.style.display = 'flex';
+    swipeHint.style.display = 'none';
+    
+    try {
+      const url = category === 'all' 
+        ? `${API_BASE}/api/random-joke` 
+        : `${API_BASE}/api/random-joke?category=${encodeURIComponent(category)}`;
+      
+      // For categories, we'll fetch multiple
+      const promises = Array(8).fill(null).map(() => 
+        fetch(`${API_BASE}/api/random-joke${category !== 'all' ? `?category=${category}` : ''}`)
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null)
+      );
+      const results = await Promise.all(promises);
+      jokes = results.filter(j => j && j.text).slice(0, 8);
+      
+      if (jokes.length === 0) {
+        // Fallback: fetch from /top
+        const resp = await fetch(`${API_BASE}/top?page=1`);
+        const html = await resp.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const links = doc.querySelectorAll('ol li a[href^="/joke/"]');
+        jokes = Array.from(links).slice(0, 8).map(a => ({
+          id: a.href.match(/\/joke\/(\d+)/)?.[1],
+          text: a.textContent.trim(),
+          url: API_BASE + a.getAttribute('href')
+        }));
+      }
+      
+      renderSlides();
+      updateStats();
+    } catch (e) {
+      console.error('Fetch failed:', e);
+      showEmpty();
+    } finally {
+      isLoading = false;
+      loading.style.display = 'none';
+    }
+  }
+
+  async function updateStats() {
+    try {
+      const resp = await fetch(`${API_BASE}/api/random-joke`);
+      const data = await resp.json();
+      if (data.id) {
+        statViews.textContent = '—';
+        statShares.textContent = '—';
+      }
+    } catch {}
+    statsBar.style.display = 'flex';
+  }
+
+  // ==== RENDER ====
+  function renderSlides() {
+    slides.innerHTML = '';
+    jokes.forEach((joke, i) => {
+      const slide = document.createElement('div');
+      slide.className = 'slide';
+      slide.dataset.index = i;
+      slide.innerHTML = buildJokeCard(joke, i);
+      slides.appendChild(slide);
+    });
+    updateSlidePosition(true);
+    swipeHint.style.display = 'flex';
+    challengeBanner.classList.add('show');
+    updateChallenge();
+  }
+
+  function buildJokeCard(joke, idx) {
+    const text = joke.text || 'Анекдот загружается…';
+    const short = text.replace(/\n/g, ' ').slice(0, 120);
+    const rubric = getRubricFromText(text);
+    const shareUrl = `${API_BASE}/share/${joke.id || idx}`;
+    const pageUrl = `${API_BASE}/joke/${joke.id || idx}`;
+    
+    return `
+      <article class="joke-card" data-id="${joke.id || idx}">
+        <div class="joke-meta">
+          <span class="rubric">${rubric.emoji} ${rubric.name}</span>
+          <span>#{idx + 1} из ${jokes.length}</span>
+        </div>
+        <p class="joke-text">${escapeHtml(text)}</p>
+        <div class="joke-footer">
+          <span class="joke-id">ID: ${joke.id || idx}</span>
+          <span class="share-hint">📤 Свайпни или нажми «Поделиться»</span>
+        </div>
+      </article>
+    `;
+  }
+
+  function getRubricFromText(text) {
+    const lower = text.toLowerCase();
+    const rubrics = [
+      { k: ['работ', 'начальник', 'офис', 'коллег', 'зарплат', 'босс'], e: '💼', n: 'Рабочее' },
+      { k: ['жен', 'муж', 'дети', 'сын', 'дочк', 'тещ', 'семь', 'родител'], e: '👨‍👩‍👧‍👦', n: 'Семейное' },
+      { k: ['кот', 'собак', 'пёс', 'животн', 'кошк'], e: '🐱', n: 'Животные' },
+      { k: ['арми', 'солдат', 'офицер', 'казарм', 'воен'], e: '🎖️', n: 'Армейское' },
+      { k: ['умер', 'смерт', 'гроб', 'кладбищ', 'кров'], e: '💀', n: 'Чёрный юмор' },
+      { k: ['пив', 'водк', 'выпив', 'пьян', 'алкогол', 'бутылк'], e: '🍻', n: 'Застольное' },
+    ];
+    for (const r of rubrics) {
+      if (r.k.some(w => lower.includes(w))) return { emoji: r.e, name: r.n };
+    }
+    return { emoji: '🤷', name: 'Жизненное' };
+  }
+
+  function updateSlidePosition(animate = false) {
+    slides.style.transition = animate ? 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none';
+    slides.style.transform = `translateX(-${currentIndex * 100}%)`;
+  }
+
+  function showSlide(index, animate = true) {
+    if (index < 0) index = jokes.length - 1;
+    if (index >= jokes.length) index = 0;
+    currentIndex = index;
+    updateSlidePosition(animate);
+    
+    // Preload next
+    const nextIdx = (index + 1) % jokes.length;
+    if (jokes[nextIdx] && !jokes[nextIdx].preloaded) {
+      jokes[nextIdx].preloaded = true;
+    }
+  }
+
+  function showEmpty() {
+    slides.innerHTML = `
+      <div class="slide">
+        <div class="empty">
+          <div class="empty-icon">😔</div>
+          <p>Анекдоты закончились<br>Заходи позже — будут новые!</p>
+          <a href="${CHANNEL_URL}" class="btn-primary" style="display:inline-block;margin-top:16px;padding:12px 24px;text-decoration:none;border-radius:12px;">Перейти в канал</a>
+        </div>
+      </div>
+    `;
+    swipeHint.style.display = 'none';
+  }
+
+  // ==== CATEGORIES ====
+  const CATEGORIES = [
+    { id: 'all', name: 'Все', emoji: '🎲' },
+    { id: 'rabochee', name: 'Рабочее', emoji: '💼' },
+    { id: 'semeynoe', name: 'Семейное', emoji: '👨‍👩‍👧‍👦' },
+    { id: 'zhivotnye', name: 'Животные', emoji: '🐱' },
+    { id: 'armeyskoe', name: 'Армейское', emoji: '🎖️' },
+    { id: 'chernyy-yumor', name: 'Чёрный', emoji: '💀' },
+    { id: 'zastolnoe', name: 'Застольное', emoji: '🍻' },
+    { id: 'it', name: 'IT / Программисты', emoji: '💻' },
+    { id: 'korotkie', name: 'Короткие', emoji: '⚡' },
+  ];
+
+  function renderCategories() {
+    categoriesEl.innerHTML = CATEGORIES.map(c => `
+      <button class="cat-pill ${c.id === currentCategory ? 'active' : ''}" 
+              data-cat="${c.id}" role="tab" aria-selected="${c.id === currentCategory}">
+        ${c.emoji} ${c.name}
+      </button>
+    `).join('');
+  }
+
+  // ==== CHALLENGE ====
+  const CHALLENGES = [
+    { text: 'Придумай концовку: «Звонок в поддержку…», лучший вариант попадёт в эфир!', action: 'submit' },
+    { text: 'Оцени анекдот от 1 до 10 — собери 7 дней подряд и получи бейдж!', action: 'rate' },
+    { text: 'Найди пасхалку в сегодняшних анекдотах (слово «анекдот» скрыто 3 раза)', action: 'find' },
+    { text: 'Поделись любимым анекдотом с другом — за 5 репостов получи звание «Король юмора»', action: 'share' },
+  ];
+
+  function updateChallenge() {
+    const today = new Date().getDate();
+    const challenge = CHALLENGES[today % CHALLENGES.length];
+    challengeDesc.textContent = challenge.text;
+    challengeBtn.onclick = () => handleChallenge(challenge.action);
+  }
+
+  function handleChallenge(action) {
+    if (action === 'submit') {
+      if (tg) tg.openTelegramLink(`https://t.me/${BOT_USERNAME}?start=submit`);
+      else window.open(`https://t.me/${BOT_USERNAME}?start=submit`, '_blank');
+    } else if (action === 'share') {
+      openShareModal();
+    } else if (action === 'rate') {
+      // Could add rating UI
+      alert('Функция оценок в разработке! Пока ставь реакции в канале 👍');
+    }
+  }
+
+  // ==== SHARE ====
+  function openShareModal() {
+    const joke = jokes[currentIndex];
+    if (!joke) return;
+    
+    const text = (joke.text || '').replace(/\n/g, ' ').slice(0, 150);
+    const pageUrl = `${API_BASE}/joke/${joke.id || currentIndex}`;
+    const shareText = `${text}\n\n🤣 Больше анекдотов в @Anetdodik`;
+    
+    shareOptions.innerHTML = `
+      <a class="share-btn" href="https://t.me/share/url?url=${encodeURIComponent(pageUrl)}&text=${encodeURIComponent(shareText)}" target="_blank">
+        <span class="share-btn-icon">📱</span><span class="share-btn-label">Telegram</span>
+      </a>
+      <a class="share-btn" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(pageUrl)}" target="_blank">
+        <span class="share-btn-icon">𝕏</span><span class="share-btn-label">Twitter</span>
+      </a>
+      <a class="share-btn" href="https://vk.com/share.php?url=${encodeURIComponent(pageUrl)}&title=${encodeURIComponent(shareText)}" target="_blank">
+        <span class="share-btn-icon">📘</span><span class="share-btn-label">VK</span>
+      </a>
+      <a class="share-btn" href="https://wa.me/?text=${encodeURIComponent(shareText + ' ' + pageUrl)}" target="_blank">
+        <span class="share-btn-icon">💬</span><span class="share-btn-label">WhatsApp</span>
+      </a>
+      <button class="share-btn" id="btnCopyLink">
+        <span class="share-btn-icon">📋</span><span class="share-btn-label">Скопировать</span>
+      </button>
+      <a class="share-btn" href="${CHANNEL_URL}" target="_blank">
+        <span class="share-btn-icon">🤣</span><span class="share-btn-label">Канал</span>
+      </a>
+    `;
+    
+    document.getElementById('btnCopyLink')?.addEventListener('click', async () => {
+      const fullText = `${shareText}\n\n— Подпишись: ${CHANNEL_URL}`;
+      try {
+        await navigator.clipboard.writeText(fullText);
+        if (tg) tg.showAlert('Скопировано! Текст с ссылкой на канал в буфере обмена.');
+        else alert('Скопировано!');
+      } catch {
+        if (tg) tg.showAlert('Не удалось скопировать');
+      }
+      closeShareModal();
+    });
+    
+    shareModal.classList.add('show');
+  }
+
+  function closeShareModal() {
+    shareModal.classList.remove('show');
+  }
+
+  // ==== EVENTS ====
+  // Navigation buttons
+  document.getElementById('btnNext')?.addEventListener('click', () => showSlide(currentIndex + 1));
+  document.getElementById('btnPrev')?.addEventListener('click', () => showSlide(currentIndex - 1));
+
+  // Categories
+  categoriesEl.addEventListener('click', e => {
+    const btn = e.target.closest('.cat-pill');
+    if (!btn) return;
+    const cat = btn.dataset.cat;
+    if (cat === currentCategory) return;
+    currentCategory = cat;
+    currentIndex = 0;
+    renderCategories();
+    fetchJokes(cat);
+  });
+
+  // Swipe gestures
+  slides.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  slides.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+      showSlide(currentIndex + (dx < 0 ? 1 : -1));
+    }
+  }, { passive: true });
+
+  // Keyboard
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') showSlide(currentIndex - 1);
+    if (e.key === 'ArrowRight') showSlide(currentIndex + 1);
+    if (e.key === 'Escape') closeShareModal();
+  });
+
+  // Share button
+  document.getElementById('btnShare')?.addEventListener('click', openShareModal);
+  document.getElementById('modalClose')?.addEventListener('click', closeShareModal);
+  shareModal?.addEventListener('click', e => { if (e.target === shareModal) closeShareModal(); });
+
+  // Telegram Web App share
+  if (tg && tg.shareToStory) {
+    // Could add story sharing
+  }
+
+  // Init
+  function init() {
+    updateStreak();
+    renderCategories();
+    fetchJokes();
+    
+    // Hide swipe hint after 3 swipes
+    let swipeCount = 0;
+    const originalShowSlide = showSlide;
+    window.showSlide = function(idx, animate) {
+      swipeCount++;
+      if (swipeCount >= 3) swipeHint.style.display = 'none';
+      return originalShowSlide(idx, animate);
+    };
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  // Utils
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'''}[c]));
+  }
+})();
+</script>
+</body>
+</html>

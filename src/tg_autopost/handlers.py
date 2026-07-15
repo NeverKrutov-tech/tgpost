@@ -147,6 +147,37 @@ class PollingHandler:
         user = msg.get("from", {})
         uid, username, full_name = _get_author_link(user)
 
+        # Track streak and check achievements for any user interaction
+        try:
+            current_streak, longest_streak = self.db.update_streak(uid)
+            new_achievements = self.db.check_and_award_achievements(uid)
+            if new_achievements:
+                for ach_key in new_achievements:
+                    ach_names = {
+                        "streak_3": "🔥 3 дня подряд!",
+                        "streak_7": "🏆 Недельный стрик!",
+                        "streak_14": "💎 Две недели стрика!",
+                        "streak_30": "👑 Мастер стрика — 30 дней!",
+                        "read_10": "📚 10 анекдотов прочитано!",
+                        "read_50": "📖 50 анекдотов!",
+                        "read_100": "📚 Стопроцентный читатель!",
+                        "shares_5": "📤 5 репостов!",
+                        "shares_20": "📢 20 репостов!",
+                        "referrals_1": "🤝 Первый реферал!",
+                        "referrals_5": "🤝 5 друзей приглашено!",
+                        "referrals_10": "🌟 10 друзей — ты лидер!",
+                        "submissions_1": "✍️ Первый анекдот отправлен!",
+                        "submissions_10": "✍️ 10 анекдотов — автор!",
+                        "quizzes_5": "🧠 5 квизов решены!",
+                    }
+                    ach_text = ach_names.get(ach_key, f"🏆 {ach_key}")
+                    _send_message(
+                        self.settings.bot_token, uid,
+                        f"🎉 <b>Новое достижение!</b>\n{ach_text}",
+                    )
+        except Exception:
+            logger.exception("Failed to update streak/achievements for user %s", uid)
+
         payment = msg.get("successful_payment")
         if payment:
             payload = payment.get("invoice_payload", "")
@@ -179,6 +210,7 @@ class PollingHandler:
                     _send_message(self.settings.bot_token, chat_id, START_TEXT)
                     return
                 self.db.save_referral(ref_id, uid)
+                self.db.record_referral(ref_id)
                 _send_message(
                     self.settings.bot_token, chat_id,
                     f"\U0001F44B <b>Привет!</b> Ты пришёл по ссылке! "
@@ -371,6 +403,7 @@ class PollingHandler:
             return
 
         joke_id = self.db.save_submitted_joke(text.strip(), uid, username, full_name)
+        self.db.record_submission(uid)
 
         _send_message(
             self.settings.bot_token, chat_id,
