@@ -160,6 +160,7 @@ def home() -> tuple:
   <meta property="og:url" content="{_BASE}/">
   <meta name="twitter:card" content="summary">
   <meta name="robots" content="index,follow">
+  <meta name="google-site-verification" content="Usgl7zSz3zOz8eh1CcZX0Fm1wDMCKRBU6sXkAIPSAhI" />
   <link rel="canonical" href="{_BASE}/">
   <link rel="alternate" type="application/rss+xml" title="@{uname} RSS" href="{_BASE}/rss.xml">
   <link rel="manifest" href="{_BASE}/manifest.json">
