@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 IMAGE_RATIO = 0.2
 VIDEO_RATIO = 0.08
+TEASER_RATIO = 0.1
 DICE_RATIO = 0.15
 BATTLE_EVERY = 5
 OBSERVATION_RATIO = 0.1
@@ -361,6 +362,43 @@ class TelegramPublisher:
         self.db.save_quiz(truncated, joke.text, last_line)
         self.db.mark_published(joke.content_hash)
         logger.info("Published quiz prompt for joke: %s", joke.external_id)
+        return True
+
+    def _send_teaser(self, joke, rubric: dict) -> bool:
+        lines = joke.text.split("\n")
+        mid = len(lines) // 2
+        prompt_lines = lines[:max(1, mid)]
+        punch_lines = lines[max(1, mid):]
+        prompt = "\n".join(prompt_lines)
+        punch = "\n".join(punch_lines)
+        if not punch.strip():
+            return self._send_text(joke, rubric)
+        bot_username = "postbotanekdodik_bot"
+        content_id = self.db.save_locked_content(joke.content_hash, punch)
+        post_number = self.db.count_published() + 1
+        from .rubrics import get_hashtags
+        hashtag = get_hashtags(rubric)
+        text = (
+            f"\U0001F447 <b>\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432 \u0431\u043E\u0442\u0435!</b>\n\n"
+            f"{prompt}\n\n"
+            f"\u2014\u2014\u2014\n"
+            f"\u0427\u0442\u043E\u0431\u044B \u0443\u0437\u043D\u0430\u0442\u044C \u043E\u043A\u043E\u043D\u0447\u0430\u043D\u0438\u0435, \u043D\u0430\u0436\u043C\u0438 \u043A\u043D\u043E\u043F\u043A\u0443 \u043D\u0438\u0436\u0435 \U0001F447\n\n"
+            f"#{post_number} {hashtag}"
+        )
+        payload = {
+            "chat_id": self.settings.channel_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "reply_markup": json.dumps({
+                "inline_keyboard": [
+                    [{"text": "\U0001F512 \u0423\u0437\u043D\u0430\u0442\u044C \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435", "url": f"https://t.me/{bot_username}?start=cont_{content_id}"}]
+                ]
+            }),
+        }
+        data = self._post_message(payload)
+        msg_id = data["result"]["message_id"]
+        self.db.mark_published(joke.content_hash, msg_id)
+        logger.info("Published teaser joke: %s (msg_id=%s, content_id=%s)", joke.external_id, msg_id, content_id)
         return True
 
     def _send_text(self, joke, rubric: dict, preamble_override: str = "", is_part2: bool = False, reply_to: int = 0) -> int:
@@ -1068,6 +1106,8 @@ class TelegramPublisher:
                     return self._send_video(joke)
                 if random.random() < IMAGE_RATIO and fits_in_image(joke.text):
                     return self._send_image(joke, rubric)
+                if random.random() < TEASER_RATIO and len(joke.text) > 200:
+                    return self._send_teaser(joke, rubric)
                 return self._send_text(joke, rubric)
 
         if random.random() < 0.8:
@@ -1107,4 +1147,6 @@ class TelegramPublisher:
             return self._send_video(joke)
         if random.random() < IMAGE_RATIO and fits_in_image(joke.text):
             return self._send_image(joke, rubric)
+        if random.random() < TEASER_RATIO and len(joke.text) > 200:
+            return self._send_teaser(joke, rubric)
         return self._send_text(joke, rubric)
