@@ -119,3 +119,40 @@ def get_user_stats(user_id: int) -> tuple:
         "streak": {"current": streak_current, "longest": streak_longest},
         "achievements": achievements,
     })
+
+
+@growth_pages.get("/api/social-proof/subscriber-count")
+def get_subscriber_count() -> tuple:
+    """Get live subscriber count for social proof widgets."""
+    from flask import jsonify
+    settings = load_settings()
+    if settings is None:
+        return jsonify({"error": "not ready"}), 503
+    db = Database(settings.database_url or settings.database_path)
+    with db.connect() as conn:
+        row = conn.execute("SELECT COUNT(*) AS c FROM bot_subscribers").fetchone()
+        count = row["c"] if row else 0
+    return jsonify({"subscribers": count, "label": "Подписчиков"})
+
+
+@growth_pages.get("/api/social-proof/recent-joins")
+def get_recent_joins() -> tuple:
+    """Get recent joins for social proof (last 50)."""
+    from flask import jsonify
+    settings = load_settings()
+    if settings is None:
+        return jsonify({"error": "not ready"}), 503
+    db = Database(settings.database_url or settings.database_path)
+    with db.connect() as conn:
+        rows = conn.execute(
+            "SELECT username, subscribed_at FROM bot_subscribers "
+            "ORDER BY subscribed_at DESC LIMIT 50"
+        ).fetchall()
+    joins = [
+        {
+            "username": r["username"],
+            "joined": r["subscribed_at"][:16].replace("T", " "),
+        }
+        for r in rows
+    ]
+    return jsonify({"recent": joins})
