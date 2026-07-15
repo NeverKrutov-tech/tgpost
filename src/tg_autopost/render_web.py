@@ -274,6 +274,27 @@ def joke_image(msg_id: int) -> tuple:
         return "", 500
 
 
+@app.get("/img/joke/<int:joke_id>")
+def joke_image_by_id(joke_id: int) -> tuple:
+    ensure_bot_started()
+    if _settings is None:
+        return "", 503
+    db = Database(_settings.database_url or _settings.database_path)
+    row = db.get_joke_by_id(joke_id)
+    joke_text = row["text"] if row else ""
+    if not joke_text:
+        return "", 404
+    try:
+        from .image_gen import generate_repost_card
+        output = generate_repost_card(joke_text)
+        with open(output, "rb") as f:
+            data = f.read()
+        Path(output).unlink(missing_ok=True)
+        return data, 200, {"Content-Type": "image/jpeg", "Cache-Control": "public, max-age=3600"}
+    except Exception:
+        return "", 500
+
+
 @app.get("/joke/<int:joke_id>")
 def joke_page(joke_id: int) -> tuple:
     ensure_bot_started()
@@ -324,6 +345,7 @@ def joke_page(joke_id: int) -> tuple:
   <meta name="description" content="{og_desc}">
   <meta property="og:title" content="{html_mod.escape(title)}">
   <meta property="og:description" content="{og_desc}">
+  <meta property="og:image" content="{_BASE}/img/joke/{joke_id}">
   <meta property="og:url" content="{page_url}">
   <meta property="og:type" content="article">
   <meta name="twitter:card" content="summary_large_image">
@@ -338,6 +360,7 @@ def joke_page(joke_id: int) -> tuple:
   <h1>\U0001F923 {html_mod.escape(first_line)}</h1>
   <div class="joke">{safe_text}</div>
   {shares}
+  <p style="text-align:center;margin:10px 0"><a href="/img/joke/{joke_id}" class="s" style="background:#555;display:inline-block" download target="_blank">\U0001F4F7 \u0421\u043A\u0430\u0447\u0430\u0442\u044C \u043A\u0430\u0440\u0442\u0438\u043D\u043A\u0443</a></p>
   <a class="sub" href="{channel_url}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
   <p class="meta"><a href="{post_url}">\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0432 Telegram \u2192</a></p>
   <h2>\u0415\u0449\u0451 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</h2>
