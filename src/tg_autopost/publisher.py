@@ -372,11 +372,12 @@ class TelegramPublisher:
         if reply_to:
             payload["reply_to_message_id"] = reply_to
         data = self._post_message(payload)
-        self.db.mark_published(joke.content_hash)
-        logger.info("Published text joke: %s", joke.external_id)
+        msg_id = data["result"]["message_id"]
+        self.db.mark_published(joke.content_hash, msg_id)
+        logger.info("Published text joke: %s (msg_id=%s)", joke.external_id, msg_id)
         if not is_part2 and random.random() < DICE_RATIO:
             self._send_dice()
-        return data["result"]["message_id"]
+        return msg_id
 
     def _send_observation(self, text: str) -> bool:
         payload = {

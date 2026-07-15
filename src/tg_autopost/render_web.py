@@ -442,7 +442,9 @@ def rss_feed() -> tuple:
 def sitemap() -> tuple:
     base = _BASE
     urls = [
+        f"  <url><loc>{base}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>",
         f"  <url><loc>{base}/top</loc><changefreq>daily</changefreq><priority>0.8</priority></url>",
+        f"  <url><loc>{base}/random</loc><changefreq>daily</changefreq><priority>0.5</priority></url>",
     ]
     for slug in _RUBRIC_SLUGS:
         urls.append(f"  <url><loc>{base}/rubric/{slug}</loc><changefreq>daily</changefreq><priority>0.7</priority></url>")
@@ -498,6 +500,18 @@ def search() -> tuple:
 </body>
 </html>"""
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+@app.get("/random")
+def random_joke() -> tuple:
+    ensure_bot_started()
+    if _settings is None:
+        return redirect("/"), 302
+    db = Database(_settings.database_url or _settings.database_path)
+    msg_id = db.get_random_published_msg_id()
+    if msg_id:
+        return redirect(f"/p/{msg_id}"), 302
+    return redirect("/top"), 302
 
 
 @app.get("/robots.txt")

@@ -169,6 +169,8 @@ class Database:
         cols = [row[1] for row in connection.execute("PRAGMA table_info(jokes)").fetchall()]
         if "source_views" not in cols:
             connection.execute("ALTER TABLE jokes ADD COLUMN source_views INTEGER NOT NULL DEFAULT 0")
+        if "telegram_msg_id" not in cols:
+            connection.execute("ALTER TABLE jokes ADD COLUMN telegram_msg_id INTEGER")
         pending_cols = [row[1] for row in connection.execute("PRAGMA table_info(pending_parts)").fetchall()]
         if "part1_msg_id" not in pending_cols:
             connection.execute("ALTER TABLE pending_parts ADD COLUMN part1_msg_id INTEGER NOT NULL DEFAULT 0")
@@ -320,7 +322,7 @@ class Database:
                 )
         return None
 
-    def mark_published(self, content_hash: str) -> None:
+    def mark_published(self, content_hash: str, telegram_msg_id: int | None = None) -> None:
         published_at = datetime.now(timezone.utc).isoformat()
         with self.connect() as connection:
             row = connection.execute(
@@ -328,10 +330,16 @@ class Database:
             ).fetchone()
             if row is not None:
                 self._append_published_key(dedup_key(row["text"]))
-            connection.execute(
-                "UPDATE jokes SET published_at = ? WHERE content_hash = ?",
-                (published_at, content_hash),
-            )
+            if telegram_msg_id:
+                connection.execute(
+                    "UPDATE jokes SET published_at = ?, telegram_msg_id = ? WHERE content_hash = ?",
+                    (published_at, telegram_msg_id, content_hash),
+                )
+            else:
+                connection.execute(
+                    "UPDATE jokes SET published_at = ? WHERE content_hash = ?",
+                    (published_at, content_hash),
+                )
 
     def dedup_unpublished(self) -> int:
         now = datetime.now(timezone.utc).isoformat()
@@ -373,6 +381,13 @@ class Database:
                 (today + "%",),
             ).fetchone()
             return int(row["count"])
+
+    def get_random_published_msg_id(self) -> int | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT telegram_msg_id FROM jokes WHERE telegram_msg_id IS NOT NULL ORDER BY RANDOM() LIMIT 1"
+            ).fetchone()
+            return int(row["telegram_msg_id"]) if row else None
 
     def mark_special_post(self, post_type: str) -> None:
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
