@@ -164,7 +164,7 @@ def home() -> tuple:
   <h2>\u041F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</h2>
   <ol>{jokes_html}</ol>
   <a class="sub" href="{channel_url}">\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 @{uname}</a>
-  <p class="footer"><a href="/top">\u0412\u0441\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/rss.xml">RSS</a> \u2022 <a href="/sitemap.xml">\u041A\u0430\u0440\u0442\u0430 \u0441\u0430\u0439\u0442\u0430</a></p>
+  <p class="footer"><a href="/top">\u0412\u0441\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B</a> \u2022 <a href="/search">\u041F\u043E\u0438\u0441\u043A</a> \u2022 <a href="/widget">\u0412\u0438\u0434\u0436\u0435\u0442</a> \u2022 <a href="/rss.xml">RSS</a> \u2022 <a href="/sitemap.xml">\u041A\u0430\u0440\u0442\u0430 \u0441\u0430\u0439\u0442\u0430</a></p>
 </body>
 </html>"""
     return html, 200, {"Content-Type": "text/html; charset=utf-8"}
@@ -607,6 +607,32 @@ def sitemap() -> tuple:
     return xml, 200, {"Content-Type": "application/xml; charset=utf-8"}
 
 
+@app.get("/widget")
+def widget_info() -> tuple:
+    uname = _channel_username()
+    embed = f'<script src="{_BASE}/widget.js"></script>'
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>\u0412\u0438\u0434\u0436\u0435\u0442 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u0430 — @{uname}</title>
+  <meta name="robots" content="noindex,follow">
+  <style>{_STYLE}</style>
+</head>
+<body>
+  <h1>\U0001F4D1 \u0412\u0438\u0434\u0436\u0435\u0442 \u00AB\u0428\u0443\u0442\u043A\u0430 \u0434\u043D\u044F\u00BB</h1>
+  <p>\u0412\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u044D\u0442\u043E\u0442 \u043A\u043E\u0434 \u043D\u0430 \u0441\u0432\u043E\u0439 \u0441\u0430\u0439\u0442 \u0438 \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0439\u0442\u0435 \u0441\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0432\u0430\u0448\u0438\u043C \u043F\u043E\u0441\u0435\u0442\u0438\u0442\u0435\u043B\u044F\u043C!</p>
+  <div style="background:white;border-radius:12px;padding:20px;margin:16px 0;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+    <code style="word-break:break-all;font-size:13px">{html_mod.escape(embed)}</code>
+  </div>
+  <p>\u041F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440:</p>
+  {embed}
+  <p class="footer"><a href="/">\u041D\u0430 \u0433\u043B\u0430\u0432\u043D\u0443\u044E</a> \u2022 <a href="https://t.me/{uname}">@{uname}</a></p>
+</body>
+</html>"""
+    return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
 @app.get("/search")
 def search() -> tuple:
     q = requests.args.get("q", "").strip()
@@ -664,6 +690,47 @@ def random_joke() -> tuple:
     if msg_id:
         return redirect(f"/p/{msg_id}"), 302
     return redirect("/top"), 302
+
+
+@app.get("/api/random-joke")
+def api_random_joke() -> tuple:
+    ensure_bot_started()
+    if _settings is None:
+        return jsonify({"error": "not ready"}), 503
+    db = Database(_settings.database_url or _settings.database_path)
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT id, text, published_at FROM jokes WHERE published_at IS NOT NULL ORDER BY RANDOM() LIMIT 1"
+        ).fetchone()
+    if not row:
+        return jsonify({"error": "no jokes"}), 404
+    uname = _channel_username()
+    return jsonify({
+        "id": row["id"],
+        "text": row["text"],
+        "url": f"{_BASE}/joke/{row['id']}",
+        "channel": f"https://t.me/{uname}",
+    }), 200, {"Access-Control-Allow-Origin": "*"}
+
+
+@app.get("/widget.js")
+def widget_js() -> tuple:
+    base = _BASE
+    js = f"""(function() {{
+  var s = document.createElement('div');
+  s.id = 'anetdodik-widget';
+  s.innerHTML = '<div style="font-family:sans-serif;max-width:400px;margin:10px auto;border:2px solid #0088cc;border-radius:12px;padding:16px;background:#fff">'
+    + '<div id="anetdodik-joke" style="font-size:15px;line-height:1.5;min-height:40px;color:#333">\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430...</div>'
+    + '<div style="margin-top:10px;text-align:center">'
+    + '<a href="https://t.me/Anetdodik" target="_blank" style="display:inline-block;padding:8px 16px;background:#0088cc;color:#fff;border-radius:6px;text-decoration:none;font-size:14px">\U0001F514 \u0411\u043E\u043B\u044C\u0448\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432</a>'
+    + '</div></div>';
+  document.currentScript.parentNode.insertBefore(s, document.currentScript);
+  var x = new XMLHttpRequest();
+  x.open('GET', '{base}/api/random-joke', true);
+  x.onload = function() {{ if (x.status === 200) {{ var d = JSON.parse(x.responseText); document.getElementById('anetdodik-joke').innerHTML = d.text.replace(/\\n/g, '<br>'); }} }};
+  x.send();
+}})();"""
+    return js, 200, {"Content-Type": "application/javascript; charset=utf-8"}
 
 
 @app.get("/robots.txt")
