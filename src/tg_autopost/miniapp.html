@@ -307,6 +307,18 @@
           url: API_BASE + '/joke/' + id
         };
       });
+      // Pad with fallback jokes if fewer than 6
+      if (jokes.length < 6) {
+        var fb = FALLBACK_JOKES.slice(0, 6 - jokes.length);
+        fb.forEach(function(j, idx) {
+          jokes.push(j);
+          var slide = document.createElement('div');
+          slide.className = 'slide';
+          slide.dataset.index = jokes.length - 1;
+          slide.innerHTML = buildJokeCard(j, jokes.length - 1);
+          document.getElementById('slides').appendChild(slide);
+        });
+      }
       if (loadingSlide) loadingSlide.style.display = 'none';
       if (loadingEl) loadingEl.style.display = 'none';
       if (loadingSlide) loadingSlide.remove();

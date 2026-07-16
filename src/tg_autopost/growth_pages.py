@@ -13,6 +13,16 @@ from .database import Database
 growth_pages = Blueprint("growth_pages", __name__)
 BASE_URL = "https://tgpost-bot-l4wq.onrender.com"
 
+# Fallback jokes when DB has too few
+_FALLBACK_JOKES = [
+    "— Дорогой, я кажется проиграла твою зарплату в казино.\n— Ну хоть что-то выиграла?",
+    "Программист просыпается утром, смотрит на жену:\n— Что-то ты сегодня какая-то неотзывчивая...\n— Так ты меня ещё не запустил!",
+    "В зоопарке табличка: «Не кормите животных!»\nПосетитель:\n— А если я сам животное?\nСмотритель:\n— Тогда не кормитесь!",
+    "Купил мужик шляпу. А она ему как раз.\n— Вот, — думает, — повезло.\nТак и ходит до сих пор — думает.",
+    "Начальник:\n— Иванов, почему вы опоздали?\n— Понимаете, я вышел из дома, поскользнулся, упал...\n— И что, целый час падали?",
+    "Встречаются два кота. Один говорит:\n— Я теперь в IT работаю.\n— Круто! А кем?\n— Сервером.",
+]
+
 
 @growth_pages.get("/yandex_7047ab34f737b66e.html")
 def yandex_verification() -> tuple:
@@ -29,6 +39,39 @@ def yandex_verification() -> tuple:
 
 def _channel_username() -> str:
     return "Anetdodik"
+
+
+def _rubric_for(text: str) -> tuple[str, str]:
+    """Return (emoji, name) based on joke text content."""
+    lower = text.lower()
+    if any(w in lower for w in ["работ", "начальник", "офис", "коллег", "зарплат", "босс"]):
+        return "💼", "Рабочее"
+    if any(w in lower for w in ["жен", "муж", "дети", "сын", "дочк", "тещ", "семь", "родител"]):
+        return "👨‍👩‍👧‍👦", "Семейное"
+    if any(w in lower for w in ["кот", "собак", "пёс", "животн", "кошк"]):
+        return "🐱", "Животные"
+    if any(w in lower for w in ["арми", "солдат", "офицер", "казарм", "воен"]):
+        return "🎖️", "Армейское"
+    if any(w in lower for w in ["умер", "смерт", "гроб", "кладбищ", "кров"]):
+        return "💀", "Чёрный юмор"
+    if any(w in lower for w in ["пив", "водк", "выпив", "пьян", "алкогол", "бутылк"]):
+        return "🍻", "Застольное"
+    return "🤷", "Жизненное"
+
+
+def _slide_html(jid: str, text: str, emoji: str, rubric: str) -> str:
+    return f"""<div class="slide" data-id="{jid}">
+  <article class="joke-card">
+    <div class="joke-meta">
+      <span class="rubric">{emoji} {rubric}</span>
+    </div>
+    <p class="joke-text">{text}</p>
+    <div class="joke-footer">
+      <span class="joke-id">ID: {jid}</span>
+    </div>
+  </article>
+</div>
+"""
 
 
 @growth_pages.get("/mini")
@@ -58,52 +101,40 @@ def mini_app() -> tuple:
                 total = cur.fetchone()
                 dbg = f"total_jokes={total['cnt'] if total else '?'},"
                 rows = conn.execute(
-                    "SELECT id, text FROM jokes ORDER BY RANDOM() LIMIT 6"
+                    "SELECT id, text FROM jokes WHERE text NOT LIKE 'MEME:%' ORDER BY RANDOM() LIMIT 6"
                 ).fetchall()
             debug_info = f"db_path={db_path} " + dbg + f" rows={len(rows)}"
             if not rows:
-                # DB is empty — try to ingest once
                 try:
                     from .app import run_ingest
                     run_ingest()
                 except Exception as ie:
                     debug_info += f" ingest_error={ie}"
-                # Retry after ingest
                 with db.connect() as conn:
                     rows = conn.execute(
-                        "SELECT id, text FROM jokes ORDER BY RANDOM() LIMIT 6"
+                        "SELECT id, text FROM jokes WHERE text NOT LIKE 'MEME:%' ORDER BY RANDOM() LIMIT 6"
                     ).fetchall()
                 debug_info += f" after_ingest={len(rows)}"
-            if rows:
-                jokes_data = []
-                for r in rows:
-                    jid = str(r["id"])
-                    text = html_mod.escape(r["text"])
-                    rubric_name = "Жизненное"
-                    rubric_emoji = "🤷"
-                    lower = r["text"].lower()
-                    if any(w in lower for w in ["работ", "начальник", "офис", "коллег", "зарплат", "босс"]):
-                        rubric_name, rubric_emoji = "Рабочее", "💼"
-                    elif any(w in lower for w in ["жен", "муж", "дети", "сын", "дочк", "тещ", "семь", "родител"]):
-                        rubric_name, rubric_emoji = "Семейное", "👨‍👩‍👧‍👦"
-                    elif any(w in lower for w in ["кот", "собак", "пёс", "животн", "кошк"]):
-                        rubric_name, rubric_emoji = "Животные", "🐱"
-
-                    jokes_data.append({"id": jid, "text": r["text"], "url": f"{BASE_URL}/joke/{jid}"})
-
-                    slides_html += f"""<div class="slide" data-id="{jid}">
-  <article class="joke-card">
-    <div class="joke-meta">
-      <span class="rubric">{rubric_emoji} {rubric_name}</span>
-    </div>
-    <p class="joke-text">{text}</p>
-    <div class="joke-footer">
-      <span class="joke-id">ID: {jid}</span>
-    </div>
-  </article>
-</div>
-"""
-                jokes_json = json_mod.dumps(jokes_data)
+            # Always show at least 6 jokes — pad with fallbacks
+            jokes_data = []
+            id_counter = 10000
+            for r in rows:
+                jid = str(r["id"])
+                text = html_mod.escape(r["text"])
+                jokes_data.append({"id": jid, "text": r["text"], "url": f"{BASE_URL}/joke/{jid}"})
+                rubric_name, rubric_emoji = _rubric_for(r["text"])
+                slides_html += _slide_html(jid, text, rubric_emoji, rubric_name)
+                id_counter += 1
+            # Pad with fallbacks if needed
+            for i, fb_text in enumerate(_FALLBACK_JOKES):
+                if len(jokes_data) >= 6:
+                    break
+                fid = f"fb{id_counter}"
+                jokes_data.append({"id": fid, "text": fb_text})
+                rubric_name, rubric_emoji = _rubric_for(fb_text)
+                slides_html += _slide_html(fid, html_mod.escape(fb_text), rubric_emoji, rubric_name)
+                id_counter += 1
+            jokes_json = json_mod.dumps(jokes_data)
     except Exception as e:
         import traceback
         debug_info = f"ERROR: {type(e).__name__}: {e} | {traceback.format_exc()}"
