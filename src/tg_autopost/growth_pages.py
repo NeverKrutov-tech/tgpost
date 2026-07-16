@@ -54,6 +54,11 @@ def mini_app() -> tuple:
             debug_info = f"db_path={db_path}"
             db = Database(db_path)
             with db.connect() as conn:
+                cur = conn.execute(
+                    "SELECT COUNT(*) as cnt FROM jokes WHERE published_at IS NOT NULL"
+                )
+                total = cur.fetchone()
+                debug_info += f" total_jokes={total['cnt'] if total else '?'}"
                 rows = conn.execute(
                     "SELECT id, text FROM jokes WHERE published_at IS NOT NULL ORDER BY RANDOM() LIMIT 6"
                 ).fetchall()
@@ -89,15 +94,15 @@ def mini_app() -> tuple:
 """
                 jokes_json = json_mod.dumps(jokes_data)
     except Exception as e:
-        debug_info = f"ERROR: {type(e).__name__}: {e}"
+        import traceback
+        debug_info = f"ERROR: {type(e).__name__}: {e} | {traceback.format_exc()}"
 
     if slides_html:
         slides_html = '<style>#loadingSlide{display:none!important}</style>' + slides_html
     html = html.replace("<!-- __JOKES_SLIDES__ -->", slides_html, 1)
-    # Debug: inject error info if something went wrong
-    if debug_info and not slides_html:
-        html = html.replace("</body>",
-            f'<div style="position:fixed;bottom:0;left:0;right:0;background:red;color:white;padding:8px;font-size:12px;z-index:9999">{html_mod.escape(debug_info)}</div></body>', 1)
+    # Always show debug in a hidden div (visible via JS or view source)
+    html = html.replace("</body>",
+        f'<!-- DEBUG: {html_mod.escape(debug_info)} --></body>', 1)
     html = html.replace("</body>",
         f'<script>window.__JOKES__={jokes_json};</script></body>', 1)
     return html, 200, {
