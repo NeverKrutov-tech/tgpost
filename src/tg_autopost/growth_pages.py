@@ -1,4 +1,5 @@
 import html
+import json as json_mod
 from pathlib import Path
 from urllib.parse import quote
 
@@ -31,11 +32,33 @@ def _channel_username() -> str:
 
 @growth_pages.get("/mini")
 def mini_app() -> tuple:
-    """Serve the Telegram Mini App from its standalone HTML template."""
+    """Serve the Telegram Mini App with jokes embedded (no fetch needed from WebView)."""
     path = Path(__file__).with_name("miniapp.html")
     if not path.exists():
         return "Mini App is unavailable", 503
-    return path.read_text(encoding="utf-8"), 200, {
+    html = path.read_text(encoding="utf-8")
+
+    # Fetch up to 6 random jokes from DB and embed them
+    jokes_json = "[]"
+    try:
+        settings = load_settings()
+        if settings and (settings.database_url or settings.database_path):
+            db = Database(settings.database_url or settings.database_path)
+            with db.connect() as conn:
+                rows = conn.execute(
+                    "SELECT id, text FROM jokes WHERE published_at IS NOT NULL ORDER BY RANDOM() LIMIT 6"
+                ).fetchall()
+            if rows:
+                jokes_json = json_mod.dumps([
+                    {"id": str(r["id"]), "text": r["text"], "url": f"{BASE_URL}/joke/{r['id']}"}
+                    for r in rows
+                ])
+    except Exception:
+        pass
+
+    html = html.replace("</body>",
+        f'<script>window.__JOKES__={jokes_json};</script></body>', 1)
+    return html, 200, {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",

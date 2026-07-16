@@ -114,8 +114,14 @@ class PollingHandler:
         self.db = db
         self._offset = 0
         self._running = False
+        self._conflict_until: float = 0.0
 
     def _get_updates(self) -> list[dict]:
+        now = time.time()
+        # If we got a Conflict error recently, back off completely
+        if self._conflict_until > now:
+            time.sleep(min(self._conflict_until - now, 5))
+            return []
         payload: dict[str, Any] = {
             "offset": self._offset,
             "timeout": POLL_TIMEOUT,
@@ -123,7 +129,9 @@ class PollingHandler:
         }
         data = _api_call(self.settings.bot_token, "getUpdates", payload, timeout=POLL_TIMEOUT + 10)
         if data is None:
+            self._conflict_until = now + 30
             return []
+        self._conflict_until = 0.0
         return data.get("result", [])
 
     @staticmethod

@@ -282,72 +282,61 @@
     { id: "f6", text: "Встречаются два кота. Один говорит:\n— Я теперь в IT работаю.\n— Круто! А кем?\n— Сервером." },
   ];
 
-  // ==== API ====
-  async function fetchJokes(category = 'all') {
+  // ==== JOKE LOADING ====
+  function loadJokes(category = 'all') {
     if (isLoading) return;
     isLoading = true;
     loading.style.display = 'flex';
     swipeHint.style.display = 'none';
-    
-    // Safety: hide loading after 15s no matter what
-    const safetyTimer = setTimeout(() => {
+
+    // Use server-embedded jokes if available (no fetch needed)
+    if (window.__JOKES__ && window.__JOKES__.length > 0) {
+      jokes = window.__JOKES__.slice(0, 6);
+      isLoading = false;
       loading.style.display = 'none';
-    }, 15000);
-    
-    try {
-      // Fetch 4 jokes sequentially (not parallel) for reliability in WebView
-      jokes = [];
-      for (let i = 0; i < 6; i++) {
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 8000);
-          const resp = await fetch(`${API_BASE}/api/random-joke`, { signal: controller.signal });
-          clearTimeout(timeout);
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data && data.text && !jokes.some(j => j.id === data.id)) {
-              jokes.push(data);
-            }
-          }
-        } catch {}
-        if (jokes.length >= 6) break;
-      }
-      
-      if (jokes.length === 0) {
-        // Fallback: fetch from /top
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 8000);
-          const resp = await fetch(`${API_BASE}/top?page=1`, { signal: controller.signal });
-          clearTimeout(timeout);
-          const html = await resp.text();
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(html, 'text/html');
-          const links = doc.querySelectorAll('ol li a[href^="/joke/"]');
-          jokes = Array.from(links).slice(0, 6).map(a => ({
-            id: a.href.match(/\/joke\/(\d+)/)?.[1],
-            text: a.textContent.trim(),
-            url: API_BASE + a.getAttribute('href')
-          }));
-        } catch {}
-      }
-      
-      if (jokes.length > 0) {
+      renderSlides();
+      updateStats();
+      return;
+    }
+
+    // Fallback: fetch from API with safety timeout
+    const safetyTimer = setTimeout(() => {
+      isLoading = false;
+      loading.style.display = 'none';
+    }, 10000);
+
+    fetchJokesFromAPI(category).then(ok => {
+      clearTimeout(safetyTimer);
+      isLoading = false;
+      loading.style.display = 'none';
+      if (ok) {
         renderSlides();
         updateStats();
       } else {
-        // Ultimate fallback — built-in jokes
         jokes = FALLBACK_JOKES.slice();
         renderSlides();
       }
-    } catch (e) {
-      console.error('Fetch failed:', e);
-      showEmpty();
-    } finally {
-      isLoading = false;
-      clearTimeout(safetyTimer);
-      loading.style.display = 'none';
+    });
+  }
+
+  async function fetchJokesFromAPI(category) {
+    jokes = [];
+    for (let i = 0; i < 6; i++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6000);
+        const resp = await fetch(`${API_BASE}/api/random-joke`, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && data.text && !jokes.some(j => j.id === data.id)) {
+            jokes.push(data);
+          }
+        }
+      } catch {}
+      if (jokes.length >= 6) break;
     }
+    return jokes.length > 0;
   }
 
   async function updateStats() {
@@ -562,7 +551,7 @@
     currentCategory = cat;
     currentIndex = 0;
     renderCategories();
-    fetchJokes(cat);
+    loadJokes(cat);
   });
 
   // Swipe gestures
@@ -600,7 +589,7 @@
   function init() {
     updateStreak();
     renderCategories();
-    fetchJokes();
+    loadJokes();
     
     // Hide swipe hint after 3 swipes
     let swipeCount = 0;
