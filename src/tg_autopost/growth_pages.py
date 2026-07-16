@@ -39,7 +39,8 @@ def mini_app() -> tuple:
         return "Mini App is unavailable", 503
     html = path.read_text(encoding="utf-8")
 
-    # Fetch up to 6 random jokes from DB and render as slides
+    # Fetch up to 6 random jokes from DB and render as slides.
+    # Show ALL jokes (published or not) — fresh DB may have no published jokes yet.
     slides_html = ""
     jokes_json = "[]"
     debug_info = ""
@@ -51,18 +52,28 @@ def mini_app() -> tuple:
             debug_info = "no database config"
         else:
             db_path = settings.database_url or settings.database_path
-            debug_info = f"db_path={db_path}"
             db = Database(db_path)
             with db.connect() as conn:
-                cur = conn.execute(
-                    "SELECT COUNT(*) as cnt FROM jokes WHERE published_at IS NOT NULL"
-                )
+                cur = conn.execute("SELECT COUNT(*) as cnt FROM jokes")
                 total = cur.fetchone()
-                debug_info += f" total_jokes={total['cnt'] if total else '?'}"
+                dbg = f"total_jokes={total['cnt'] if total else '?'},"
                 rows = conn.execute(
-                    "SELECT id, text FROM jokes WHERE published_at IS NOT NULL ORDER BY RANDOM() LIMIT 6"
+                    "SELECT id, text FROM jokes ORDER BY RANDOM() LIMIT 6"
                 ).fetchall()
-            debug_info += f" rows={len(rows)}"
+            debug_info = f"db_path={db_path} " + dbg + f" rows={len(rows)}"
+            if not rows:
+                # DB is empty — try to ingest once
+                try:
+                    from .app import run_ingest
+                    run_ingest()
+                except Exception as ie:
+                    debug_info += f" ingest_error={ie}"
+                # Retry after ingest
+                with db.connect() as conn:
+                    rows = conn.execute(
+                        "SELECT id, text FROM jokes ORDER BY RANDOM() LIMIT 6"
+                    ).fetchall()
+                debug_info += f" after_ingest={len(rows)}"
             if rows:
                 jokes_data = []
                 for r in rows:
