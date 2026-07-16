@@ -86,35 +86,25 @@ def mini_app() -> tuple:
     # Show ALL jokes (published or not) — fresh DB may have no published jokes yet.
     slides_html = ""
     jokes_json = "[]"
-    debug_info = ""
     try:
         settings = load_settings()
-        if not settings:
-            debug_info = "load_settings returned None"
-        elif not (settings.database_url or settings.database_path):
-            debug_info = "no database config"
-        else:
+        if settings and (settings.database_url or settings.database_path):
             db_path = settings.database_url or settings.database_path
             db = Database(db_path)
             with db.connect() as conn:
-                cur = conn.execute("SELECT COUNT(*) as cnt FROM jokes")
-                total = cur.fetchone()
-                dbg = f"total_jokes={total['cnt'] if total else '?'},"
                 rows = conn.execute(
                     "SELECT id, text FROM jokes WHERE text NOT LIKE 'MEME:%' ORDER BY RANDOM() LIMIT 6"
                 ).fetchall()
-            debug_info = f"db_path={db_path} " + dbg + f" rows={len(rows)}"
             if not rows:
                 try:
                     from .app import run_ingest
                     run_ingest()
-                except Exception as ie:
-                    debug_info += f" ingest_error={ie}"
+                except Exception:
+                    pass
                 with db.connect() as conn:
                     rows = conn.execute(
                         "SELECT id, text FROM jokes WHERE text NOT LIKE 'MEME:%' ORDER BY RANDOM() LIMIT 6"
                     ).fetchall()
-                debug_info += f" after_ingest={len(rows)}"
             # Always show at least 6 jokes — pad with fallbacks
             jokes_data = []
             id_counter = 10000
@@ -125,8 +115,7 @@ def mini_app() -> tuple:
                 rubric_name, rubric_emoji = _rubric_for(r["text"])
                 slides_html += _slide_html(jid, text, rubric_emoji, rubric_name)
                 id_counter += 1
-            # Pad with fallbacks if needed
-            for i, fb_text in enumerate(_FALLBACK_JOKES):
+            for fb_text in _FALLBACK_JOKES:
                 if len(jokes_data) >= 6:
                     break
                 fid = f"fb{id_counter}"
@@ -135,16 +124,12 @@ def mini_app() -> tuple:
                 slides_html += _slide_html(fid, html_mod.escape(fb_text), rubric_emoji, rubric_name)
                 id_counter += 1
             jokes_json = json_mod.dumps(jokes_data)
-    except Exception as e:
-        import traceback
-        debug_info = f"ERROR: {type(e).__name__}: {e} | {traceback.format_exc()}"
+    except Exception:
+        pass
 
     if slides_html:
         slides_html = '<style>#loadingSlide{display:none!important}</style>' + slides_html
     html = html.replace("<!-- __JOKES_SLIDES__ -->", slides_html, 1)
-    # Always show debug in a hidden div (visible via JS or view source)
-    html = html.replace("</body>",
-        f'<!-- DEBUG: {html_mod.escape(debug_info)} --></body>', 1)
     html = html.replace("</body>",
         f'<script>window.__JOKES__={jokes_json};</script></body>', 1)
     return html, 200, {
