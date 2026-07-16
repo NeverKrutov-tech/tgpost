@@ -1,7 +1,8 @@
-import html
-import json as json_mod
+import html as html_mod
 from pathlib import Path
 from urllib.parse import quote
+
+import json as json_mod
 
 from flask import Blueprint
 
@@ -61,7 +62,7 @@ def mini_app() -> tuple:
                 jokes_data = []
                 for r in rows:
                     jid = str(r["id"])
-                    text = html.escape(r["text"])
+                    text = html_mod.escape(r["text"])
                     rubric_name = "Жизненное"
                     rubric_emoji = "🤷"
                     lower = r["text"].lower()
@@ -96,9 +97,7 @@ def mini_app() -> tuple:
     # Debug: inject error info if something went wrong
     if debug_info and not slides_html:
         html = html.replace("</body>",
-            f'<div style="position:fixed;bottom:0;left:0;right:0;background:red;color:white;padding:8px;font-size:12px;z-index:9999">{html.escape(debug_info)}</div></body>', 1)
-    html = html.replace("</body>",
-        f'<script>window.__JOKES__={jokes_json};</script></body>', 1)
+            f'<div style="position:fixed;bottom:0;left:0;right:0;background:red;color:white;padding:8px;font-size:12px;z-index:9999">{html_mod.escape(debug_info)}</div></body>', 1)
     html = html.replace("</body>",
         f'<script>window.__JOKES__={jokes_json};</script></body>', 1)
     return html, 200, {
@@ -137,7 +136,7 @@ def weekly_best() -> tuple:
         cards += f"""
         <article class="card">
           <span class="rank">#{position}</span>
-          <p>{html.escape(preview)}</p>
+          <p>{html_mod.escape(preview)}</p>
           <div><a href="{telegram_url}" target="_blank">Открыть в Telegram</a><a href="{share_url}" target="_blank">Поделиться</a></div>
         </article>"""
 
