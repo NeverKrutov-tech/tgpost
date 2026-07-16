@@ -1207,3 +1207,7 @@ def yandex_verification() -> tuple:
     <body>Verification: 7047ab34f737b66e</body>
 </html>"""
     return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+# Auto-start bot + scheduler when Flask boots
+threading.Thread(target=ensure_bot_started, daemon=True).start()
