@@ -1096,7 +1096,7 @@ class TelegramPublisher:
                     # Skip English memes
                     if not _has_cyrillic(joke.text):
                         self.db.mark_published(joke.content_hash)
-                        return self._publish_next(rubric=rubric)
+                        return False
                     if random.random() < MEME_ANALYSIS_RATIO:
                         return self._send_meme_analysis(joke)
                     return self._send_meme_image(joke)
@@ -1136,7 +1136,7 @@ class TelegramPublisher:
             # Skip English memes
             if not _has_cyrillic(joke.text):
                 self.db.mark_published(joke.content_hash)
-                return self._publish_next(rubric=rubric)
+                return False
             if random.random() < MEME_ANALYSIS_RATIO:
                 return self._send_meme_analysis(joke)
             return self._send_meme_image(joke)
