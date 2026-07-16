@@ -41,20 +41,27 @@ def mini_app() -> tuple:
     # Fetch up to 6 random jokes from DB and render as slides
     slides_html = ""
     jokes_json = "[]"
+    debug_info = ""
     try:
         settings = load_settings()
-        if settings and (settings.database_url or settings.database_path):
-            db = Database(settings.database_url or settings.database_path)
+        if not settings:
+            debug_info = "load_settings returned None"
+        elif not (settings.database_url or settings.database_path):
+            debug_info = "no database config"
+        else:
+            db_path = settings.database_url or settings.database_path
+            debug_info = f"db_path={db_path}"
+            db = Database(db_path)
             with db.connect() as conn:
                 rows = conn.execute(
                     "SELECT id, text FROM jokes WHERE published_at IS NOT NULL ORDER BY RANDOM() LIMIT 6"
                 ).fetchall()
+            debug_info += f" rows={len(rows)}"
             if rows:
                 jokes_data = []
                 for r in rows:
                     jid = str(r["id"])
                     text = html.escape(r["text"])
-                    short = text.replace("\n", " ")[:120]
                     rubric_name = "Жизненное"
                     rubric_emoji = "🤷"
                     lower = r["text"].lower()
@@ -80,13 +87,18 @@ def mini_app() -> tuple:
 </div>
 """
                 jokes_json = json_mod.dumps(jokes_data)
-    except Exception:
-        pass
+    except Exception as e:
+        debug_info = f"ERROR: {type(e).__name__}: {e}"
 
     if slides_html:
-        # Hide the loading slide via CSS if we have real jokes (works without JS)
         slides_html = '<style>#loadingSlide{display:none!important}</style>' + slides_html
     html = html.replace("<!-- __JOKES_SLIDES__ -->", slides_html, 1)
+    # Debug: inject error info if something went wrong
+    if debug_info and not slides_html:
+        html = html.replace("</body>",
+            f'<div style="position:fixed;bottom:0;left:0;right:0;background:red;color:white;padding:8px;font-size:12px;z-index:9999">{html.escape(debug_info)}</div></body>', 1)
+    html = html.replace("</body>",
+        f'<script>window.__JOKES__={jokes_json};</script></body>', 1)
     html = html.replace("</body>",
         f'<script>window.__JOKES__={jokes_json};</script></body>', 1)
     return html, 200, {
