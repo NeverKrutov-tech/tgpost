@@ -178,12 +178,13 @@
 
   <div class="swiper">
     <div class="slides" id="slides">
-      <div class="slide">
+      <div class="slide" id="loadingSlide">
         <div class="loading" id="loading">
           <div class="spinner"></div>
           <span>Загружаю лучшие анекдоты…</span>
         </div>
       </div>
+      <!-- __JOKES_SLIDES__ -->
     </div>
     <div class="swipe-hint" id="swipeHint">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
@@ -224,8 +225,10 @@
   let isLoading = false;
   let touchStartX = 0;
   let touchStartY = 0;
-  let userStreak = parseInt(localStorage.getItem('miniapp_streak') || '0', 10);
-  let lastVisit = localStorage.getItem('miniapp_last_visit');
+  let userStreak = 0;
+  let lastVisit = null;
+  try { userStreak = parseInt(localStorage.getItem('miniapp_streak') || '0', 10); } catch (e) {}
+  try { lastVisit = localStorage.getItem('miniapp_last_visit'); } catch (e) {}
 
   // ==== DOM ====
   const slides = document.getElementById('slides');
@@ -261,15 +264,17 @@
 
   // ==== STREAK LOGIC ====
   function updateStreak() {
-    const today = new Date().toDateString();
-    if (lastVisit !== today) {
-      const yesterday = new Date(Date.now() - 86400000).toDateString();
-      userStreak = (lastVisit === yesterday) ? userStreak + 1 : 1;
-      localStorage.setItem('miniapp_streak', String(userStreak));
-      localStorage.setItem('miniapp_last_visit', today);
-      lastVisit = today;
-    }
-    statStreak.textContent = userStreak;
+    try {
+      var today = new Date().toDateString();
+      if (lastVisit !== today) {
+        var yesterday = new Date(Date.now() - 86400000).toDateString();
+        userStreak = (lastVisit === yesterday) ? userStreak + 1 : 1;
+        try { localStorage.setItem('miniapp_streak', String(userStreak)); } catch (e) {}
+        try { localStorage.setItem('miniapp_last_visit', today); } catch (e) {}
+        lastVisit = today;
+      }
+      if (statStreak) statStreak.textContent = userStreak;
+    } catch (e) {}
   }
 
   // ==== FALLBACK JOKES (when API unavailable) ====
@@ -283,32 +288,59 @@
   ];
 
   // ==== JOKE LOADING ====
-  function loadJokes(category = 'all') {
+  function loadJokes() {
     if (isLoading) return;
     isLoading = true;
-    loading.style.display = 'flex';
-    swipeHint.style.display = 'none';
 
-    // Use server-embedded jokes if available (no fetch needed)
+    var loadingEl = document.getElementById('loading');
+    var loadingSlide = document.getElementById('loadingSlide');
+
+    // 1. Use server-rendered slides if available (no JS needed for initial display)
+    var existingSlides = document.querySelectorAll('#slides > .slide[data-id]');
+    if (existingSlides.length > 0) {
+      jokes = Array.from(existingSlides).map(function(s) {
+        var id = s.getAttribute('data-id') || '0';
+        var textEl = s.querySelector('.joke-text');
+        return {
+          id: id,
+          text: textEl ? textEl.textContent : 'Анекдот',
+          url: API_BASE + '/joke/' + id
+        };
+      });
+      if (loadingSlide) loadingSlide.style.display = 'none';
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (loadingSlide) loadingSlide.remove();
+      isLoading = false;
+      updateSlidePosition(false);
+      if (document.getElementById('swipeHint')) {
+        document.getElementById('swipeHint').style.display = 'flex';
+      }
+      return;
+    }
+
+    // 2. Use server-embedded JSON data
     if (window.__JOKES__ && window.__JOKES__.length > 0) {
       jokes = window.__JOKES__.slice(0, 6);
+      if (loadingSlide) loadingSlide.style.display = 'none';
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (loadingSlide) loadingSlide.remove();
       isLoading = false;
-      loading.style.display = 'none';
       renderSlides();
       updateStats();
       return;
     }
 
-    // Fallback: fetch from API with safety timeout
-    const safetyTimer = setTimeout(() => {
+    // 3. Try fetching from API (with safety timeout)
+    var safetyTimer = setTimeout(function() {
+      if (loadingEl) loadingEl.style.display = 'none';
       isLoading = false;
-      loading.style.display = 'none';
-    }, 10000);
+    }, 8000);
 
-    fetchJokesFromAPI(category).then(ok => {
+    fetchJokesFromAPI(null).then(function(ok) {
       clearTimeout(safetyTimer);
       isLoading = false;
-      loading.style.display = 'none';
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (loadingSlide) loadingSlide.remove();
       if (ok) {
         renderSlides();
         updateStats();
@@ -319,39 +351,38 @@
     });
   }
 
-  async function fetchJokesFromAPI(category) {
-    jokes = [];
-    for (let i = 0; i < 6; i++) {
+  async function fetchJokesFromAPI() {
+    var result = [];
+    for (var i = 0; i < 6; i++) {
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 6000);
-        const resp = await fetch(`${API_BASE}/api/random-joke`, { signal: controller.signal });
+        var controller = new AbortController();
+        var timeout = setTimeout(function() { controller.abort(); }, 5000);
+        var resp = await fetch(API_BASE + '/api/random-joke', { signal: controller.signal });
         clearTimeout(timeout);
         if (resp.ok) {
-          const data = await resp.json();
-          if (data && data.text && !jokes.some(j => j.id === data.id)) {
-            jokes.push(data);
+          var data = await resp.json();
+          if (data && data.text && !result.some(function(j) { return j.id === data.id; })) {
+            result.push(data);
           }
         }
-      } catch {}
-      if (jokes.length >= 6) break;
+      } catch (e) {}
+      if (result.length >= 6) break;
     }
-    return jokes.length > 0;
+    jokes = result;
+    return result.length > 0;
   }
 
   async function updateStats() {
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      const resp = await fetch(`${API_BASE}/api/random-joke`, { signal: controller.signal });
+      var controller = new AbortController();
+      var timeout = setTimeout(function() { controller.abort(); }, 5000);
+      var resp = await fetch(API_BASE + '/api/random-joke', { signal: controller.signal });
       clearTimeout(timeout);
-      const data = await resp.json();
-      if (data.id) {
-        statViews.textContent = '—';
-        statShares.textContent = '—';
-      }
-    } catch {}
-    statsBar.style.display = 'flex';
+      var data = await resp.json();
+      if (data && data.id && statViews) statViews.textContent = '—';
+      if (data && data.id && statShares) statShares.textContent = '—';
+    } catch (e) {}
+    if (statsBar) statsBar.style.display = 'flex';
   }
 
   // ==== RENDER ====
@@ -544,14 +575,14 @@
 
   // Categories
   categoriesEl.addEventListener('click', e => {
-    const btn = e.target.closest('.cat-pill');
+    var btn = e.target.closest('.cat-pill');
     if (!btn) return;
-    const cat = btn.dataset.cat;
+    var cat = btn.dataset.cat;
     if (cat === currentCategory) return;
     currentCategory = cat;
     currentIndex = 0;
     renderCategories();
-    loadJokes(cat);
+    loadJokes();  // category filtering is server-side only
   });
 
   // Swipe gestures
@@ -587,16 +618,18 @@
 
   // Init
   function init() {
-    updateStreak();
-    renderCategories();
-    loadJokes();
+    try { updateStreak(); } catch (e) {}
+    try { renderCategories(); } catch (e) {}
+    try { loadJokes(); } catch (e) {}
     
     // Hide swipe hint after 3 swipes
-    let swipeCount = 0;
-    const originalShowSlide = showSlide;
+    var swipeCount = 0;
+    var originalShowSlide = showSlide;
     window.showSlide = function(idx, animate) {
       swipeCount++;
-      if (swipeCount >= 3) swipeHint.style.display = 'none';
+      if (swipeCount >= 3 && document.getElementById('swipeHint')) {
+        document.getElementById('swipeHint').style.display = 'none';
+      }
       return originalShowSlide(idx, animate);
     };
   }

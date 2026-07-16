@@ -32,13 +32,14 @@ def _channel_username() -> str:
 
 @growth_pages.get("/mini")
 def mini_app() -> tuple:
-    """Serve the Telegram Mini App with jokes embedded (no fetch needed from WebView)."""
+    """Serve the Telegram Mini App with jokes rendered as HTML (visible even without JS)."""
     path = Path(__file__).with_name("miniapp.html")
     if not path.exists():
         return "Mini App is unavailable", 503
     html = path.read_text(encoding="utf-8")
 
-    # Fetch up to 6 random jokes from DB and embed them
+    # Fetch up to 6 random jokes from DB and render as slides
+    slides_html = ""
     jokes_json = "[]"
     try:
         settings = load_settings()
@@ -49,13 +50,40 @@ def mini_app() -> tuple:
                     "SELECT id, text FROM jokes WHERE published_at IS NOT NULL ORDER BY RANDOM() LIMIT 6"
                 ).fetchall()
             if rows:
-                jokes_json = json_mod.dumps([
-                    {"id": str(r["id"]), "text": r["text"], "url": f"{BASE_URL}/joke/{r['id']}"}
-                    for r in rows
-                ])
+                jokes_data = []
+                for r in rows:
+                    jid = str(r["id"])
+                    text = html.escape(r["text"])
+                    short = text.replace("\n", " ")[:120]
+                    rubric_name = "Жизненное"
+                    rubric_emoji = "🤷"
+                    lower = r["text"].lower()
+                    if any(w in lower for w in ["работ", "начальник", "офис", "коллег", "зарплат", "босс"]):
+                        rubric_name, rubric_emoji = "Рабочее", "💼"
+                    elif any(w in lower for w in ["жен", "муж", "дети", "сын", "дочк", "тещ", "семь", "родител"]):
+                        rubric_name, rubric_emoji = "Семейное", "👨‍👩‍👧‍👦"
+                    elif any(w in lower for w in ["кот", "собак", "пёс", "животн", "кошк"]):
+                        rubric_name, rubric_emoji = "Животные", "🐱"
+
+                    jokes_data.append({"id": jid, "text": r["text"], "url": f"{BASE_URL}/joke/{jid}"})
+
+                    slides_html += f"""<div class="slide" data-id="{jid}">
+  <article class="joke-card">
+    <div class="joke-meta">
+      <span class="rubric">{rubric_emoji} {rubric_name}</span>
+    </div>
+    <p class="joke-text">{text}</p>
+    <div class="joke-footer">
+      <span class="joke-id">ID: {jid}</span>
+    </div>
+  </article>
+</div>
+"""
+                jokes_json = json_mod.dumps(jokes_data)
     except Exception:
         pass
 
+    html = html.replace("<!-- __JOKES_SLIDES__ -->", slides_html, 1)
     html = html.replace("</body>",
         f'<script>window.__JOKES__={jokes_json};</script></body>', 1)
     return html, 200, {
