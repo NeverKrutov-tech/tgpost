@@ -272,6 +272,16 @@
     statStreak.textContent = userStreak;
   }
 
+  // ==== FALLBACK JOKES (when API unavailable) ====
+  const FALLBACK_JOKES = [
+    { id: "f1", text: "— Дорогой, я кажется проиграла твою зарплату в казино.\n— Ну хоть что-то выиграла?" },
+    { id: "f2", text: "Программист просыпается утром, смотрит на жену:\n— Что-то ты сегодня какая-то неотзывчивая...\n— Так ты меня ещё не запустил!" },
+    { id: "f3", text: "В зоопарке табличка: «Не кормите животных!»\nПосетитель:\n— А если я сам животное?\nСмотритель:\n— Тогда не кормитесь!" },
+    { id: "f4", text: "Купил мужик шляпу. А она ему как раз.\n— Вот, — думает, — повезло.\nТак и ходит до сих пор — думает." },
+    { id: "f5", text: "Начальник:\n— Иванов, почему вы опоздали?\n— Понимаете, я вышел из дома, поскользнулся, упал...\n— И что, целый час падали?" },
+    { id: "f6", text: "Встречаются два кота. Один говорит:\n— Я теперь в IT работаю.\n— Круто! А кем?\n— Сервером." },
+  ];
+
   // ==== API ====
   async function fetchJokes(category = 'all') {
     if (isLoading) return;
@@ -279,48 +289,73 @@
     loading.style.display = 'flex';
     swipeHint.style.display = 'none';
     
+    // Safety: hide loading after 15s no matter what
+    const safetyTimer = setTimeout(() => {
+      loading.style.display = 'none';
+    }, 15000);
+    
     try {
-      const url = category === 'all' 
-        ? `${API_BASE}/api/random-joke` 
-        : `${API_BASE}/api/random-joke?category=${encodeURIComponent(category)}`;
-      
-      // For categories, we'll fetch multiple
-      const promises = Array(8).fill(null).map(() => 
-        fetch(`${API_BASE}/api/random-joke${category !== 'all' ? `?category=${category}` : ''}`)
-          .then(r => r.ok ? r.json() : null)
-          .catch(() => null)
-      );
-      const results = await Promise.all(promises);
-      jokes = results.filter(j => j && j.text).slice(0, 8);
+      // Fetch 4 jokes sequentially (not parallel) for reliability in WebView
+      jokes = [];
+      for (let i = 0; i < 6; i++) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 8000);
+          const resp = await fetch(`${API_BASE}/api/random-joke`, { signal: controller.signal });
+          clearTimeout(timeout);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.text && !jokes.some(j => j.id === data.id)) {
+              jokes.push(data);
+            }
+          }
+        } catch {}
+        if (jokes.length >= 6) break;
+      }
       
       if (jokes.length === 0) {
         // Fallback: fetch from /top
-        const resp = await fetch(`${API_BASE}/top?page=1`);
-        const html = await resp.text();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const links = doc.querySelectorAll('ol li a[href^="/joke/"]');
-        jokes = Array.from(links).slice(0, 8).map(a => ({
-          id: a.href.match(/\/joke\/(\d+)/)?.[1],
-          text: a.textContent.trim(),
-          url: API_BASE + a.getAttribute('href')
-        }));
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 8000);
+          const resp = await fetch(`${API_BASE}/top?page=1`, { signal: controller.signal });
+          clearTimeout(timeout);
+          const html = await resp.text();
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const links = doc.querySelectorAll('ol li a[href^="/joke/"]');
+          jokes = Array.from(links).slice(0, 6).map(a => ({
+            id: a.href.match(/\/joke\/(\d+)/)?.[1],
+            text: a.textContent.trim(),
+            url: API_BASE + a.getAttribute('href')
+          }));
+        } catch {}
       }
       
-      renderSlides();
-      updateStats();
+      if (jokes.length > 0) {
+        renderSlides();
+        updateStats();
+      } else {
+        // Ultimate fallback — built-in jokes
+        jokes = FALLBACK_JOKES.slice();
+        renderSlides();
+      }
     } catch (e) {
       console.error('Fetch failed:', e);
       showEmpty();
     } finally {
       isLoading = false;
+      clearTimeout(safetyTimer);
       loading.style.display = 'none';
     }
   }
 
   async function updateStats() {
     try {
-      const resp = await fetch(`${API_BASE}/api/random-joke`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const resp = await fetch(`${API_BASE}/api/random-joke`, { signal: controller.signal });
+      clearTimeout(timeout);
       const data = await resp.json();
       if (data.id) {
         statViews.textContent = '—';

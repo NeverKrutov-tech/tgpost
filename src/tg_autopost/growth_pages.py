@@ -35,7 +35,12 @@ def mini_app() -> tuple:
     path = Path(__file__).with_name("miniapp.html")
     if not path.exists():
         return "Mini App is unavailable", 503
-    return path.read_text(encoding="utf-8"), 200, {"Content-Type": "text/html; charset=utf-8"}
+    return path.read_text(encoding="utf-8"), 200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
 
 
 @growth_pages.get("/weekly-best")
