@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import random
+import re
 from pathlib import Path
 
 import requests
@@ -33,6 +34,13 @@ REPOST_CARD_RATIO = 0.3
 REACTION_PROMPT_RATIO = 0.4
 MEME_ANALYSIS_RATIO = 0.15
 HEADLINE_RATIO = 0.15
+
+
+_CYRILLIC_RE = re.compile(r"[\u0400-\u04FF]")
+
+
+def _has_cyrillic(text: str) -> bool:
+    return bool(_CYRILLIC_RE.search(text))
 QUIZ_RATIO = 0.08
 FRIDAY_PROMPT_DAYS = [4]
 SUNDAY_DIGEST_DAYS = [6]
@@ -1085,6 +1093,10 @@ class TelegramPublisher:
                 joke = self.db.get_next_unpublished()
             if joke:
                 if joke.text.startswith("MEME:"):
+                    # Skip English memes
+                    if not _has_cyrillic(joke.text):
+                        self.db.mark_published(joke.content_hash)
+                        return self._publish_next(rubric=rubric)
                     if random.random() < MEME_ANALYSIS_RATIO:
                         return self._send_meme_analysis(joke)
                     return self._send_meme_image(joke)
@@ -1121,6 +1133,10 @@ class TelegramPublisher:
             return False
 
         if joke.text.startswith("MEME:"):
+            # Skip English memes
+            if not _has_cyrillic(joke.text):
+                self.db.mark_published(joke.content_hash)
+                return self._publish_next(rubric=rubric)
             if random.random() < MEME_ANALYSIS_RATIO:
                 return self._send_meme_analysis(joke)
             return self._send_meme_image(joke)
