@@ -83,6 +83,9 @@ def mini_app() -> tuple:
     except Exception:
         pass
 
+    if slides_html:
+        # Hide the loading slide via CSS if we have real jokes (works without JS)
+        slides_html = '<style>#loadingSlide{display:none!important}</style>' + slides_html
     html = html.replace("<!-- __JOKES_SLIDES__ -->", slides_html, 1)
     html = html.replace("</body>",
         f'<script>window.__JOKES__={jokes_json};</script></body>', 1)
