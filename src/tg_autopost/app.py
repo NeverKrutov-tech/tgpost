@@ -112,14 +112,6 @@ def run_ingest_and_publish() -> None:
 
 def run_scheduler() -> None:
     from apscheduler.schedulers.blocking import BlockingScheduler
-    import threading
-
-    settings = load_settings()
-    db = Database(settings.database_url or settings.database_path)
-
-    handler = PollingHandler(settings, db)
-    polling_thread = threading.Thread(target=handler.run_forever, daemon=True)
-    polling_thread.start()
 
     scheduler = BlockingScheduler()
 
