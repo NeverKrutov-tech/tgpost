@@ -117,8 +117,8 @@ def run_scheduler() -> None:
 
     # regular posts every 30 min from 07:00 to 23:30
     for hour in range(7, 23):
-        scheduler.add_job(run_ingest_and_publish, "cron", hour=hour, minute=0, jitter=900)
-        scheduler.add_job(run_ingest_and_publish, "cron", hour=hour, minute=30, jitter=900)
+        scheduler.add_job(run_ingest_and_publish, "cron", hour=hour, minute=0)
+        scheduler.add_job(run_ingest_and_publish, "cron", hour=hour, minute=30)
 
     scheduler.add_job(publish_horoscope, "cron", hour=8, minute=0)
     scheduler.add_job(publish_anti_advice, "cron", hour=13, minute=30)
