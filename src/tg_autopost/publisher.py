@@ -497,8 +497,12 @@ class TelegramPublisher:
             "parse_mode": "HTML",
             "disable_web_page_preview": False,
         }
-        self._post_message(payload)
-        return True
+        try:
+            self._post_message(payload)
+            return True
+        except Exception:
+            logger.exception("Failed to send newsjacker post")
+            return False
 
     def _send_challenge(self) -> None:
         post_number = self.db.count_published() + 1
