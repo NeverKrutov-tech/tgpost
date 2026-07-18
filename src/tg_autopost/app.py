@@ -109,12 +109,16 @@ def publish_newsjacker() -> bool:
     from .newsjacker import make_newsjacker_post
 
     settings, _, _, publisher = build_services()
-    post = make_newsjacker_post(publisher.db)
-    if not post:
+    result = make_newsjacker_post(publisher.db)
+    if not result:
         logger = logging.getLogger(__name__)
         logger.info("No newsjacker post available")
         return False
-    return publisher.send_newsjacker(post)
+    post, content_hash = result
+    ok = publisher.send_newsjacker(post)
+    if ok:
+        publisher.db.mark_published(content_hash)
+    return ok
 
 
 def run_ingest_and_publish() -> None:
@@ -127,17 +131,19 @@ def run_scheduler() -> None:
 
     scheduler = BlockingScheduler()
 
-    # regular jokes — 8 per day (07:00–23:30, no conflict with special posts)
-    for hour, minute in [(7, 0), (8, 0), (10, 0), (12, 0), (15, 0), (16, 0), (18, 0), (21, 0)]:
+    # regular jokes
+    for hour, minute in [(7, 0), (8, 0), (12, 0), (16, 0), (18, 0), (21, 0)]:
         scheduler.add_job(run_ingest_and_publish, "cron", hour=hour, minute=minute)
 
     # special posts
     scheduler.add_job(publish_horoscope, "cron", hour=8, minute=30)
     scheduler.add_job(publish_meme_image, "cron", hour=9, minute=30)
+    scheduler.add_job(publish_newsjacker, "cron", hour=10, minute=0)
     scheduler.add_job(publish_meme_image, "cron", hour=11, minute=30)
     scheduler.add_job(publish_challenge, "cron", hour=12, minute=30)
     scheduler.add_job(publish_anti_advice, "cron", hour=13, minute=0)
     scheduler.add_job(publish_meme_image, "cron", hour=14, minute=30)
+    scheduler.add_job(publish_newsjacker, "cron", hour=15, minute=0)
     scheduler.add_job(publish_meme_image, "cron", hour=17, minute=30)
     scheduler.add_job(publish_meme_image, "cron", hour=19, minute=0)
     scheduler.add_job(publish_newsjacker, "cron", hour=20, minute=0)
@@ -145,7 +151,7 @@ def run_scheduler() -> None:
     scheduler.add_job(pin_best, "cron", hour=23, minute=0)
 
     logging.getLogger(__name__).info(
-        "Scheduler started — 8 jokes + 5 memes + horoscope + anti-advice + challenge + newsjacker + story + pin = 19 posts/day",
+        "Scheduler started — 6 jokes + 5 memes + horoscope + anti-advice + challenge + 3x newsjacker + story + pin = 19 posts/day",
     )
 
     run_ingest_and_publish()

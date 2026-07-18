@@ -101,7 +101,7 @@ def _find_joke(db: Database, keywords: List[str]) -> Optional[tuple]:
     return (candidates[0][1], candidates[0][2])
 
 
-def make_newsjacker_post(db: Database) -> Optional[str]:
+def make_newsjacker_post(db: Database) -> Optional[tuple]:
     news_list = _fetch_news()
     if not news_list:
         logger.info("No news fetched")
@@ -131,10 +131,10 @@ def make_newsjacker_post(db: Database) -> Optional[str]:
         return None
 
     joke_text, content_hash = result
-    db.mark_published(content_hash)
 
     seen.add(title)
     _save_seen_news(seen)
 
     emoji = rubric["emoji"] if rubric else "📰"
-    return f"{emoji} <b>{title}</b>\n<a href='{link}'>{link}</a>\n\nА вот и анекдот в тему:\n\n{joke_text}"
+    post = f"{emoji} <b>{title}</b>\n<a href='{link}'>{link}</a>\n\nА вот и анекдот в тему:\n\n{joke_text}"
+    return (post, content_hash)
