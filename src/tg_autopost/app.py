@@ -112,8 +112,8 @@ def publish_newsjacker() -> bool:
     result = make_newsjacker_post(publisher.db)
     if not result:
         logger = logging.getLogger(__name__)
-        logger.info("No newsjacker post available")
-        return False
+        logger.info("No newsjacker post, falling back to regular publish")
+        return run_publish()
     post, content_hash = result
     ok = publisher.send_newsjacker(post)
     if ok:
