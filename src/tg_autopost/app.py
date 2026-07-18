@@ -105,6 +105,18 @@ def publish_challenge() -> None:
     publisher._send_challenge()
 
 
+def publish_newsjacker() -> bool:
+    from .newsjacker import make_newsjacker_post
+
+    settings, _, _, publisher = build_services()
+    post = make_newsjacker_post(publisher.db)
+    if not post:
+        logger = logging.getLogger(__name__)
+        logger.info("No newsjacker post available")
+        return False
+    return publisher.send_newsjacker(post)
+
+
 def run_ingest_and_publish() -> None:
     run_ingest()
     run_publish()
@@ -128,11 +140,12 @@ def run_scheduler() -> None:
     scheduler.add_job(publish_meme_image, "cron", hour=14, minute=30)
     scheduler.add_job(publish_meme_image, "cron", hour=17, minute=30)
     scheduler.add_job(publish_meme_image, "cron", hour=19, minute=0)
+    scheduler.add_job(publish_newsjacker, "cron", hour=20, minute=0)
     scheduler.add_job(publish_story, "cron", hour=22, minute=30)
     scheduler.add_job(pin_best, "cron", hour=23, minute=0)
 
     logging.getLogger(__name__).info(
-        "Scheduler started — 8 jokes + 5 memes + horoscope + anti-advice + challenge + story + pin = 18 posts/day",
+        "Scheduler started — 8 jokes + 5 memes + horoscope + anti-advice + challenge + newsjacker + story + pin = 19 posts/day",
     )
 
     run_ingest_and_publish()

@@ -490,6 +490,16 @@ class TelegramPublisher:
         self._post_message(payload)
         return True
 
+    def send_newsjacker(self, text: str) -> bool:
+        payload = {
+            "chat_id": self.settings.channel_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": False,
+        }
+        self._post_message(payload)
+        return True
+
     def _send_challenge(self) -> None:
         post_number = self.db.count_published() + 1
         text = (
