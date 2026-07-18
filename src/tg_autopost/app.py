@@ -115,30 +115,24 @@ def run_scheduler() -> None:
 
     scheduler = BlockingScheduler()
 
-    # regular posts every 30 min from 07:00 to 23:30
-    # half-hour slots without special posts
-    regular_mins = {0, 30}
-    skip = {(8, 30), (9, 30), (11, 30), (12, 30), (13, 0), (14, 30), (17, 30), (19, 0), (22, 30), (23, 0)}
-    for hour in range(7, 24):
-        for minute in (0, 30):
-            if (hour, minute) in skip:
-                continue
-            scheduler.add_job(run_ingest_and_publish, "cron", hour=hour, minute=minute)
+    # regular jokes — 8 per day (07:00–23:30, no conflict with special posts)
+    for hour, minute in [(7, 0), (8, 0), (10, 0), (12, 0), (15, 0), (16, 0), (18, 0), (21, 0)]:
+        scheduler.add_job(run_ingest_and_publish, "cron", hour=hour, minute=minute)
 
-    # special posts — no overlap with regular ones
-    scheduler.add_job(publish_horoscope, "cron", hour=8, minute=30)       # replaces 08:30 regular
-    scheduler.add_job(publish_meme_image, "cron", hour=9, minute=30)      # replaces 09:30 regular
-    scheduler.add_job(publish_meme_image, "cron", hour=11, minute=30)     # replaces 11:30 regular
-    scheduler.add_job(publish_challenge, "cron", hour=12, minute=30)      # replaces 12:30 regular
-    scheduler.add_job(publish_anti_advice, "cron", hour=13, minute=0)     # replaces 13:00 regular
-    scheduler.add_job(publish_meme_image, "cron", hour=14, minute=30)     # replaces 14:30 regular
-    scheduler.add_job(publish_meme_image, "cron", hour=17, minute=30)     # replaces 17:30 regular
-    scheduler.add_job(publish_meme_image, "cron", hour=19, minute=0)      # replaces 19:00 regular
-    scheduler.add_job(publish_story, "cron", hour=22, minute=30)          # replaces 22:30 regular
-    scheduler.add_job(pin_best, "cron", hour=23, minute=0)                # replaces 23:00 regular
+    # special posts
+    scheduler.add_job(publish_horoscope, "cron", hour=8, minute=30)
+    scheduler.add_job(publish_meme_image, "cron", hour=9, minute=30)
+    scheduler.add_job(publish_meme_image, "cron", hour=11, minute=30)
+    scheduler.add_job(publish_challenge, "cron", hour=12, minute=30)
+    scheduler.add_job(publish_anti_advice, "cron", hour=13, minute=0)
+    scheduler.add_job(publish_meme_image, "cron", hour=14, minute=30)
+    scheduler.add_job(publish_meme_image, "cron", hour=17, minute=30)
+    scheduler.add_job(publish_meme_image, "cron", hour=19, minute=0)
+    scheduler.add_job(publish_story, "cron", hour=22, minute=30)
+    scheduler.add_job(pin_best, "cron", hour=23, minute=0)
 
     logging.getLogger(__name__).info(
-        "Scheduler started — every 30 min 07:00–23:30, no overlap with special posts",
+        "Scheduler started — 8 jokes + 5 memes + horoscope + anti-advice + challenge + story + pin = 18 posts/day",
     )
 
     run_ingest_and_publish()
