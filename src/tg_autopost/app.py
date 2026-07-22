@@ -131,27 +131,19 @@ def run_scheduler() -> None:
 
     scheduler = BlockingScheduler()
 
-    # regular jokes
-    for hour, minute in [(7, 0), (8, 0), (12, 0), (16, 0), (18, 0), (21, 0)]:
-        scheduler.add_job(run_ingest_and_publish, "cron", hour=hour, minute=minute)
-
-    # special posts
-    scheduler.add_job(publish_horoscope, "cron", hour=8, minute=30)
-    scheduler.add_job(publish_meme_image, "cron", hour=9, minute=30)
-    scheduler.add_job(publish_newsjacker, "cron", hour=10, minute=0)
-    scheduler.add_job(publish_meme_image, "cron", hour=11, minute=30)
-    scheduler.add_job(publish_challenge, "cron", hour=12, minute=30)
-    scheduler.add_job(publish_anti_advice, "cron", hour=13, minute=0)
-    scheduler.add_job(publish_meme_image, "cron", hour=14, minute=30)
-    scheduler.add_job(publish_newsjacker, "cron", hour=15, minute=0)
-    scheduler.add_job(publish_meme_image, "cron", hour=17, minute=30)
-    scheduler.add_job(publish_meme_image, "cron", hour=19, minute=0)
-    scheduler.add_job(publish_newsjacker, "cron", hour=20, minute=0)
-    scheduler.add_job(publish_story, "cron", hour=22, minute=30)
-    scheduler.add_job(pin_best, "cron", hour=23, minute=0)
+    # quality posts — 8 per day instead of 19
+    scheduler.add_job(run_ingest_and_publish, "cron", hour=8, minute=0)       # Regular joke
+    scheduler.add_job(publish_horoscope, "cron", hour=8, minute=30)           # Horoscope
+    scheduler.add_job(publish_meme_image, "cron", hour=11, minute=30)         # Meme
+    scheduler.add_job(publish_challenge, "cron", hour=12, minute=30)          # Challenge
+    scheduler.add_job(run_ingest_and_publish, "cron", hour=15, minute=0)      # Regular joke
+    scheduler.add_job(publish_meme_image, "cron", hour=18, minute=0)          # Meme (prime time)
+    scheduler.add_job(publish_newsjacker, "cron", hour=20, minute=0)          # Newsjacker
+    scheduler.add_job(publish_story, "cron", hour=22, minute=30)              # Story
+    scheduler.add_job(pin_best, "cron", hour=23, minute=0)                    # Pin best
 
     logging.getLogger(__name__).info(
-        "Scheduler started — 6 jokes + 5 memes + horoscope + anti-advice + challenge + 3x newsjacker + story + pin = 19 posts/day",
+        "Scheduler started — 8 posts/day: 2 jokes + horoscope + meme + challenge + meme + newsjacker + story + pin",
     )
 
     run_ingest_and_publish()
