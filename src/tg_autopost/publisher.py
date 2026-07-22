@@ -12,7 +12,6 @@ import requests
 from .config import Settings
 from .content_filter import is_flagged
 from .database import Database
-from .handlers import PollingHandler
 from .horoscope import generate_horoscope
 from .anti_advice import generate_anti_advice
 from .crossposter import post_to_vk
@@ -1053,13 +1052,6 @@ class TelegramPublisher:
     def publish_next(self) -> bool:
         today = datetime.datetime.today()
         rubric = get_today_rubric()
-
-        try:
-            handler = PollingHandler(self.settings, self.db)
-            handler.poll_once()
-            logger.info("Processed pending bot updates")
-        except Exception:
-            logger.exception("Failed to poll bot updates")
 
         self._welcome_new_members()
 
