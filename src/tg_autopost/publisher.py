@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import random
-import re
 from pathlib import Path
 
 import requests
@@ -35,11 +34,6 @@ MEME_ANALYSIS_RATIO = 0.15
 HEADLINE_RATIO = 0.15
 
 
-_CYRILLIC_RE = re.compile(r"[\u0400-\u04FF]")
-
-
-def _has_cyrillic(text: str) -> bool:
-    return bool(_CYRILLIC_RE.search(text))
 QUIZ_RATIO = 0.08
 FRIDAY_PROMPT_DAYS = [4]
 SUNDAY_DIGEST_DAYS = [6]
@@ -620,7 +614,8 @@ class TelegramPublisher:
             payload = r.json()
             if not r.ok or not payload.get("ok"):
                 raise RuntimeError(f"Telegram API error: {payload.get('description', 'unknown')}")
-            self.db.mark_published(content_hash)
+            msg_id = payload.get("result", {}).get("message_id")
+            self.db.mark_published(content_hash, msg_id)
             return True
         except Exception as e:
             logger.warning("Failed to send photo: %s", e)
@@ -656,7 +651,8 @@ class TelegramPublisher:
             data = r.json()
             if not r.ok or not data.get("ok"):
                 raise RuntimeError(f"Telegram API error: {data.get('description', 'unknown')}")
-            self.db.mark_published(joke.content_hash)
+            msg_id = data.get("result", {}).get("message_id")
+            self.db.mark_published(joke.content_hash, msg_id)
             logger.info("Published video joke: %s", joke.external_id)
             return True
         except Exception as e:
@@ -770,7 +766,6 @@ class TelegramPublisher:
         joke1 = self.db.get_next_unpublished()
         if joke1 is None:
             return False
-        self.db.mark_published(joke1.content_hash)
         joke2 = self.db.get_next_unpublished()
         if joke2 is None:
             return False
@@ -788,6 +783,7 @@ class TelegramPublisher:
             "parse_mode": "HTML",
         })
         self._post_poll(joke1.text, joke2.text, post_number)
+        self.db.mark_published(joke1.content_hash)
         self.db.mark_published(joke2.content_hash)
         logger.info("Published battle: %s vs %s", joke1.external_id, joke2.external_id)
         return True
@@ -1099,10 +1095,6 @@ class TelegramPublisher:
                 joke = self.db.get_next_unpublished()
             if joke:
                 if joke.text.startswith("MEME:"):
-                    # Skip English memes
-                    if not _has_cyrillic(joke.text):
-                        self.db.mark_published(joke.content_hash)
-                        return False
                     if random.random() < MEME_ANALYSIS_RATIO:
                         return self._send_meme_analysis(joke)
                     return self._send_meme_image(joke)
@@ -1139,10 +1131,6 @@ class TelegramPublisher:
             return False
 
         if joke.text.startswith("MEME:"):
-            # Skip English memes
-            if not _has_cyrillic(joke.text):
-                self.db.mark_published(joke.content_hash)
-                return False
             if random.random() < MEME_ANALYSIS_RATIO:
                 return self._send_meme_analysis(joke)
             return self._send_meme_image(joke)
