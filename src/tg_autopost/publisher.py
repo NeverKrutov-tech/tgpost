@@ -572,6 +572,7 @@ class TelegramPublisher:
                 return False
             src_name = self.settings.channel_link.rstrip("/").rsplit("/", 1)[-1] if self.settings.channel_link else "Anetdodik"
             image_path = generate_story_image(text, src_name)
+            success = False
             with open(image_path, "rb") as f:
                 r = requests.post(
                     f"https://api.telegram.org/bot{self.settings.bot_token}/sendStory",
@@ -579,12 +580,27 @@ class TelegramPublisher:
                     files={"photo": f},
                     timeout=self.settings.http_timeout,
                 )
+                if r.ok and r.json().get("ok"):
+                    success = True
+                else:
+                    logger.warning("sendStory failed (%s), falling back to photo message: %s", r.status_code, r.text[:200])
+            if not success:
+                with open(image_path, "rb") as f:
+                    r = requests.post(
+                        f"https://api.telegram.org/bot{self.settings.bot_token}/sendPhoto",
+                        data={"chat_id": self.settings.channel_id, "caption": text},
+                        files={"photo": f},
+                        timeout=self.settings.http_timeout,
+                    )
+                    if r.ok and r.json().get("ok"):
+                        success = True
+                        logger.info("Posted story as photo: %s", joke.external_id)
+                    else:
+                        logger.warning("Fallback sendPhoto also failed: %s", r.text[:200])
             Path(image_path).unlink(missing_ok=True)
-            if r.ok and r.json().get("ok"):
+            if success:
                 self.db.mark_published(joke.content_hash)
-                logger.info("Posted story: %s", joke.external_id)
                 return True
-            logger.warning("sendStory failed: %s", r.text)
             return False
         except Exception as e:
             logger.warning("Failed to send story: %s", e)

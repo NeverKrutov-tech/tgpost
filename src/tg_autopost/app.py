@@ -146,7 +146,10 @@ def run_scheduler() -> None:
         "Scheduler started — 8 posts/day: 2 jokes + horoscope + meme + challenge + meme + newsjacker + story + pin",
     )
 
-    run_ingest_and_publish()
+    try:
+        run_ingest_and_publish()
+    except Exception:
+        logging.getLogger(__name__).exception("Initial ingest+publish failed, scheduler will still start")
     scheduler.start()
 
 
