@@ -88,21 +88,14 @@ _STYLE = """
 
 def ensure_bot_started() -> None:
     global _bot_thread, _scheduler_thread, _handler, _settings
-    if _bot_thread and _bot_thread.is_alive():
-        return
-    _settings = load_settings()
-    db = Database(_settings.database_url or _settings.database_path)
-    _handler = PollingHandler(_settings, db)
-    _bot_thread = threading.Thread(target=_handler.run_forever, daemon=True)
-    _bot_thread.start()
-    logging.getLogger(__name__).info("Render bot thread started")
-    try:
-        from .app import run_ingest
-        run_ingest()
-    except Exception as exc:
-        logging.getLogger(__name__).warning("Startup ingest skipped: %s", exc)
-
-    # Start scheduler in separate thread
+    if _settings is None:
+        _settings = load_settings()
+        db = Database(_settings.database_url or _settings.database_path)
+        _handler = PollingHandler(_settings, db)
+    if _bot_thread is None or not _bot_thread.is_alive():
+        _bot_thread = threading.Thread(target=_handler.run_forever, daemon=True)
+        _bot_thread.start()
+        logging.getLogger(__name__).info("Render bot thread started")
     if _scheduler_thread is None or not _scheduler_thread.is_alive():
         from .app import run_scheduler
         _scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
