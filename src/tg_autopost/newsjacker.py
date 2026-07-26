@@ -10,6 +10,7 @@ import requests
 
 from .database import Database
 from .rubrics import RUBRICS
+from .utils import dedup_key
 
 logger = logging.getLogger(__name__)
 
@@ -83,14 +84,19 @@ def _find_joke(db: Database, keywords: List[str]) -> Optional[tuple]:
         rows = conn.execute(
             "SELECT text, content_hash FROM jokes WHERE published_at IS NULL ORDER BY RANDOM() LIMIT 300"
         ).fetchall()
+    published_keys = db._get_published_dedup_keys()
     candidates = []
     for row in rows:
+        if dedup_key(row["text"]) in published_keys:
+            continue
         text_lower = row["text"].lower()
         match_count = sum(1 for kw in keywords if kw.lower() in text_lower)
         if match_count >= 2:
             candidates.append((match_count, row["text"], row["content_hash"]))
     if not candidates:
         for row in rows:
+            if dedup_key(row["text"]) in published_keys:
+                continue
             text_lower = row["text"].lower()
             match_count = sum(1 for kw in keywords if kw.lower() in text_lower)
             if match_count >= 1:

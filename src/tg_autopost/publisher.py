@@ -762,7 +762,6 @@ class TelegramPublisher:
         if split is None:
             return False
         part1, part2 = split
-        self.db.mark_published(joke.content_hash)
         joke.text = part1.strip()
         msg_id = self._send_text(joke, rubric, "\u0427\u0438\u0442\u0430\u0439\u0442\u0435 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u043C \u0432\u044B\u043F\u0443\u0441\u043A\u0435:")
         self.db.save_pending_part(joke.content_hash, part2.strip(), joke.source_name, joke.external_id, joke.content_hash, msg_id)
@@ -1115,8 +1114,9 @@ class TelegramPublisher:
                         return self._send_meme_analysis(joke)
                     return self._send_meme_image(joke)
                 if len(joke.text) < 200 and random.random() < OBSERVATION_RATIO:
+                    self._send_observation(joke.text)
                     self.db.mark_published(joke.content_hash)
-                    return self._send_observation(joke.text)
+                    return True
                 if random.random() < HEADLINE_RATIO and _split_headline(joke.text):
                     return self._send_headline_joke(joke, rubric)
                 if len(joke.text) > 600 and _split_two_part(joke.text):
@@ -1152,8 +1152,9 @@ class TelegramPublisher:
             return self._send_meme_image(joke)
 
         if len(joke.text) < 200 and random.random() < OBSERVATION_RATIO:
+            self._send_observation(joke.text)
             self.db.mark_published(joke.content_hash)
-            return self._send_observation(joke.text)
+            return True
 
         if random.random() < HEADLINE_RATIO and _split_headline(joke.text):
             return self._send_headline_joke(joke, rubric)
