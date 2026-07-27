@@ -131,25 +131,23 @@ def run_scheduler() -> None:
 
     scheduler = BlockingScheduler()
 
-    # quality posts — 8 per day instead of 19
+    # reduced schedule — 6 posts/day to stop subscriber churn
     scheduler.add_job(run_ingest_and_publish, "cron", hour=8, minute=0)       # Regular joke
-    scheduler.add_job(publish_horoscope, "cron", hour=8, minute=30)           # Horoscope
-    scheduler.add_job(publish_meme_image, "cron", hour=11, minute=30)         # Meme
-    scheduler.add_job(publish_challenge, "cron", hour=12, minute=30)          # Challenge
-    scheduler.add_job(run_ingest_and_publish, "cron", hour=15, minute=0)      # Regular joke
-    scheduler.add_job(publish_meme_image, "cron", hour=18, minute=0)          # Meme (prime time)
-    scheduler.add_job(publish_newsjacker, "cron", hour=20, minute=0)          # Newsjacker
-    scheduler.add_job(publish_story, "cron", hour=22, minute=30)              # Story
+    scheduler.add_job(publish_horoscope, "cron", hour=11, minute=30)          # Horoscope
+    scheduler.add_job(run_ingest_and_publish, "cron", hour=14, minute=0)      # Regular joke
+    scheduler.add_job(publish_meme_image, "cron", hour=17, minute=0)          # Meme
+    scheduler.add_job(publish_newsjacker, "cron", hour=20, minute=0)          # Newsjacker (fallback: regular joke)
+    scheduler.add_job(publish_story, "cron", hour=22, minute=30)              # Story (fallback: photo)
     scheduler.add_job(pin_best, "cron", hour=23, minute=0)                    # Pin best
 
     logging.getLogger(__name__).info(
-        "Scheduler started — 8 posts/day: 2 jokes + horoscope + meme + challenge + meme + newsjacker + story + pin",
+        "Scheduler started — 6 posts/day: 2 jokes + horoscope + meme + newsjacker + story + pin",
     )
 
     try:
-        run_ingest_and_publish()
+        run_ingest()
     except Exception:
-        logging.getLogger(__name__).exception("Initial ingest+publish failed, scheduler will still start")
+        logging.getLogger(__name__).exception("Startup ingest failed, scheduler will still start")
     scheduler.start()
 
 
