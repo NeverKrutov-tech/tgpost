@@ -25,7 +25,6 @@ def build_services():
     from .sources.anekdot_ru import AnekdotRuSource
     from .sources.anekdotov_net import AnekdotovNetSource
     from .sources.baneks_ru import BaneksRuSource
-    from .sources.meme_api import MemeApiSource
     from .sources.it_jokes import ItJokesSource
     from .sources.reddit_jokes import RedditJokesSource
 
@@ -35,7 +34,6 @@ def build_services():
         AnekdotRuSource(timeout=settings.http_timeout),
         AnekdotovNetSource(timeout=settings.http_timeout),
         BaneksRuSource(timeout=settings.http_timeout),
-        MemeApiSource(),
         ItJokesSource(),
         RedditJokesSource(),
     ]
@@ -146,6 +144,10 @@ def run_scheduler() -> None:
 
     try:
         run_ingest()
+        db = Database(load_settings().database_url or load_settings().database_path)
+        marked = db.mark_source_published("meme_api")
+        if marked:
+            logging.getLogger(__name__).info("Marked %s existing meme_api jokes as published (disabled source)", marked)
     except Exception:
         logging.getLogger(__name__).exception("Startup ingest failed, scheduler will still start")
     scheduler.start()

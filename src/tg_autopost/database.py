@@ -503,6 +503,20 @@ class Database:
             ).fetchone()
             return dict(row) if row else None
 
+    def mark_source_published(self, source_name: str) -> int:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT text FROM jokes WHERE published_at IS NULL AND source_name = ?", (source_name,)
+            ).fetchall()
+            for row in rows:
+                self._append_published_key(dedup_key(row["text"]))
+            connection.execute(
+                "UPDATE jokes SET published_at = ? WHERE published_at IS NULL AND source_name = ?",
+                (now, source_name),
+            )
+        return len(rows)
+
     def get_published_by_keywords(self, keywords: list[str], limit: int = 50) -> list[dict]:
         with self.connect() as conn:
             rows = conn.execute(
