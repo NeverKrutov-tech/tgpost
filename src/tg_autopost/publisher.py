@@ -22,19 +22,19 @@ from .youtube import get_channel_stats, get_latest_videos
 
 logger = logging.getLogger(__name__)
 
-IMAGE_RATIO = 0.2
-VIDEO_RATIO = 0.08
-TEASER_RATIO = 0.1
-DICE_RATIO = 0.15
-BATTLE_EVERY = 5
-OBSERVATION_RATIO = 0.1
-REPOST_CARD_RATIO = 0.3
+IMAGE_RATIO = 0.15
+VIDEO_RATIO = 0.05
+TEASER_RATIO = 0.08
+DICE_RATIO = 0.3
+BATTLE_EVERY = 6
+OBSERVATION_RATIO = 0.15
+REPOST_CARD_RATIO = 0.25
 REACTION_PROMPT_RATIO = 0.4
 MEME_ANALYSIS_RATIO = 0.15
-HEADLINE_RATIO = 0.15
+HEADLINE_RATIO = 0.12
 
 
-QUIZ_RATIO = 0.08
+QUIZ_RATIO = 0.15
 FRIDAY_PROMPT_DAYS = [4]
 SUNDAY_DIGEST_DAYS = [6]
 
@@ -868,25 +868,12 @@ class TelegramPublisher:
         return int(prev) if prev else 0
 
     def _digest_posted_today(self) -> bool:
-        today_str = datetime.datetime.today().strftime("%Y-%m-%d")
-        if os.environ.get("SUNDAY_DIGEST_MARKER") == today_str:
-            logger.info("Sunday digest already posted today (verified via repo marker file)")
+        if self.db.has_special_post_today("sunday_digest"):
             return True
-        try:
-            resp = requests.post(
-                f"https://api.telegram.org/bot{self.settings.bot_token}/getUpdates",
-                json={"allowed_updates": ["channel_post"], "limit": 1},
-                timeout=15,
-            )
-            data = resp.json()
-            if data.get("ok"):
-                for update in data.get("result", []):
-                    post = update.get("channel_post", {})
-                    if post.get("text") and "#\u0434\u0430\u0439\u0434\u0436\u0435\u0441\u0442" in post.get("text", ""):
-                        logger.info("Sunday digest found in recent getUpdates")
-                        return True
-        except Exception:
-            pass
+        today_str = datetime.datetime.today().strftime("%Y-%m-%d")
+        marker = Path("data/sunday_digest_marker.txt")
+        if marker.exists() and marker.read_text(encoding="utf-8").strip() == today_str:
+            return True
         return False
 
     def _send_weekly_digest(self) -> bool:
@@ -921,6 +908,10 @@ class TelegramPublisher:
                 f"\n\n\U0001F3C6 <b>\u0422\u041E\u041F \u0430\u0432\u0442\u043E\u0440\u043E\u0432</b>\n"
                 f"{chr(10).join(author_lines)}"
             )
+        result += (
+            "\n\n\U0001F517 <b>\u041F\u043E\u043D\u0440\u0430\u0432\u0438\u043B\u043E\u0441\u044C? \u041F\u043E\u0434\u0435\u043B\u0438\u0441\u044C \u0441 \u0434\u0440\u0443\u0437\u044C\u044F\u043C\u0438!</b>\n"
+            f"\u041F\u0440\u0438\u0433\u043B\u0430\u0448\u0430\u0439 \u0432 \u043A\u0430\u043D\u0430\u043B \u2014 \u043A\u0430\u0436\u0434\u044B\u0439 \u043D\u043E\u0432\u044B\u0439 \u043F\u043E\u0434\u043F\u0438\u0441\u0447\u0438\u043A \u043F\u043E \u0442\u0432\u043E\u0435\u0439 \u0441\u0441\u044B\u043B\u043A\u0435 \u0434\u0430\u0451\u0442 +1 \u0432 \u0440\u0435\u0439\u0442\u0438\u043D\u0433\u0435! (\u041A\u043E\u043C\u0430\u043D\u0434\u0430 /invite \u0432 \u0431\u043E\u0442\u0435)"
+        )
         result += "\n\n#\u0434\u0430\u0439\u0434\u0436\u0435\u0441\u0442 #\u043B\u0443\u0447\u0448\u0435\u0435"
         self._post_message({
             "chat_id": self.settings.channel_id,
@@ -1077,12 +1068,11 @@ class TelegramPublisher:
 
         post_number = self.db.count_published() + 1
 
-        # TODO: re-enable after fixing dedup
-        #if today.weekday() in SUNDAY_DIGEST_DAYS:
-        #    if self._digest_posted_today():
-        #        logger.info("Sunday digest already posted today (verified via Telegram)")
-        #    elif self._send_weekly_digest():
-        #        return True
+        if today.weekday() in SUNDAY_DIGEST_DAYS:
+            if self._digest_posted_today():
+                logger.info("Sunday digest already posted today")
+            elif self._send_weekly_digest():
+                return True
 
         if today.weekday() in FRIDAY_PROMPT_DAYS:
             if self._friday_prompt_posted_today():
