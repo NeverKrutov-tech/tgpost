@@ -1119,6 +1119,16 @@ def api_trigger_publish() -> tuple:
     return jsonify({"published": ok}), 200 if ok else 503
 
 
+@app.get("/api/story")
+def api_trigger_story() -> tuple:
+    from .app import publish_story
+    ensure_bot_started()
+    if _settings is None:
+        return jsonify({"error": "not ready"}), 503
+    ok = publish_story()
+    return jsonify({"story": ok}), 200 if ok else 503
+
+
 @app.get("/keepalive")
 def keepalive() -> tuple:
     ensure_bot_started()

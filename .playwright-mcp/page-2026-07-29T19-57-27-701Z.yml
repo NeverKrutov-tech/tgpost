@@ -1,0 +1,90 @@
+- generic [ref=f16e2]:
+  - generic [ref=f16e3]:
+    - banner [ref=f16e4]:
+      - generic [ref=f16e5]:
+        - button "Меню" [ref=f16e6] [cursor=pointer]
+        - img "cron-job.org" [ref=f16e11]
+        - button [ref=f16e13] [cursor=pointer]
+        - button [ref=f16e21] [cursor=pointer]
+    - generic [ref=f16e27]:
+      - button [ref=f16e29] [cursor=pointer]
+      - generic [ref=f16e33]:
+        - separator [ref=f16e34]
+        - list [ref=f16e35]:
+          - button "Панель управления" [ref=f16e36] [cursor=pointer]
+          - button "Cron задания" [ref=f16e42] [cursor=pointer]
+          - list
+          - button "Страницы статусов" [ref=f16e49] [cursor=pointer]
+          - button "Статистика" [ref=f16e55] [cursor=pointer]
+      - generic [ref=f16e61]:
+        - separator [ref=f16e62]
+        - list [ref=f16e63]:
+          - button "Настройки" [ref=f16e64] [cursor=pointer]
+    - main [ref=f16e70]:
+      - generic [ref=f16e72]:
+        - navigation "breadcrumb" [ref=f16e348]:
+          - list [ref=f16e349]:
+            - listitem [ref=f16e350]:
+              - link "Cron задания" [ref=f16e351] [cursor=pointer]:
+                - /url: /jobs
+        - generic [ref=f16e352]:
+          - heading "Cron задания" [level=1] [ref=f16e354]
+          - group [ref=f16e356]:
+            - button [ref=f16e357] [cursor=pointer]
+            - button [ref=f16e362] [cursor=pointer]
+        - table [ref=f16e368]:
+          - rowgroup [ref=f16e369]:
+            - row [ref=f16e370]:
+              - columnheader [ref=f16e371]:
+                - button [ref=f16e372] [cursor=pointer]
+              - columnheader "Заглавие, URL" [ref=f16e376]
+              - columnheader "Последний запуск" [ref=f16e377]
+              - columnheader "Следующий запуск" [ref=f16e378]
+              - columnheader "Действия" [ref=f16e379]
+          - rowgroup [ref=f16e380]:
+            - row [ref=f16e381]:
+              - cell [ref=f16e382]:
+                - checkbox [ref=f16e385] [cursor=pointer]
+              - cell "tgpost-keepalive https://tgpost-bot-l4wq.onrender.com/keepalive" [ref=f16e388]:
+                - generic [ref=f16e393]:
+                  - generic [ref=f16e394]: tgpost-keepalive
+                  - link "https://tgpost-bot-l4wq.onrender.com/keepalive" [ref=f16e397] [cursor=pointer]:
+                    - /url: https://tgpost-bot-l4wq.onrender.com/keepalive
+              - cell "-" [ref=f16e398]
+              - cell "Сегодня в 23:00:00" [ref=f16e399]
+              - cell [ref=f16e400]:
+                - button [ref=f16e401] [cursor=pointer]
+                - button [ref=f16e406] [cursor=pointer]
+            - row [ref=f16e411]:
+              - cell [ref=f16e412]:
+                - checkbox [ref=f16e415] [cursor=pointer]
+              - cell "tgpost https://api.github.com/repos/NeverKrutov-tech/tgpost/actions/workflows/publish.yml/dispatches" [ref=f16e418]:
+                - generic [ref=f16e423]:
+                  - generic [ref=f16e424]: tgpost
+                  - link "https://api.github.com/repos/NeverKrutov-tech/tgpost/actions/workflows/publish.yml/dispatches" [ref=f16e427] [cursor=pointer]:
+                    - /url: https://api.github.com/repos/NeverKrutov-tech/tgpost/actions/workflows/publish.yml/dispatches
+              - cell "Сегодня в 22:00:41 Провалено (HTTP ошибка) (221 мс)" [ref=f16e428]:
+                - generic [ref=f16e429]: Сегодня в 22:00:41
+                - generic [ref=f16e430]: Провалено (HTTP ошибка) (221 мс)
+              - cell "Завтра в 6:00:00" [ref=f16e432]
+              - cell [ref=f16e433]:
+                - button [ref=f16e434] [cursor=pointer]
+                - button [ref=f16e439] [cursor=pointer]
+        - paragraph [ref=f16e76]:
+          - text: © 2026
+          - link "cron-job.org" [ref=f16e444] [cursor=pointer]:
+            - /url: https://cron-job.org
+          - text: "| Русский |"
+          - link "Contact" [ref=f16e82] [cursor=pointer]:
+            - /url: https://cron-job.org/contact/
+          - text: "|"
+          - link "Блог" [ref=f16e86] [cursor=pointer]:
+            - /url: https://blog.cron-job.org
+          - text: "|"
+          - link "Twitter" [ref=f16e89] [cursor=pointer]:
+            - /url: https://twitter.com/CronJobOrg
+          - text: "|"
+          - link "GitHub" [ref=f16e92] [cursor=pointer]:
+            - /url: https://github.com/pschlan/cron-job.org
+  - alert [ref=f16e450]:
+    - generic [ref=f16e451]: Cron задание успешно создано.
