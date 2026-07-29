@@ -572,7 +572,6 @@ class TelegramPublisher:
                 return "empty text"
             src_name = self.settings.channel_link.rstrip("/").rsplit("/", 1)[-1] if self.settings.channel_link else "Anetdodik"
             image_path = generate_story_image(text, src_name)
-            err = ""
             with open(image_path, "rb") as f:
                 r = requests.post(
                     f"https://api.telegram.org/bot{self.settings.bot_token}/sendStory",
@@ -582,10 +581,11 @@ class TelegramPublisher:
                 )
                 body = r.json()
                 if r.ok and body.get("ok"):
-                    logger.info("Story posted successfully")
+                    result = body.get("result", {})
+                    logger.info("sendStory raw response: status=%s body=%s", r.status_code, body)
                     Path(image_path).unlink(missing_ok=True)
                     self.db.mark_published(joke.content_hash)
-                    return True
+                    return f"story_ok: {result}"
                 else:
                     err = body.get("description", r.text[:300])
                     logger.warning("sendStory failed (%s): %s", r.status_code, err)
@@ -598,18 +598,17 @@ class TelegramPublisher:
                 )
                 body = r.json()
                 if r.ok and body.get("ok"):
-                    logger.info("Posted story as photo: %s", joke.external_id)
+                    logger.info("Posted fallback photo: %s", joke.external_id)
                     Path(image_path).unlink(missing_ok=True)
                     self.db.mark_published(joke.content_hash)
-                    return True
-                else:
-                    err2 = body.get("description", r.text[:300])
-                    logger.warning("Fallback sendPhoto also failed: %s", err2)
+                    return f"photo_ok: {body.get('result', {})}"
+                err2 = body.get("description", r.text[:300])
+                logger.warning("Fallback sendPhoto also failed: %s", err2)
             Path(image_path).unlink(missing_ok=True)
             return f"sendStory: {err}; sendPhoto: {err2}"
         except Exception as e:
             logger.warning("Failed to send story: %s", e)
-            return str(e)
+            return f"Exception: {e}"
 
     def _send_photo(self, img_url: str, caption: str, content_hash: str) -> bool:
         try:
