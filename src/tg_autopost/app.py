@@ -127,10 +127,10 @@ def run_ingest_and_publish() -> None:
 def run_scheduler() -> None:
     from apscheduler.schedulers.blocking import BlockingScheduler
 
-    scheduler = BlockingScheduler()
+    scheduler = BlockingScheduler(timezone="Europe/Moscow")
 
-    # reduced schedule — 6 posts/day to stop subscriber churn
-    scheduler.add_job(run_ingest_and_publish, "cron", hour=8, minute=0)       # Regular joke
+    # reduced schedule — 6 posts/day MSK
+    scheduler.add_job(run_ingest_and_publish, "cron", hour=10, minute=0)      # Regular joke
     scheduler.add_job(publish_horoscope, "cron", hour=11, minute=30)          # Horoscope
     scheduler.add_job(run_ingest_and_publish, "cron", hour=14, minute=0)      # Regular joke
     scheduler.add_job(publish_meme_image, "cron", hour=17, minute=0)          # Meme
@@ -138,7 +138,8 @@ def run_scheduler() -> None:
     scheduler.add_job(publish_story, "cron", hour=22, minute=30)              # Story (fallback: photo)
     scheduler.add_job(pin_best, "cron", hour=23, minute=0)                    # Pin best
 
-    logging.getLogger(__name__).info(
+    logger = logging.getLogger(__name__)
+    logger.info(
         "Scheduler started — 6 posts/day: 2 jokes + horoscope + meme + newsjacker + story + pin",
     )
 
@@ -148,6 +149,8 @@ def run_scheduler() -> None:
         marked = db.mark_source_published("meme_api")
         if marked:
             logging.getLogger(__name__).info("Marked %s existing meme_api jokes as published (disabled source)", marked)
+        remaining = db.count_unpublished()
+        logging.getLogger(__name__).info("Unpublished jokes remaining: %s", remaining)
     except Exception:
         logging.getLogger(__name__).exception("Startup ingest failed, scheduler will still start")
     scheduler.start()

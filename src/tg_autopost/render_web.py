@@ -1133,6 +1133,8 @@ Sitemap: {_BASE}/sitemap.xml
 
 
 if __name__ == "__main__":
+    from .app import configure_logging
+    configure_logging()
     ensure_bot_started()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "10000")))
 
