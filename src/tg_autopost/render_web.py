@@ -1125,8 +1125,10 @@ def api_trigger_story() -> tuple:
     ensure_bot_started()
     if _settings is None:
         return jsonify({"error": "not ready"}), 503
-    ok = publish_story()
-    return jsonify({"story": ok}), 200 if ok else 503
+    result = publish_story()
+    if result is True:
+        return jsonify({"story": True}), 200
+    return jsonify({"story": False, "error": result}), 503
 
 
 @app.get("/keepalive")

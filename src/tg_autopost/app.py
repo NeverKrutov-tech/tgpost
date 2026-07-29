@@ -88,7 +88,7 @@ def publish_meme_image() -> bool:
     return publisher._publish_meme()
 
 
-def publish_story() -> bool:
+def publish_story() -> bool | str:
     _, _, _, publisher = build_services()
     return publisher._send_story()
 
