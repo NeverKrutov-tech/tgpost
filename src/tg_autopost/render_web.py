@@ -1103,6 +1103,16 @@ def api_random_joke() -> tuple:
     }), 200, {"Access-Control-Allow-Origin": "*"}
 
 
+@app.get("/api/publish")
+def api_trigger_publish() -> tuple:
+    from .app import run_publish
+    ensure_bot_started()
+    if _settings is None:
+        return jsonify({"error": "not ready"}), 503
+    ok = run_publish()
+    return jsonify({"published": ok}), 200 if ok else 503
+
+
 @app.get("/widget.js")
 def widget_js() -> tuple:
     base = _BASE
