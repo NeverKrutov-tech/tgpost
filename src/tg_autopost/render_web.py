@@ -1119,6 +1119,12 @@ def api_trigger_publish() -> tuple:
     return jsonify({"published": ok}), 200 if ok else 503
 
 
+@app.get("/keepalive")
+def keepalive() -> tuple:
+    ensure_bot_started()
+    return jsonify({"ok": True}), 200, {"Cache-Control": "no-cache"}
+
+
 @app.get("/widget.js")
 def widget_js() -> tuple:
     base = _BASE
