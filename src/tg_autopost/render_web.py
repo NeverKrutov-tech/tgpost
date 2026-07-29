@@ -19,6 +19,7 @@ _bot_thread: threading.Thread | None = None
 _scheduler_thread: threading.Thread | None = None
 _handler: PollingHandler | None = None
 _settings = None
+_startup_lock = threading.Lock()
 _BASE = "https://tgpost-bot-l4wq.onrender.com"
 
 
@@ -88,19 +89,24 @@ _STYLE = """
 
 def ensure_bot_started() -> None:
     global _bot_thread, _scheduler_thread, _handler, _settings
-    if _settings is None:
-        _settings = load_settings()
-        db = Database(_settings.database_url or _settings.database_path)
-        _handler = PollingHandler(_settings, db)
-    if _bot_thread is None or not _bot_thread.is_alive():
-        _bot_thread = threading.Thread(target=_handler.run_forever, daemon=True)
-        _bot_thread.start()
-        logging.getLogger(__name__).info("Render bot thread started")
-    if _scheduler_thread is None or not _scheduler_thread.is_alive():
-        from .app import run_scheduler
-        _scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-        _scheduler_thread.start()
-        logging.getLogger(__name__).info("Render scheduler thread started")
+    if not _startup_lock.acquire(blocking=False):
+        return
+    try:
+        if _settings is None:
+            _settings = load_settings()
+            db = Database(_settings.database_url or _settings.database_path)
+            _handler = PollingHandler(_settings, db)
+        if _bot_thread is None or not _bot_thread.is_alive():
+            _bot_thread = threading.Thread(target=_handler.run_forever, daemon=True)
+            _bot_thread.start()
+            logging.getLogger(__name__).info("Render bot thread started")
+        if _scheduler_thread is None or not _scheduler_thread.is_alive():
+            from .app import run_scheduler
+            _scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+            _scheduler_thread.start()
+            logging.getLogger(__name__).info("Render scheduler thread started")
+    finally:
+        _startup_lock.release()
 
 
 def _fetch_message_text(msg_id: int) -> str | None:
