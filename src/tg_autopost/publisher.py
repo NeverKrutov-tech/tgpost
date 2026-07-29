@@ -556,58 +556,9 @@ class TelegramPublisher:
             return False
         return self._send_meme_image(joke)
 
-    def _send_story(self) -> bool | str:
-        try:
-            from .image_gen import generate_story_image
-            joke = self.db.get_next_unpublished()
-            if joke is None:
-                joke = self.db.get_next_popular_unpublished()
-            if joke is None:
-                logger.info("No jokes available for story")
-                return "no jokes"
-            text = joke.text
-            if text.startswith("MEME:"):
-                text = text.split("\n", 1)[1].strip() if "\n" in text else ""
-            if not text:
-                return "empty text"
-            src_name = self.settings.channel_link.rstrip("/").rsplit("/", 1)[-1] if self.settings.channel_link else "Anetdodik"
-            image_path = generate_story_image(text, src_name)
-            story_err = ""
-            with open(image_path, "rb") as f:
-                r = requests.post(
-                    f"https://api.telegram.org/bot{self.settings.bot_token}/sendStory",
-                    data={"chat_id": self.settings.channel_id, "period": 86400},
-                    files={"photo": f},
-                    timeout=self.settings.http_timeout,
-                )
-                body = r.json()
-                if r.ok and body.get("ok"):
-                    logger.info("sendStory succeeded")
-                    Path(image_path).unlink(missing_ok=True)
-                    self.db.mark_published(joke.content_hash)
-                    return True
-                story_err = body.get("description", r.text[:300])
-                logger.warning("sendStory failed (%s): %s", r.status_code, story_err)
-            with open(image_path, "rb") as f:
-                r = requests.post(
-                    f"https://api.telegram.org/bot{self.settings.bot_token}/sendPhoto",
-                    data={"chat_id": self.settings.channel_id, "caption": text},
-                    files={"photo": f},
-                    timeout=self.settings.http_timeout,
-                )
-                body = r.json()
-                if r.ok and body.get("ok"):
-                    logger.info("Posted fallback photo: %s", joke.external_id)
-                    Path(image_path).unlink(missing_ok=True)
-                    self.db.mark_published(joke.content_hash)
-                    return f"sendPhoto fallback (sendStory: {story_err})"
-                err2 = body.get("description", r.text[:300])
-                logger.warning("Fallback sendPhoto also failed: %s", err2)
-            Path(image_path).unlink(missing_ok=True)
-            return f"sendStory: {story_err}; sendPhoto: {err2}"
-        except Exception as e:
-            logger.warning("Failed to send story: %s", e)
-            return f"Exception: {e}"
+    def _send_story(self) -> bool:
+        logger.warning("Stories not supported via Bot API (sendStory returns 404). Use postStory for Business accounts.")
+        return False
 
     def _send_photo(self, img_url: str, caption: str, content_hash: str) -> bool:
         try:
