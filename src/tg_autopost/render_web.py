@@ -3,6 +3,7 @@ import logging
 import os
 import threading
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 from flask import Flask, jsonify, abort, redirect, request
@@ -35,11 +36,11 @@ def _share_urls(msg_id: int, text: str, uname: str) -> str:
     short_text = text.replace("\n", " ")[:100].strip()
     share_base = short_text + f"\n\n\U0001F923 \u0411\u043E\u043B\u044C\u0448\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432 \u0432 @{uname}"
     hashtags = "%23\u0430\u043D\u0435\u043A\u0434\u043E\u0442 %23\u044E\u043C\u043E\u0440 %23\u0441\u043C\u0435\u0445"
-    tg = f"https://t.me/share/url?url={page_url}&text={html_mod.quote(share_base)}"
-    tw = f"https://twitter.com/intent/tweet?text={html_mod.quote(share_base + ' ' + hashtags)}&url={page_url}"
-    vk = f"https://vk.com/share.php?url={page_url}&title={html_mod.quote(share_base)}"
-    wa = f"https://wa.me/?text={html_mod.quote(share_base + ' ' + page_url)}"
-    fb = f"https://www.facebook.com/sharer/sharer.php?u={page_url}&quote={html_mod.quote(share_base)}"
+    tg = f"https://t.me/share/url?url={page_url}&text={quote(share_base)}"
+    tw = f"https://twitter.com/intent/tweet?text={quote(share_base + ' ' + hashtags)}&url={page_url}"
+    vk = f"https://vk.com/share.php?url={page_url}&title={quote(share_base)}"
+    wa = f"https://wa.me/?text={quote(share_base + ' ' + page_url)}"
+    fb = f"https://www.facebook.com/sharer/sharer.php?u={page_url}&quote={quote(share_base)}"
     copy_btn = f'<button class="s cp" onclick="navigator.clipboard.writeText(\'{page_url}\').then(()=>this.textContent=\'\\u2705 \\u0421\\u043a\\u043e\\u043f\\u0438\\u0440\\u043e\\u0432\\u0430\\u043d\\u043e!\').catch(()=>this.textContent=\'\\u274c \\u041e\\u0448\\u0438\\u0431\\u043a\\u0430\')">\\uD83D\\uDCCB \\u041A\\u043E\\u043F\\u0438\\u0440\\u043E\\u0432\\u0430\\u0442\\u044C</button>'
     return f"""
     <div class="shares" style="margin-top:20px">
@@ -306,7 +307,7 @@ def share_redirect(msg_id: int) -> tuple:
     joke_text = _fetch_message_text(msg_id) or ""
     short_text = joke_text.replace("\n", " ")[:100].strip()
     share_text = short_text + f"\n\n\U0001F923 \u0411\u043E\u043B\u044C\u0448\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432 \u0432 @{uname}"
-    tg_url = f"https://t.me/share/url?url={page_url}&text={html_mod.quote(share_text)}"
+    tg_url = f"https://t.me/share/url?url={page_url}&text={quote(share_text)}"
     return redirect(tg_url), 302
 
 
@@ -464,11 +465,11 @@ def _share_urls_joke(joke_id: int, text: str, uname: str, telegram_msg_id: int |
     short_text = text.replace("\n", " ")[:100].strip()
     share_base = short_text + f"\n\n\U0001F923 \u0411\u043E\u043B\u044C\u0448\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u043E\u0432 \u0432 @{uname}"
     hashtags = "%23\u0430\u043D\u0435\u043A\u0434\u043E\u0442 %23\u044E\u043C\u043E\u0440 %23\u0441\u043C\u0435\u0445"
-    tg = f"https://t.me/share/url?url={page_url}&text={html_mod.quote(share_base)}"
-    tw = f"https://twitter.com/intent/tweet?text={html_mod.quote(share_base + ' ' + hashtags)}&url={page_url}"
-    vk = f"https://vk.com/share.php?url={page_url}&title={html_mod.quote(share_base)}"
-    wa = f"https://wa.me/?text={html_mod.quote(share_base + ' ' + page_url)}"
-    fb = f"https://www.facebook.com/sharer/sharer.php?u={page_url}&quote={html_mod.quote(share_base)}"
+    tg = f"https://t.me/share/url?url={page_url}&text={quote(share_base)}"
+    tw = f"https://twitter.com/intent/tweet?text={quote(share_base + ' ' + hashtags)}&url={page_url}"
+    vk = f"https://vk.com/share.php?url={page_url}&title={quote(share_base)}"
+    wa = f"https://wa.me/?text={quote(share_base + ' ' + page_url)}"
+    fb = f"https://www.facebook.com/sharer/sharer.php?u={page_url}&quote={quote(share_base)}"
     return f"""
     <div class="shares" style="margin-top:20px">
       <div style="font-size:12px;color:#888;margin-bottom:6px">\u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F \u0441 \u0434\u0440\u0443\u0437\u044C\u044F\u043C\u0438:</div>
@@ -528,7 +529,7 @@ def top_weekly() -> tuple:
                 joke_id = row["id"]
                 display = text.replace("\n", " ")[:200].rstrip() + "\u2026" if len(text) > 200 else text
                 short = text.replace("\n", " ")[:120].strip()
-                share_tg = f"https://t.me/share/url?url={_BASE}/joke/{joke_id}&text={html_mod.quote(short)}"
+                share_tg = f"https://t.me/share/url?url={_BASE}/joke/{joke_id}&text={quote(short)}"
                 jokes_html += f"""<li>
           <a href="/joke/{joke_id}">{html_mod.escape(display)}</a>
           <br><small><a href="{share_tg}" target="_blank">\u2197 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F</a></small>
@@ -785,7 +786,7 @@ def rubric_page(slug: str) -> tuple:
                 joke_id = joke.get("id", "")
                 display = text.replace("\n", " ")[:200].rstrip() + "\u2026" if len(text) > 200 else text
                 short = text.replace("\n", " ")[:120].strip()
-                share_tg = f"https://t.me/share/url?url={_BASE}/joke/{joke_id}&text={html_mod.quote(short)}" if joke_id else ""
+                share_tg = f"https://t.me/share/url?url={_BASE}/joke/{joke_id}&text={quote(short)}" if joke_id else ""
                 link = f"/joke/{joke_id}" if joke_id else f"https://t.me/{uname}"
                 jokes_html += f"""<li>
           <a href="{link}">{html_mod.escape(display)}</a>
@@ -867,7 +868,7 @@ def seo_landing(slug: str) -> tuple:
             joke_id = row["id"]
             display = text.replace("\n", " ")[:200].rstrip() + "\u2026" if len(text) > 200 else text
             short = text.replace("\n", " ")[:120].strip()
-            share_tg = f"https://t.me/share/url?url={_BASE}/joke/{joke_id}&text={html_mod.quote(short)}"
+            share_tg = f"https://t.me/share/url?url={_BASE}/joke/{joke_id}&text={quote(short)}"
             jokes_html += f"""<li>
           <a href="/joke/{joke_id}">{html_mod.escape(display)}</a>
           <br><small><a href="{share_tg}" target="_blank">\u2197 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F</a></small>

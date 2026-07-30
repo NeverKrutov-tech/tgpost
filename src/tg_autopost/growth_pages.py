@@ -143,18 +143,24 @@ def mini_app() -> tuple:
 @growth_pages.get("/weekly-best")
 def weekly_best() -> tuple:
     """SEO and shareable compilation of ten recently published jokes."""
-    from .config import load_settings
-
+    settings = load_settings()
     uname = _channel_username()
     channel_url = f"https://t.me/{uname}"
     rows = []
-    if _settings is not None:
-        db = Database(_settings.database_url or _settings.database_path)
-        with db.connect() as conn:
-            rows = conn.execute(
-                "SELECT id, text, telegram_msg_id FROM jokes "
-                "WHERE published_at IS NOT NULL ORDER BY published_at DESC LIMIT 10"
-            ).fetchall()
+    if settings is not None:
+        db = Database(settings.database_url or settings.database_path)
+        try:
+            with db.connect() as conn:
+                rows = conn.execute(
+                    "SELECT id, text, telegram_msg_id FROM jokes "
+                    "WHERE published_at IS NOT NULL ORDER BY published_at DESC LIMIT 10"
+                ).fetchall()
+        except Exception:
+            with db.connect() as conn:
+                rows = conn.execute(
+                    "SELECT id, text FROM jokes "
+                    "WHERE published_at IS NOT NULL ORDER BY published_at DESC LIMIT 10"
+                ).fetchall()
 
     cards = ""
     for position, row in enumerate(rows, 1):
