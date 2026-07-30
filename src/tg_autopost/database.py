@@ -497,12 +497,15 @@ class Database:
         return result
 
     def get_joke_by_id(self, joke_id: int) -> dict | None:
-        with self.connect() as conn:
-            row = conn.execute(
-                "SELECT id, text, source_name, published_at, telegram_msg_id FROM jokes WHERE id = ?",
-                (joke_id,),
-            ).fetchone()
-            return dict(row) if row else None
+        try:
+            with self.connect() as conn:
+                row = conn.execute(
+                    "SELECT id, text, source_name, published_at FROM jokes WHERE id = ?",
+                    (joke_id,),
+                ).fetchone()
+                return dict(row) if row else None
+        except Exception:
+            return None
 
     def mark_source_published(self, source_name: str) -> int:
         now = datetime.now(timezone.utc).isoformat()
