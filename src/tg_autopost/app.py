@@ -60,10 +60,22 @@ def build_services():
 
 
 def run_ingest() -> int:
-    settings, _, ingestor, _ = build_services()
-    inserted = ingestor.run(settings.fetch_limit)
-    logging.getLogger(__name__).info("Inserted %s new jokes", inserted)
-    return inserted
+    logger = logging.getLogger(__name__)
+    try:
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError
+        settings, _, ingestor, _ = build_services()
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(ingestor.run, settings.fetch_limit)
+            inserted = future.result(timeout=120)
+            logger.info("Inserted %s new jokes", inserted)
+            return inserted
+    except TimeoutError:
+        logger.warning("Ingest timed out after 120s")
+        return 0
+    except Exception:
+        logger.exception("Ingest failed")
+        return 0
 
 
 def run_publish() -> bool:
