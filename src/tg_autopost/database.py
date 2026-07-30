@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS jokes (
     content_hash TEXT NOT NULL UNIQUE,
     source_views INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
-    published_at TEXT
+    published_at TEXT,
+    telegram_msg_id INTEGER
 );
 """
 

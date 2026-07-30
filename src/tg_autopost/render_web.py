@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 
 import requests
-from flask import Flask, jsonify, abort, redirect
+from flask import Flask, jsonify, abort, redirect, request
 
 from .config import load_settings
 from .database import Database
@@ -506,7 +506,7 @@ def avatar() -> tuple:
 @app.get("/top")
 def top_weekly() -> tuple:
     uname = _channel_username()
-    page = requests.args.get("page", 1, type=int)
+    page = request.args.get("page", 1, type=int)
     per_page = 20
     offset = (page - 1) * per_page
     jokes_html = ""
@@ -1021,7 +1021,7 @@ def widget_info() -> tuple:
 
 @app.get("/search")
 def search() -> tuple:
-    q = requests.args.get("q", "").strip()
+    q = request.args.get("q", "").strip()
     uname = _channel_username()
     results_html = ""
     if q and _settings is not None:
