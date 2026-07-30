@@ -7,9 +7,19 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 |--------|---------|
 | Drop DB + re-ingest | `del data\jokes.db && python -m src.tg_autopost ingest` |
 | Publish one post | `python -m src.tg_autopost publish` |
-| Post a story | `python -m src.tg_autopost story` |
 | Run scheduler + polling | `python -m src.tg_autopost run` |
 | `ADMIN_ID` | Add your Telegram user ID in `.env` for submission moderation |
+
+## Schedule (MSK, 5 posts/day)
+
+| Time | Action |
+|------|--------|
+| 10:00 | Joke (`run_ingest_and_publish`) |
+| 11:30 | Horoscope |
+| 14:00 | Joke (`run_ingest_and_publish`) |
+| 17:00 | Meme (`publish_meme_image`) |
+| 20:00 | Newsjacker (fallback: regular joke) |
+| 23:00 | Pin best post |
 
 ## Web Endpoints (Render)
 
@@ -31,12 +41,23 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 | `/sw.js` | Service worker for PWA |
 | `/api/random-joke` | JSON API — random joke (CORS enabled, for widgets) |
 | `/api/top-referrers` | JSON API — top 10 referrers |
+| `/api/publish` | Manual trigger — publishes one joke (POST via browser GET) |
+| `/keepalive` | Keep Render free tier alive (cron-job.org pings every 10 min) |
+| `/debug` | Bot status: polling alive, bot info, webhook status |
 | `/widget.js` | Embeddable widget — paste `<script src=".../widget.js">` on any site |
 | `/widget` | Widget documentation page with live preview |
 | `/rss.xml` | RSS 2.0 feed (last 20 jokes) |
 | `/sitemap.xml` | Sitemap index → `sitemap-pages.xml` (pages + rubrics + 66 SEO landings) + `sitemap-jokes.xml` (ALL jokes) |
 | `/robots.txt` | Robots disallows nothing, points to sitemap |
 | `/avatar.png` | Channel avatar image |
+
+## Critical architecture notes
+
+- **SQLite (`data/jokes.db`) is ephemeral on Render free tier** — wiped on every deploy/restart. Startup ingest refills DB.
+- **Scheduler starts immediately** (doesn't block on startup ingest). Startup ingest runs as background APScheduler job.
+- **Ingest timeout**: 120s via `ThreadPoolExecutor`. Prevents hanging on blocked sources.
+- **`sendStory` Not supported in Bot API** — only `postStory` for Business accounts. Stories slot removed.
+- **Keepalive**: cron-job.org (`kru.kru.dih@mail.ru` / `350045008000Vfrcbv`) pings `/keepalive` every 10 min.
 
 ## On-page conversion tactics
 - **Sticky subscribe bar** — appears on scroll on all pages
