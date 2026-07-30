@@ -121,6 +121,7 @@ def run_ingest_and_publish() -> None:
 
 def run_scheduler() -> None:
     from apscheduler.schedulers.blocking import BlockingScheduler
+    from datetime import datetime, timezone
 
     scheduler = BlockingScheduler(timezone="Europe/Moscow")
 
@@ -132,21 +133,26 @@ def run_scheduler() -> None:
     scheduler.add_job(publish_newsjacker, "cron", hour=20, minute=0)          # Newsjacker (fallback: regular joke)
     scheduler.add_job(pin_best, "cron", hour=23, minute=0)                    # Pin best
 
+    # Run initial ingest as non-blocking background job so scheduler starts immediately
+    def _startup_ingest():
+        try:
+            run_ingest()
+            db = Database(load_settings().database_url or load_settings().database_path)
+            marked = db.mark_source_published("meme_api")
+            if marked:
+                logging.getLogger(__name__).info("Marked %s existing meme_api jokes as published (disabled source)", marked)
+            remaining = db.count_unpublished()
+            logging.getLogger(__name__).info("Unpublished jokes remaining: %s", remaining)
+        except Exception:
+            logging.getLogger(__name__).exception("Startup ingest failed, scheduler will still start")
+
+    scheduler.add_job(_startup_ingest, "date", run_date=datetime.now(timezone.utc))
+
     logger = logging.getLogger(__name__)
     logger.info(
         "Scheduler started — 5 posts/day: 2 jokes + horoscope + meme + newsjacker + pin",
     )
 
-    try:
-        run_ingest()
-        db = Database(load_settings().database_url or load_settings().database_path)
-        marked = db.mark_source_published("meme_api")
-        if marked:
-            logging.getLogger(__name__).info("Marked %s existing meme_api jokes as published (disabled source)", marked)
-        remaining = db.count_unpublished()
-        logging.getLogger(__name__).info("Unpublished jokes remaining: %s", remaining)
-    except Exception:
-        logging.getLogger(__name__).exception("Startup ingest failed, scheduler will still start")
     scheduler.start()
 
 
