@@ -389,12 +389,19 @@ class Database:
             ).fetchone()
             if row is not None:
                 self._append_published_key(dedup_key(row["text"]))
-            if telegram_msg_id is not None:
-                connection.execute(
-                    "UPDATE jokes SET published_at = ?, telegram_msg_id = ? WHERE content_hash = ?",
-                    (published_at, telegram_msg_id, content_hash),
-                )
-            else:
+            try:
+                if telegram_msg_id is not None:
+                    connection.execute(
+                        "UPDATE jokes SET published_at = ?, telegram_msg_id = ? WHERE content_hash = ?",
+                        (published_at, telegram_msg_id, content_hash),
+                    )
+                else:
+                    connection.execute(
+                        "UPDATE jokes SET published_at = ? WHERE content_hash = ?",
+                        (published_at, content_hash),
+                    )
+            except Exception:
+                # fallback: just set published_at (column may not exist yet)
                 connection.execute(
                     "UPDATE jokes SET published_at = ? WHERE content_hash = ?",
                     (published_at, content_hash),
