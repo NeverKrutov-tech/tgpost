@@ -1,0 +1,27 @@
+- generic [active] [ref=f3e1]:
+  - main [ref=f3e2]:
+    - heading [level=1] [ref=f3e4]:
+      - link "Анекдоты категории Б" [ref=f3e5] [cursor=pointer]:
+        - /url: /
+    - generic [ref=f3e6]:
+      - link "Следующий!" [ref=f3e7] [cursor=pointer]:
+        - /url: random
+      - article [ref=f3e8]:
+        - 'heading "Анек #1" [level=2] [ref=f3e9]'
+        - paragraph [ref=f3e10]: — Скажите, а это ваш "Ягуар" стоит около выхода? — Да. — Я допью?
+      - generic [ref=f3e11]:
+        - generic "ПЛЮСУЮ!" [ref=f3e12] [cursor=pointer]: "1220"
+        - generic [ref=f3e16]: Голосуй!
+    - generic [ref=f3e17]:
+      - link "Лучшие анеки" [ref=f3e18] [cursor=pointer]:
+        - /url: top
+      - link "Канал в Telegram" [ref=f3e19] [cursor=pointer]:
+        - /url: https://t.me/baneksru
+  - generic [ref=f3e22]:
+    - img "Telegram_logo" [ref=f3e24]
+    - heading "Анекдоты категории Б теперь и в телеграм" [level=3] [ref=f3e29]
+    - paragraph [ref=f3e30]: Лучшие анеки и баяны на каждый день!
+    - generic [ref=f3e31]:
+      - link "Канал в телеге" [ref=f3e32] [cursor=pointer]:
+        - /url: https://t.me/baneksru
+      - button "Спасибо, закрыть" [ref=f3e33] [cursor=pointer]

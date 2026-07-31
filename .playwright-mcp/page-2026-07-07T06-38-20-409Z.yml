@@ -1,0 +1,492 @@
+- generic [active] [ref=f10e1]:
+  - generic [ref=f10e4]:
+    - generic [ref=f10e5]:
+      - region "Site announcement" [ref=f10e6]:
+        - generic [ref=f10e7]:
+          - link "Seedance 2.0 — open the kie.ai page" [ref=f10e8] [cursor=pointer]:
+            - /url: https://kie.ai/seedance-2-0-mini
+            - img [ref=f10e9]
+            - generic [ref=f10e13]: Seedance 2.0 Mini from ByteDance has officially landed on Kie! 🚀
+          - button "Close announcement" [ref=f10e14] [cursor=pointer]:
+            - img [ref=f10e15]
+      - navigation [ref=f10e17]:
+        - generic [ref=f10e18]:
+          - link "kie.ai KIE API" [ref=f10e21] [cursor=pointer]:
+            - /url: /
+            - img "kie.ai" [ref=f10e22]
+            - paragraph [ref=f10e23]: KIE API
+          - list [ref=f10e24]
+          - list [ref=f10e25]:
+            - listitem [ref=f10e26]:
+              - button [ref=f10e27] [cursor=pointer]:
+                - img [ref=f10e28]
+            - listitem [ref=f10e32]:
+              - button [ref=f10e34] [cursor=pointer]:
+                - img [ref=f10e35]
+            - listitem [ref=f10e37]:
+              - button "Get Started" [ref=f10e38] [cursor=pointer]
+    - generic [ref=f10e39]:
+      - generic [ref=f10e40]:
+        - generic [ref=f10e41]:
+          - generic [ref=f10e43]:
+            - img [ref=f10e45]
+            - generic [ref=f10e47]:
+              - generic [ref=f10e48]:
+                - generic [ref=f10e50]: veo-3-1
+                - button [ref=f10e51] [cursor=pointer]:
+                  - img [ref=f10e52]
+              - generic [ref=f10e56]: Commercial use
+          - button "Run with API" [ref=f10e58] [cursor=pointer]:
+            - img [ref=f10e59]
+            - text: Run with API
+        - paragraph [ref=f10e61]: Google DeepMind’s upgraded AI video model for realistic motion generation, extended clip duration, multi-image reference control, and synchronized audio output in native 1080p.
+      - generic [ref=f10e62]:
+        - generic [ref=f10e63]:
+          - generic [ref=f10e64]: "Model Type:"
+          - generic [ref=f10e65]:
+            - button "Veo 3 1" [ref=f10e66]:
+              - generic [ref=f10e67]:
+                - generic [ref=f10e68]: Veo 3 1
+                - img [ref=f10e69]
+            - button "Extend" [ref=f10e71] [cursor=pointer]:
+              - generic [ref=f10e73]: Extend
+            - button "Get 4k Video" [ref=f10e74] [cursor=pointer]:
+              - generic [ref=f10e76]: Get 4k Video
+            - button "Get 1080p Video" [ref=f10e77] [cursor=pointer]:
+              - generic [ref=f10e79]: Get 1080p Video
+        - generic [ref=f10e80]:
+          - img [ref=f10e81]
+          - generic [ref=f10e84]: "Pricing: Lite mode (text-to-video / image-to-video/ reference-to-video): 720P — 30 credits (≈ $0.15) per video; 1080P — 35 credits (≈ $0.175) per video; 4K — 150 credits (≈ $0.75) per video. Fast mode (text-to-video / image-to-video / reference-to-video): 720P — 60 credits (≈ $0.30) per video; 1080P — 65 credits (≈ $0.325) per video; 4K — 180 credits (≈ $0.90) per video. Quality mode (text-to-video / image-to-video): 720P — 250 credits (≈ $1.25) per video; 1080P — 255 credits (≈ $1.275) per video; 4K — 370 credits (≈ $1.85) per video. High-tier top-ups (+10% bonus) reduce the effective cost by about 10%, making pricing even lower for Lite, Fast, and Quality mode across all resolutions."
+    - navigation "Tabs" [ref=f10e87]:
+      - button "Playground" [ref=f10e88] [cursor=pointer]:
+        - img [ref=f10e89]
+        - text: Playground
+      - button "Similar" [ref=f10e91] [cursor=pointer]:
+        - img [ref=f10e92]
+        - text: Similar
+      - button "README" [ref=f10e95] [cursor=pointer]:
+        - img [ref=f10e96]
+        - text: README
+      - button "API" [ref=f10e99] [cursor=pointer]:
+        - img [ref=f10e100]
+        - text: API
+    - main [ref=f10e103]:
+      - generic [ref=f10e111]:
+        - generic [ref=f10e113]:
+          - generic [ref=f10e114]:
+            - generic [ref=f10e116]:
+              - generic [ref=f10e117]: Generation Type
+              - generic [ref=f10e118]:
+                - generic [ref=f10e120] [cursor=pointer]: Text to Video
+                - generic [ref=f10e122] [cursor=pointer]: Image to Video
+                - generic [ref=f10e124] [cursor=pointer]: Reference to Video
+            - generic [ref=f10e127]:
+              - generic [ref=f10e128]: Model
+              - button "Veo 3.1 Fast" [ref=f10e129] [cursor=pointer]:
+                - generic [ref=f10e130]: Veo 3.1 Fast
+                - img [ref=f10e132]
+            - generic [ref=f10e135]:
+              - generic [ref=f10e136]: Generation prompt *
+              - textbox "Describe your idea" [ref=f10e138]: "A keyboard whose keys are made of different types of candy. Typing makes sweet, crunchy sounds. Audio: Crunchy, sugary typing sounds, delighted giggles."
+            - generic [ref=f10e140]:
+              - generic [ref=f10e141]:
+                - generic [ref=f10e142]: Ratio
+                - button "Ratio" [ref=f10e143] [cursor=pointer]:
+                  - img [ref=f10e144]
+              - generic [ref=f10e146]:
+                - generic [ref=f10e147] [cursor=pointer]:
+                  - img [ref=f10e148]
+                  - generic [ref=f10e150]: Auto
+                - generic [ref=f10e151] [cursor=pointer]:
+                  - img [ref=f10e152]
+                  - generic [ref=f10e154]: 16:9
+                - generic [ref=f10e155] [cursor=pointer]:
+                  - img [ref=f10e156]
+                  - generic [ref=f10e158]: 9:16
+            - generic [ref=f10e160]:
+              - generic [ref=f10e161]: Resolution
+              - generic [ref=f10e162]:
+                - generic [ref=f10e164] [cursor=pointer]: 720p
+                - generic [ref=f10e166] [cursor=pointer]: 1080p
+                - generic [ref=f10e168] [cursor=pointer]: 4k
+            - generic [ref=f10e170]:
+              - generic [ref=f10e171]: Duration
+              - generic [ref=f10e172]:
+                - generic [ref=f10e174] [cursor=pointer]: 4s
+                - generic [ref=f10e176] [cursor=pointer]: 6s
+                - generic [ref=f10e178] [cursor=pointer]: 8s
+              - paragraph [ref=f10e180]: The duration of the generated video, in seconds.
+          - generic [ref=f10e181]:
+            - button "Generate" [ref=f10e182] [cursor=pointer]
+            - generic [ref=f10e183]:
+              - text: According to google, audio is an experimental feature and may be unavailable on some videos.
+              - button [ref=f10e184] [cursor=pointer]:
+                - img [ref=f10e185]
+        - img [ref=f10e193] [cursor=pointer]
+      - complementary [ref=f10e196]:
+        - generic [ref=f10e197]:
+          - region "Explore more Video to Video models" [ref=f10e198]:
+            - generic [ref=f10e199]:
+              - text: Explore more
+              - link "Video to Video" [ref=f10e200] [cursor=pointer]:
+                - /url: /market/video-to-video
+              - text: models
+            - generic [ref=f10e201]:
+              - article [ref=f10e202]:
+                - link "View Kling 2.6 Motion Control" [ref=f10e204] [cursor=pointer]:
+                  - /url: /kling-2.6-motion-control
+                  - generic "Kling 2.6 Motion Control Kling 2.6 Motion Control AI Model" [ref=f10e205]
+                - generic [ref=f10e206]:
+                  - generic [ref=f10e209]: Kling
+                  - link "Kling 2.6 Motion Control" [ref=f10e211] [cursor=pointer]:
+                    - /url: /kling-2.6-motion-control
+              - article [ref=f10e212]:
+                - link "View Grok Imagine" [ref=f10e214] [cursor=pointer]:
+                  - /url: /grok-imagine
+                  - generic "Grok Imagine Grok Imagine AI Model" [ref=f10e215]
+                - generic [ref=f10e216]:
+                  - generic [ref=f10e219]: Grok
+                  - link "Grok Imagine" [ref=f10e221] [cursor=pointer]:
+                    - /url: /grok-imagine
+              - article [ref=f10e222]:
+                - link "View Seedance 2.0 Mini" [ref=f10e224] [cursor=pointer]:
+                  - /url: /seedance-2-0-mini
+                  - generic "Seedance 2.0 Mini Seedance 2.0 Mini AI Model" [ref=f10e225]
+                - generic [ref=f10e226]:
+                  - generic [ref=f10e229]: ByteDance
+                  - link "Seedance 2.0 Mini" [ref=f10e231] [cursor=pointer]:
+                    - /url: /seedance-2-0-mini
+              - article [ref=f10e232]:
+                - link "View Seedance 2.0" [ref=f10e234] [cursor=pointer]:
+                  - /url: /seedance-2-0
+                  - generic "Seedance 2.0 Seedance 2.0 AI Model" [ref=f10e235]
+                - generic [ref=f10e236]:
+                  - generic [ref=f10e239]: ByteDance
+                  - link "Seedance 2.0" [ref=f10e241] [cursor=pointer]:
+                    - /url: /seedance-2-0
+          - region "More AI models from Google" [ref=f10e242]:
+            - generic [ref=f10e243]:
+              - text: More AI models from
+              - link "Google" [ref=f10e244] [cursor=pointer]:
+                - /url: /market/google
+            - generic [ref=f10e245]:
+              - article [ref=f10e246]:
+                - link "View Nano Banana 2 Lite" [ref=f10e248] [cursor=pointer]:
+                  - /url: /nano-banana-2-lite
+                  - img "Nano Banana 2 Lite Nano Banana 2 Lite AI Model" [ref=f10e249]
+                - generic [ref=f10e250]:
+                  - generic [ref=f10e253]: Google
+                  - link "Nano Banana 2 Lite" [ref=f10e255] [cursor=pointer]:
+                    - /url: /nano-banana-2-lite
+              - article [ref=f10e256]:
+                - link "View Gemini 3.5 Flash" [ref=f10e258] [cursor=pointer]:
+                  - /url: /gemini-3-5-flash
+                  - img "Gemini 3.5 Flash Gemini 3.5 Flash AI Model" [ref=f10e259]
+                - generic [ref=f10e260]:
+                  - generic [ref=f10e263]: Google
+                  - link "Gemini 3.5 Flash" [ref=f10e265] [cursor=pointer]:
+                    - /url: /gemini-3-5-flash
+              - article [ref=f10e266]:
+                - link "View Gemini Omni" [ref=f10e268] [cursor=pointer]:
+                  - /url: /gemini-omni
+                  - generic "Gemini Omni Gemini Omni AI Model" [ref=f10e269]
+                - generic [ref=f10e270]:
+                  - generic [ref=f10e273]: Google
+                  - link "Gemini Omni" [ref=f10e275] [cursor=pointer]:
+                    - /url: /gemini-omni
+              - article [ref=f10e276]:
+                - link "View Gemini 3.1 Pro" [ref=f10e278] [cursor=pointer]:
+                  - /url: /gemini-3-1-pro
+                  - img "Gemini 3.1 Pro Gemini 3.1 Pro AI Model" [ref=f10e279]
+                - generic [ref=f10e280]:
+                  - generic [ref=f10e283]: Google
+                  - link "Gemini 3.1 Pro" [ref=f10e285] [cursor=pointer]:
+                    - /url: /gemini-3-1-pro
+          - region "Latest and popular AI models" [ref=f10e286]:
+            - generic [ref=f10e287]: Latest and popular AI models
+            - generic [ref=f10e288]:
+              - article [ref=f10e289]:
+                - link "View Nano Banana 2 Lite" [ref=f10e291] [cursor=pointer]:
+                  - /url: /nano-banana-2-lite
+                  - img "Nano Banana 2 Lite Nano Banana 2 Lite AI Model" [ref=f10e292]
+                - generic [ref=f10e293]:
+                  - generic [ref=f10e296]: Google
+                  - link "Nano Banana 2 Lite" [ref=f10e298] [cursor=pointer]:
+                    - /url: /nano-banana-2-lite
+              - article [ref=f10e299]:
+                - link "View Claude Sonnet 5" [ref=f10e301] [cursor=pointer]:
+                  - /url: /claude-sonnet-5
+                  - img "Claude Sonnet 5 Claude Sonnet 5 AI Model" [ref=f10e302]
+                - generic [ref=f10e303]:
+                  - generic [ref=f10e306]: Anthropic
+                  - link "Claude Sonnet 5" [ref=f10e308] [cursor=pointer]:
+                    - /url: /claude-sonnet-5
+              - article [ref=f10e309]:
+                - link "View GPT Image 2" [ref=f10e311] [cursor=pointer]:
+                  - /url: /gpt-image-2
+                  - img "GPT Image 2 GPT Image 2 AI Model" [ref=f10e312]
+                - generic [ref=f10e313]:
+                  - generic [ref=f10e316]: OpenAI
+                  - link "GPT Image 2" [ref=f10e318] [cursor=pointer]:
+                    - /url: /gpt-image-2
+              - article [ref=f10e319]:
+                - link "View Nano Banana Pro" [ref=f10e321] [cursor=pointer]:
+                  - /url: /nano-banana-pro
+                  - img "Nano Banana Pro Nano Banana Pro AI Model" [ref=f10e322]
+                - generic [ref=f10e323]:
+                  - generic [ref=f10e326]: Google
+                  - link "Nano Banana Pro" [ref=f10e328] [cursor=pointer]:
+                    - /url: /nano-banana-pro
+      - generic [ref=f10e331]:
+        - generic [ref=f10e332]:
+          - generic [ref=f10e333]: README
+          - paragraph [ref=f10e334]: Complete guide to using veo-3-1
+        - generic [ref=f10e336]:
+          - generic [ref=f10e340]:
+            - generic [ref=f10e343]:
+              - heading "Google Veo 3.1 API" [level=1] [ref=f10e344]
+              - paragraph [ref=f10e345]: Create high-quality videos from text or images with Google Veo 3.1 API on Kie AI. Control every frame, extend scenes, and generate synchronized audio — try Veo 3.1 today and experience cinematic AI video generation.
+            - button [ref=f10e355] [cursor=pointer]
+          - generic [ref=f10e358]:
+            - heading "Available Models of Veo 3.1 API on Kie AI" [level=2] [ref=f10e360]
+            - generic [ref=f10e361]:
+              - generic [ref=f10e362]:
+                - img [ref=f10e364]
+                - img [ref=f10e369]
+                - generic [ref=f10e373]:
+                  - heading "Veo 3.1 Fast" [level=3] [ref=f10e374]
+                  - paragraph [ref=f10e375]:
+                    - generic [ref=f10e376]: Veo 3.1 Fast focuses on speed and lower cost. It’s ideal for fast video generation, social media content, and ad creatives where quick turnaround matters. Use it on Kie AI to test ideas and iterate rapidly.
+              - generic [ref=f10e377]:
+                - img [ref=f10e379]
+                - img [ref=f10e384]
+                - generic [ref=f10e388]:
+                  - heading "Veo 3.1 Quality" [level=3] [ref=f10e389]
+                  - paragraph [ref=f10e390]:
+                    - generic [ref=f10e391]: Veo 3.1 Quality delivers richer detail, smoother motion, and accurate lighting. It’s suited for projects that demand cinematic precision, professional visuals, and consistent high-quality output on Kie AI.
+          - generic [ref=f10e394]:
+            - heading "New Capabilities of Google Veo 3.1 API" [level=2] [ref=f10e397]
+            - generic [ref=f10e399]:
+              - generic [ref=f10e406]:
+                - generic [ref=f10e407]:
+                  - img [ref=f10e410]
+                  - img [ref=f10e413]
+                  - img [ref=f10e416]
+                - heading "Start & End Frame Control in Veo 3.1 API" [level=3] [ref=f10e418]
+                - paragraph [ref=f10e419]:
+                  - generic [ref=f10e420]: You can define exactly how your AI video begins and ends. On Kie AI, the Veo 3.1 API lets you control both the first and last frame, creating smooth, cinematic transitions. This gives your clips a clear rhythm and helps every sequence feel intentional and complete.
+              - generic [ref=f10e433]:
+                - generic [ref=f10e434]:
+                  - img [ref=f10e437]
+                  - img [ref=f10e440]
+                  - img [ref=f10e443]
+                - heading "Multi-Image Reference with Veo AI 3.1" [level=3] [ref=f10e445]
+                - paragraph [ref=f10e446]:
+                  - generic [ref=f10e447]: Use multiple images to guide your video’s visual direction. With the Veo 3.1 API on Kie AI, you can provide different reference images to shape your character design, lighting style, or color tone, ensuring your generated video stays visually consistent across every shot.
+              - generic [ref=f10e460]:
+                - generic [ref=f10e461]:
+                  - img [ref=f10e464]
+                  - img [ref=f10e467]
+                  - img [ref=f10e470]
+                - heading "Native Audio and Richer Sound in Veo 3.1 API" [level=3] [ref=f10e472]
+                - paragraph [ref=f10e473]:
+                  - generic [ref=f10e474]: Veo 3.1 adds native audio to your creations — including dialogue, ambient sound, and effects that match every movement. When you generate videos through Kie AI’s Veo 3.1 API, sound and visuals stay perfectly aligned, making scenes feel more immersive and believable.
+              - generic [ref=f10e487]:
+                - generic [ref=f10e488]:
+                  - img [ref=f10e491]
+                  - img [ref=f10e494]
+                  - img [ref=f10e497]
+                - heading "Extend Your Clips Beyond 8 Seconds with Gemini Veo 3.1" [level=3] [ref=f10e499]
+                - paragraph [ref=f10e500]:
+                  - generic [ref=f10e501]: If you want your clip to continue naturally, you can extend it without losing coherence. The “Extend” feature in Veo 3.1 API allows you to go beyond 8 seconds, carrying forward both motion and narrative to create longer, more dynamic video sequences.
+              - generic [ref=f10e514]:
+                - generic [ref=f10e515]:
+                  - img [ref=f10e518]
+                  - img [ref=f10e521]
+                  - img [ref=f10e524]
+                - heading "Consistent Characters Across Scenes in Veo 3.1 AI Video Generator" [level=3] [ref=f10e526]
+                - paragraph [ref=f10e527]:
+                  - generic [ref=f10e528]: Upload reference images of your character, and Kie AI’s Veo 3.1 API will maintain the subject’s identity, appearance, and motion across every frame. This ensures your character stays visually consistent throughout multiple scenes, creating a cohesive and professional-looking video narrative.
+          - generic [ref=f10e537]:
+            - heading "Veo 3.1 vs Veo 3 vs Sora 2" [level=2] [ref=f10e539]
+            - generic [ref=f10e542]:
+              - generic [ref=f10e547]:
+                - heading "Veo 3" [level=3] [ref=f10e548]
+                - generic [ref=f10e550]: Veo 3 is Google’s first large-scale text-to-video model with cinematic motion and native audio. It supports 16:9 and 9:16 formats, 720p–1080p resolution, and generates short clips up to 8 seconds, optimized for reliable, production-ready video generation.
+              - generic [ref=f10e557]:
+                - heading "Veo 3.1" [level=3] [ref=f10e558]
+                - generic [ref=f10e560]: Veo 3.1 expands creative control with Start & End Frame, Multi-Image Reference, and Extend. It generates longer, smoother clips with stronger prompt adherence, richer native audio, and consistent visual style—ideal for storytelling and cinematic workflows.
+              - generic [ref=f10e567]:
+                - heading "Sora 2" [level=3] [ref=f10e568]
+                - generic [ref=f10e570]: Sora 2 by OpenAI focuses on short-form video creation with realistic motion, synchronized dialogue, and accurate physics simulation. It emphasizes natural scenes, expressive animation, and controllable narrative flow for creative and experimental projects.
+          - generic [ref=f10e575]:
+            - heading "How to Try Google Veo 3.1 API on Kie AI" [level=2] [ref=f10e577]
+            - generic [ref=f10e580]:
+              - generic [ref=f10e585]:
+                - 'heading "Step 1: Create Your Video Prompt with Veo 3.1 API" [level=3] [ref=f10e586]'
+                - generic [ref=f10e588]: Start by writing a text prompt or uploading multiple reference images. The Veo 3.1 API on Kie AI interprets your input to design realistic motion, lighting, and scene composition. You can describe the action, tone, or setting to shape how your video unfolds.
+              - generic [ref=f10e593]:
+                - 'heading "Step 2: Customize Video and Audio Settings in Kie AI" [level=3] [ref=f10e594]'
+                - generic [ref=f10e596]: Choose your preferred settings such as resolution (720p or 1080p) and enable native audio generation. With Kie AI’s Veo 3.1 API, you control how the video sounds and looks—deciding on length, transitions, and ambient sound for a complete cinematic effect.
+              - generic [ref=f10e601]:
+                - 'heading "Step 3: Generate and Download with Veo 3.1 AI Video Generator" [level=3] [ref=f10e602]'
+                - generic [ref=f10e604]: Click Generate to start rendering your clip. Kie AI instantly previews the result so you can review motion, sound, and detail. Once satisfied, download your video or use the Veo 3.1 API endpoint directly for integration into your app or production workflow.
+          - generic [ref=f10e609]:
+            - heading "Why Use Kie AI for Veo 3.1 API Access" [level=2] [ref=f10e611]
+            - generic [ref=f10e613]:
+              - generic [ref=f10e614]:
+                - generic:
+                  - img
+                - generic [ref=f10e616]:
+                  - generic [ref=f10e617]:
+                    - img [ref=f10e619]
+                    - heading "Free Veo 3.1 API Online Testing on Kie AI" [level=3] [ref=f10e622]
+                  - paragraph [ref=f10e624]:
+                    - generic [ref=f10e625]: Generate your first AI video using Veo 3.1 API for free on Kie AI. No installation or setup is needed — simply open the playground, enter your text or image prompt, and see instant results directly in your browser.
+              - generic [ref=f10e626]:
+                - generic:
+                  - img
+                - generic [ref=f10e628]:
+                  - generic [ref=f10e629]:
+                    - img [ref=f10e631]
+                    - heading "Affordable Google Veo 3.1 API Pricing" [level=3] [ref=f10e634]
+                  - paragraph [ref=f10e636]:
+                    - generic [ref=f10e637]: Kie AI provides access to Google Veo 3.1 API at a more affordable rate. You can create high-quality videos with native audio while saving on costs, making it the best choice for developers, creators, and startups building AI video tools.
+              - generic [ref=f10e638]:
+                - generic:
+                  - img
+                - generic [ref=f10e640]:
+                  - generic [ref=f10e641]:
+                    - img [ref=f10e643]
+                    - heading "All AI Video and Image APIs in One Platform" [level=3] [ref=f10e646]
+                  - paragraph [ref=f10e648]:
+                    - generic [ref=f10e649]: Kie AI unifies top AI APIs — including Veo 3.1, Veo 3, Sora 2, and Wan 2.2 — in a single interface. You can explore, compare, and integrate different models without switching platforms, simplifying your entire creative workflow.
+          - generic [ref=f10e651]:
+            - generic [ref=f10e652]:
+              - generic [ref=f10e653]:
+                - generic [ref=f10e654]: "4.8"
+                - generic [ref=f10e655]: / 5
+              - generic [ref=f10e656]:
+                - generic [ref=f10e657]:
+                  - img [ref=f10e658]
+                  - img [ref=f10e660]
+                  - img [ref=f10e662]
+                  - img [ref=f10e664]
+                  - img [ref=f10e666]
+                - generic [ref=f10e668]: 26,460 ratings
+            - generic [ref=f10e669]:
+              - generic [ref=f10e670]: Tap a star to rate
+              - radiogroup "Rate this" [ref=f10e671]:
+                - radio "Poor" [ref=f10e672] [cursor=pointer]:
+                  - img [ref=f10e673]
+                - radio "Fair" [ref=f10e675] [cursor=pointer]:
+                  - img [ref=f10e676]
+                - radio "Good" [ref=f10e678] [cursor=pointer]:
+                  - img [ref=f10e679]
+                - radio "Great" [ref=f10e681] [cursor=pointer]:
+                  - img [ref=f10e682]
+                - radio "Love it" [ref=f10e684] [cursor=pointer]:
+                  - img [ref=f10e685]
+          - generic [ref=f10e689]:
+            - heading "Frequently Asked Questions" [level=2] [ref=f10e690]
+            - generic [ref=f10e691]:
+              - heading "What is Google Veo 3.1?" [level=3] [ref=f10e694]:
+                - button "What is Google Veo 3.1?" [ref=f10e695] [cursor=pointer]:
+                  - text: What is Google Veo 3.1?
+                  - img
+              - heading "What’s the difference between Veo 3.1 and Veo 3?" [level=3] [ref=f10e698]:
+                - button "What’s the difference between Veo 3.1 and Veo 3?" [ref=f10e699] [cursor=pointer]:
+                  - text: What’s the difference between Veo 3.1 and Veo 3?
+                  - img
+              - heading "What’s the difference between Veo 3.1 Fast and Veo 3.1 Quality?" [level=3] [ref=f10e702]:
+                - button "What’s the difference between Veo 3.1 Fast and Veo 3.1 Quality?" [ref=f10e703] [cursor=pointer]:
+                  - text: What’s the difference between Veo 3.1 Fast and Veo 3.1 Quality?
+                  - img
+              - heading "How can I try Veo 3.1 for free on Kie AI?" [level=3] [ref=f10e706]:
+                - button "How can I try Veo 3.1 for free on Kie AI?" [ref=f10e707] [cursor=pointer]:
+                  - text: How can I try Veo 3.1 for free on Kie AI?
+                  - img
+              - heading "What video length, formats, and resolutions does Veo 3.1 support?" [level=3] [ref=f10e710]:
+                - button "What video length, formats, and resolutions does Veo 3.1 support?" [ref=f10e711] [cursor=pointer]:
+                  - text: What video length, formats, and resolutions does Veo 3.1 support?
+                  - img
+    - contentinfo [ref=f10e712]:
+      - generic [ref=f10e713]:
+        - generic [ref=f10e714]:
+          - generic [ref=f10e715]:
+            - paragraph [ref=f10e717]: COMPANY
+            - generic [ref=f10e718]:
+              - link "Blog" [ref=f10e719] [cursor=pointer]:
+                - /url: /blog
+              - link "Sitemap" [ref=f10e720] [cursor=pointer]:
+                - /url: https://kie.ai/sitemap.xml
+              - link "Terms of Use" [ref=f10e721] [cursor=pointer]:
+                - /url: https://kie.ai/terms-of-use
+              - link "Privacy Policy" [ref=f10e722] [cursor=pointer]:
+                - /url: https://kie.ai/privacy-policy
+          - generic [ref=f10e723]:
+            - paragraph [ref=f10e725]: RESOURCES
+            - generic [ref=f10e726]:
+              - 'link "Claude Fable 5 Return: Bedrock & Claude Code Signals" [ref=f10e727] [cursor=pointer]':
+                - /url: /blog/claude-fable-5-return-aws-bedrock-claude-code
+              - 'link "GPT-5.6 Preview Leak: What the Internal Route Shows" [ref=f10e728] [cursor=pointer]':
+                - /url: /blog/gpt-5-6-internal-route-analysis
+              - 'link "GLM-5.2 Benchmark Deep Dive: Open-Weight Frontier" [ref=f10e729] [cursor=pointer]':
+                - /url: /blog/glm-5-2-benchmark-deep-dive
+              - 'link "GPT-5.6 Sol, Terra, Luna: Release Deep Dive" [ref=f10e730] [cursor=pointer]':
+                - /url: /blog/gpt-5-6-sol-terra-luna-deep-dive
+              - 'link "Grok 4.5 Leak: 1.5T Cursor Model Deep Dive" [ref=f10e731] [cursor=pointer]':
+                - /url: /blog/grok-4-5-xai-cursor-1-5t-model-analysis
+              - 'link "Nano Banana 2 Lite Release: Deep Dive" [ref=f10e732] [cursor=pointer]':
+                - /url: /blog/nano-banana-2-lite-google-image-model
+              - 'link "Claude Sonnet 5 Deep Dive: Release, Benchmarks, Pricing" [ref=f10e733] [cursor=pointer]':
+                - /url: /blog/claude-sonnet-5-deep-dive
+          - generic [ref=f10e734]:
+            - paragraph [ref=f10e736]: Market
+            - generic [ref=f10e737]:
+              - link "OpenAI Codex" [ref=f10e738] [cursor=pointer]:
+                - /url: /codex
+              - link "Kling 3.0 Motion Control" [ref=f10e739] [cursor=pointer]:
+                - /url: /kling-3-motion-control
+              - link "GPT-5.4" [ref=f10e740] [cursor=pointer]:
+                - /url: /gpt-5-4
+              - link "Claude Haiku 4.5" [ref=f10e741] [cursor=pointer]:
+                - /url: /claude-haiku-4-5
+              - link "Claude Opus 4.6" [ref=f10e742] [cursor=pointer]:
+                - /url: /claude-opus-4-6
+              - link "Claude Sonnet 4.6" [ref=f10e743] [cursor=pointer]:
+                - /url: /claude-sonnet-4-6
+              - link "Qwen Image 2.0" [ref=f10e744] [cursor=pointer]:
+                - /url: /qwen-image-2
+              - link "Wan2.7 Image" [ref=f10e745] [cursor=pointer]:
+                - /url: /wan-2-7-image
+              - link "Wan 2.7 Video" [ref=f10e746] [cursor=pointer]:
+                - /url: /wan-2-7-video
+              - link "HappyHorse-1.0" [ref=f10e747] [cursor=pointer]:
+                - /url: /happyhorse-1-0
+              - link "GPT Image 2" [ref=f10e748] [cursor=pointer]:
+                - /url: /gpt-image-2
+              - link "GPT-5.5" [ref=f10e749] [cursor=pointer]:
+                - /url: /gpt-5-5
+              - link "Claude Opus 4.7" [ref=f10e750] [cursor=pointer]:
+                - /url: /claude-opus-4-7
+              - link "Gemini Omni" [ref=f10e751] [cursor=pointer]:
+                - /url: /gemini-omni
+              - link "Gemini 3.5 Flash" [ref=f10e752] [cursor=pointer]:
+                - /url: /gemini-3-5-flash
+              - link "Claude Opus 4.8" [ref=f10e753] [cursor=pointer]:
+                - /url: /claude-opus-4-8
+              - link "Grok Imagine Video 1.5" [ref=f10e754] [cursor=pointer]:
+                - /url: /grok-imagine-video-1.5
+              - link "Claude Fable 5" [ref=f10e755] [cursor=pointer]:
+                - /url: /claude-fable-5
+        - generic [ref=f10e756]:
+          - button [ref=f10e758] [cursor=pointer]:
+            - img [ref=f10e759]
+          - generic [ref=f10e763]:
+            - generic [ref=f10e766]: KIE AI
+            - paragraph [ref=f10e767]: © 2025 kie.ai Inc. All rights reserved.
+  - alert [ref=f10e768]
+  - generic [ref=f10e769]:
+    - alert
+    - alert

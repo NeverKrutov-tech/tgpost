@@ -15,6 +15,7 @@ class Settings:
     database_path: str = "data/jokes.db"
     database_url: str = ""
     http_timeout: int = 20
+    cron_secret: str = ""
     youtube_api_key: str = ""
     youtube_channel_id: str = ""
     youtube_client_id: str = ""
@@ -58,6 +59,7 @@ def load_settings() -> Settings:
         database_path=os.getenv("DATABASE_PATH", "data/jokes.db"),
         database_url=os.getenv("DATABASE_URL", "").strip(),
         http_timeout=int(os.getenv("HTTP_TIMEOUT", "20")),
+        cron_secret=os.getenv("CRON_SECRET", "").strip(),
         youtube_api_key=os.getenv("YOUTUBE_API_KEY", "").strip(),
         youtube_channel_id=os.getenv("YOUTUBE_CHANNEL_ID", "").strip(),
         youtube_client_id=os.getenv("YOUTUBE_CLIENT_ID", "").strip(),

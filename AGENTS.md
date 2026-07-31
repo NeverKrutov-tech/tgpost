@@ -10,16 +10,16 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 | Run scheduler + polling | `python -m src.tg_autopost run` |
 | `ADMIN_ID` | Add your Telegram user ID in `.env` for submission moderation |
 
-## Schedule (MSK, 5 posts/day)
+## Schedule (MSK, 5 posts/day) — handled by **external cron (cron-job.org)**
 
-| Time | Action |
-|------|--------|
-| 10:00 | Joke (`run_ingest_and_publish`) |
-| 11:30 | Horoscope |
-| 14:00 | Joke (`run_ingest_and_publish`) |
-| 17:00 | Meme (`publish_meme_image`) |
-| 20:00 | Newsjacker (fallback: regular joke) |
-| 23:00 | Pin best post |
+| Time | Action | Endpoint |
+|------|--------|----------|
+| 10:00 | Joke (`run_ingest_and_publish`) | `GET /cron/joke?key=CRON_SECRET` |
+| 11:30 | Horoscope | `GET /cron/horoscope?key=CRON_SECRET` |
+| 14:00 | Joke (`run_ingest_and_publish`) | `GET /cron/joke?key=CRON_SECRET` |
+| 17:00 | Meme (`publish_meme_image`) | `GET /cron/meme?key=CRON_SECRET` |
+| 20:00 | Newsjacker (fallback: regular joke) | `GET /cron/newsjacker?key=CRON_SECRET` |
+| 23:00 | Pin best post | `GET /cron/pin?key=CRON_SECRET` |
 
 ## Web Endpoints (Render)
 
@@ -43,7 +43,13 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 | `/api/top-referrers` | JSON API — top 10 referrers |
 | `/api/publish` | Manual trigger — publishes one joke (POST via browser GET) |
 | `/keepalive` | Keep Render free tier alive (cron-job.org pings every 10 min) |
-| `/debug` | Bot status: polling alive, bot info, webhook status |
+| `/debug` | Bot status: polling alive, bot info, webhook status, **keepalive timestamp, cron locks** |
+| `/cron/joke` | **External cron** — triggers joke publish (requires `?key=CRON_SECRET`) |
+| `/cron/horoscope` | **External cron** — triggers horoscope (requires `?key=CRON_SECRET`) |
+| `/cron/meme` | **External cron** — triggers meme (requires `?key=CRON_SECRET`) |
+| `/cron/newsjacker` | **External cron** — triggers newsjacker (requires `?key=CRON_SECRET`) |
+| `/cron/pin` | **External cron** — triggers pin best (requires `?key=CRON_SECRET`) |
+| `/cron/catchup` | **External cron** — runs catch-up for missed slots (requires `?key=CRON_SECRET`) |
 | `/widget.js` | Embeddable widget — paste `<script src=".../widget.js">` on any site |
 | `/widget` | Widget documentation page with live preview |
 | `/rss.xml` | RSS 2.0 feed (last 20 jokes) |
@@ -54,10 +60,12 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 ## Critical architecture notes
 
 - **SQLite (`data/jokes.db`) is ephemeral on Render free tier** — wiped on every deploy/restart. Startup ingest refills DB.
-- **Scheduler starts immediately** (doesn't block on startup ingest). Startup ingest runs as background APScheduler job.
+- **External cron (cron-job.org) is PRIMARY scheduler** — hits HTTP endpoints at schedule times. The request itself wakes Render if asleep. In-process APScheduler only runs startup ingest + catch-up.
+- **Idempotency locks** per action (via `channel_meta` table) prevent double posts if both external cron and catch-up fire.
 - **Ingest timeout**: 120s via `ThreadPoolExecutor`. Prevents hanging on blocked sources.
 - **`sendStory` Not supported in Bot API** — only `postStory` for Business accounts. Stories slot removed.
-- **Keepalive**: cron-job.org (`kru.kru.dih@mail.ru` / `350045008000Vfrcbv`) pings `/keepalive` every 10 min.
+- **Keepalive**: cron-job.org (`kru.kru.dih@mail.ru` / `350045008000Vfrcbv`) pings `/keepalive` every 10 min. Timestamp visible in `/debug`.
+- **Catch-up on startup**: after each deploy/wake, missed slots are published (within 2h TTL).
 
 ## On-page conversion tactics
 - **Sticky subscribe bar** — appears on scroll on all pages
@@ -77,3 +85,8 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 - Secrets added to GitHub: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN`
 - `.env` updated locally with all 5 YouTube vars
 - Workflow triggered manually for testing
+
+## Cron setup (cron-job.org)
+- Add 6 jobs hitting the endpoints above at the schedule times
+- Use `key=CRON_SECRET` query param
+- Ensure job is active (free tier may pause after inactivity — check periodically)

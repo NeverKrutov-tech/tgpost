@@ -700,6 +700,37 @@ class Database:
                 "INSERT OR REPLACE INTO channel_meta (key, value) VALUES (?, ?)", (key, value)
             )
 
+    def try_acquire_cron_lock(self, action: str, ttl_seconds: int = 3600) -> bool:
+        """Try to acquire a lock for a cron action. Returns True if acquired, False if already locked."""
+        import time
+        now = int(time.time())
+        lock_key = f"cron_lock_{action}"
+        with self.connect() as connection:
+            row = connection.execute("SELECT value FROM channel_meta WHERE key = ?", (lock_key,)).fetchone()
+            if row:
+                try:
+                    last_run = int(row["value"])
+                    if now - last_run < ttl_seconds:
+                        return False  # lock still valid
+                except ValueError:
+                    pass
+            connection.execute(
+                "INSERT OR REPLACE INTO channel_meta (key, value) VALUES (?, ?)", (lock_key, str(now))
+            )
+            return True
+
+    def get_cron_lock_time(self, action: str) -> int | None:
+        """Get the last run timestamp for a cron action."""
+        lock_key = f"cron_lock_{action}"
+        with self.connect() as connection:
+            row = connection.execute("SELECT value FROM channel_meta WHERE key = ?", (lock_key,)).fetchone()
+            if row:
+                try:
+                    return int(row["value"])
+                except ValueError:
+                    return None
+            return None
+
     def count_approved_submissions(self) -> int:
         with self.connect() as connection:
             row = connection.execute(

@@ -1,0 +1,62 @@
+- generic [ref=f15e3]:
+  - banner [ref=f15e4]:
+    - generic [ref=f15e5]:
+      - button "Меню" [ref=f15e6] [cursor=pointer]
+      - img "cron-job.org" [ref=f15e11]
+      - button [ref=f15e13] [cursor=pointer]
+      - button [ref=f15e21] [cursor=pointer]
+  - generic [ref=f15e27]:
+    - button [ref=f15e29] [cursor=pointer]
+    - generic [ref=f15e33]:
+      - separator [ref=f15e34]
+      - list [ref=f15e35]:
+        - button "Панель управления" [ref=f15e36] [cursor=pointer]
+        - button "Cron задания" [ref=f15e42] [cursor=pointer]
+        - list
+        - button "Страницы статусов" [ref=f15e49] [cursor=pointer]
+        - button "Статистика" [ref=f15e55] [cursor=pointer]
+    - generic [ref=f15e61]:
+      - separator [ref=f15e62]
+      - list [ref=f15e63]:
+        - button "Настройки" [ref=f15e64] [cursor=pointer]
+  - main [ref=f15e70]:
+    - generic [ref=f15e72]:
+      - navigation "breadcrumb" [ref=f15e73]:
+        - list [ref=f15e74]:
+          - listitem [ref=f15e75]:
+            - link "Cron задания" [ref=f15e76] [cursor=pointer]:
+              - /url: /jobs
+      - generic [ref=f15e77]:
+        - heading "Cron задания" [level=1] [ref=f15e79]
+        - group [ref=f15e81]:
+          - button [ref=f15e82] [cursor=pointer]
+          - button [ref=f15e87] [cursor=pointer]
+      - table [ref=f15e93]:
+        - rowgroup [ref=f15e94]:
+          - row [ref=f15e95]:
+            - columnheader [ref=f15e96]:
+              - button [ref=f15e97] [cursor=pointer]
+            - columnheader "Заглавие, URL" [ref=f15e101]
+            - columnheader "Последний запуск" [ref=f15e102]
+            - columnheader "Следующий запуск" [ref=f15e103]
+            - columnheader "Действия" [ref=f15e104]
+        - rowgroup [ref=f15e105]:
+          - row [ref=f15e106]:
+            - cell [ref=f15e107]:
+              - progressbar [ref=f15e108]
+      - paragraph [ref=f15e111]:
+        - text: © 2026
+        - link "cron-job.org" [ref=f15e112] [cursor=pointer]:
+          - /url: https://cron-job.org
+        - text: "| Русский |"
+        - link "Contact" [ref=f15e117] [cursor=pointer]:
+          - /url: https://cron-job.org/contact/
+        - text: "|"
+        - link "Блог" [ref=f15e121] [cursor=pointer]:
+          - /url: https://blog.cron-job.org
+        - text: "|"
+        - link "Twitter" [ref=f15e124] [cursor=pointer]:
+          - /url: https://twitter.com/CronJobOrg
+        - text: "|"
+        - link "GitHub" [ref=f15e127] [cursor=pointer]:
+          - /url: https://github.com/pschlan/cron-job.org

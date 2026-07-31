@@ -212,6 +212,17 @@ def debug() -> tuple:
                 info["webhook_pending"] = whr.get("pending_update_count", 0)
         except Exception as e:
             info["webhook_err"] = str(e)
+    # Keepalive & cron lock status
+    if _settings is not None:
+        db = Database(_settings.database_url or _settings.database_path)
+        try:
+            info["keepalive_last"] = db.get_meta("keepalive_last", "never")
+            info["cron_locks"] = {}
+            for action in ["joke_10", "horoscope", "joke_14", "meme", "newsjacker", "pin"]:
+                ts = db.get_cron_lock_time(action)
+                info["cron_locks"][action] = ts if ts else "never"
+        except Exception as e:
+            info["cron_locks_error"] = str(e)
     return jsonify(info), 200
 
 
@@ -1123,7 +1134,64 @@ def api_trigger_publish() -> tuple:
 @app.get("/keepalive")
 def keepalive() -> tuple:
     ensure_bot_started()
+    if _settings is not None:
+        db = Database(_settings.database_url or _settings.database_path)
+        try:
+            from datetime import datetime, timezone
+            db.set_meta("keepalive_last", datetime.now(timezone.utc).isoformat())
+        except Exception:
+            pass
     return jsonify({"ok": True}), 200, {"Cache-Control": "no-cache"}
+
+
+def _cron_auth() -> bool:
+    if _settings is None:
+        return False
+    key = request.args.get("key", "")
+    return key == _settings.cron_secret
+
+
+def _run_cron(action: str) -> tuple:
+    if not _cron_auth():
+        return jsonify({"error": "unauthorized"}), 401
+    ensure_bot_started()
+    if _settings is None:
+        return jsonify({"error": "not ready"}), 503
+    try:
+        if action == "joke":
+            from .app import _run_with_lock, run_ingest_and_publish
+            _run_with_lock("joke_10", run_ingest_and_publish)
+            return jsonify({"ok": True, "action": "joke"}), 200
+        elif action == "horoscope":
+            from .app import _run_with_lock, publish_horoscope
+            _run_with_lock("horoscope", publish_horoscope)
+            return jsonify({"ok": True, "action": "horoscope"}), 200
+        elif action == "meme":
+            from .app import _run_with_lock, publish_meme_image
+            _run_with_lock("meme", publish_meme_image)
+            return jsonify({"ok": True, "action": "meme"}), 200
+        elif action == "newsjacker":
+            from .app import _run_with_lock, publish_newsjacker
+            _run_with_lock("newsjacker", publish_newsjacker)
+            return jsonify({"ok": True, "action": "newsjacker"}), 200
+        elif action == "pin":
+            from .app import _run_with_lock, pin_best
+            _run_with_lock("pin", pin_best)
+            return jsonify({"ok": True, "action": "pin"}), 200
+        elif action == "catchup":
+            from .app import run_catchup
+            run_catchup()
+            return jsonify({"ok": True, "action": "catchup"}), 200
+        else:
+            return jsonify({"error": "unknown action"}), 400
+    except Exception as e:
+        logging.getLogger(__name__).exception("Cron %s failed", action)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/cron/<action>")
+def cron_endpoint(action: str) -> tuple:
+    return _run_cron(action)
 
 
 @app.get("/widget.js")

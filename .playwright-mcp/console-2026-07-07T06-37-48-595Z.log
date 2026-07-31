@@ -1,0 +1,12 @@
+[    3563ms] [LOG] Pageview limit exceeded: Banner disabled @ https://cdn-cookieyes.com/client_data/bdfc1c4e33625e1b47b0c452/script.js:0
+[    4530ms] [LOG] undefined @ https://kie.ai/_next/static/chunks/pages/index-88b12a75f33814eb.js:0
+[    4723ms] No Login
+[    4724ms] [LOG] undefined @ https://kie.ai/_next/static/chunks/pages/index-88b12a75f33814eb.js:0
+[    4848ms] [INFO] [Tue, 07 Jul 2026 06:37:53 GMT] : [] : @azure/msal-browser@4.20.0 : Info - handleRedirectPromise called but there is no interaction in progress, returning null. @ https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:0
+[    4987ms] No Login
+[    4988ms] [INFO] [Tue, 07 Jul 2026 06:37:53 GMT] : [] : @azure/msal-react@3.0.18 : Info - MsalProvider - handleRedirectPromise resolved, setting inProgress to 'none' @ https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:0
+[    5518ms] [WARNING] clarity TypeError: window.clarity is not a function
+    at h.setClarityIdentify (https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:7:129884) @ https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:6
+[    5883ms] [WARNING] clarity TypeError: window.clarity is not a function
+    at h.setClarityIdentify (https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:7:129884) @ https://kie.ai/_next/static/chunks/pages/_app-5fd6243a2cbe1a94.js:6
+[    8438ms] [ERROR] Not signed in with the identity provider. @ https://kie.ai/ru:0

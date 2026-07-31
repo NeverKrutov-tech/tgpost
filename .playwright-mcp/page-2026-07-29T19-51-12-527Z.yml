@@ -1,0 +1,52 @@
+- main [ref=f12e3]:
+  - generic [ref=f12e4]:
+    - link [ref=f12e5] [cursor=pointer]:
+      - /url: /
+      - img "cron-job.org" [ref=f12e6]
+    - heading "Войти" [level=1] [ref=f12e7]
+    - generic [ref=f12e8]:
+      - alert [ref=f12e48]:
+        - generic [ref=f12e52]:
+          - text: Ваш аккаунт еще не был активирован. Пожалуйста, нажмите на ссылку активации в письме активации, отправленном вам во время регистрации.
+          - generic [ref=f12e53]:
+            - button "Сделано" [disabled]
+      - generic [ref=f12e9]:
+        - generic:
+          - text: Адрес электронной почты
+          - generic: "*"
+        - generic [ref=f12e10]:
+          - textbox [invalid] [ref=f12e11]: Neverkrutov@mail.ru
+          - group
+      - generic [ref=f12e12]:
+        - generic:
+          - text: Пароль
+          - generic: "*"
+        - generic [ref=f12e13]:
+          - textbox [invalid] [ref=f12e14]
+          - group
+      - generic [ref=f12e15] [cursor=pointer]:
+        - checkbox "Запомнить меня" [ref=f12e18]
+        - generic [ref=f12e21]: Запомнить меня
+      - button "Войти" [ref=f12e22] [cursor=pointer]
+      - generic [ref=f12e24]:
+        - link "Забыли пароль?" [ref=f12e26] [cursor=pointer]:
+          - /url: /lostPassword
+        - link "Еще нет аккаунта? Зарегистрируйтесь" [ref=f12e28] [cursor=pointer]:
+          - /url: /signup
+  - paragraph [ref=f12e30]:
+    - text: Русский |
+    - link "Contact" [ref=f12e35] [cursor=pointer]:
+      - /url: https://cron-job.org/contact/
+    - text: "|"
+    - link "Блог" [ref=f12e39] [cursor=pointer]:
+      - /url: https://blog.cron-job.org
+    - text: "|"
+    - link "Twitter" [ref=f12e42] [cursor=pointer]:
+      - /url: https://twitter.com/CronJobOrg
+    - text: "|"
+    - link "GitHub" [ref=f12e45] [cursor=pointer]:
+      - /url: https://github.com/pschlan/cron-job.org
+    - generic [ref=f12e46]:
+      - text: © 2026
+      - link "cron-job.org" [ref=f12e47] [cursor=pointer]:
+        - /url: https://cron-job.org

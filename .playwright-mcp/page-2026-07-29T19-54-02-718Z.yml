@@ -1,0 +1,47 @@
+- main [ref=f14e3]:
+  - generic [ref=f14e4]:
+    - link [ref=f14e5] [cursor=pointer]:
+      - /url: /
+      - img "cron-job.org" [ref=f14e6]
+    - heading "Войти" [level=1] [ref=f14e7]
+    - generic [ref=f14e8]:
+      - generic [ref=f14e9]:
+        - generic:
+          - text: Адрес электронной почты
+          - generic: "*"
+        - generic [ref=f14e10]:
+          - textbox [active] [ref=f14e11]
+          - group
+      - generic [ref=f14e12]:
+        - generic:
+          - text: Пароль
+          - generic: "*"
+        - generic [ref=f14e13]:
+          - textbox [ref=f14e14]
+          - group
+      - generic [ref=f14e15] [cursor=pointer]:
+        - checkbox "Запомнить меня" [ref=f14e18]
+        - generic [ref=f14e21]: Запомнить меня
+      - button "Войти" [ref=f14e22] [cursor=pointer]
+      - generic [ref=f14e24]:
+        - link "Забыли пароль?" [ref=f14e26] [cursor=pointer]:
+          - /url: /lostPassword
+        - link "Еще нет аккаунта? Зарегистрируйтесь" [ref=f14e28] [cursor=pointer]:
+          - /url: /signup
+  - paragraph [ref=f14e30]:
+    - text: Русский |
+    - link "Contact" [ref=f14e35] [cursor=pointer]:
+      - /url: https://cron-job.org/contact/
+    - text: "|"
+    - link "Блог" [ref=f14e39] [cursor=pointer]:
+      - /url: https://blog.cron-job.org
+    - text: "|"
+    - link "Twitter" [ref=f14e42] [cursor=pointer]:
+      - /url: https://twitter.com/CronJobOrg
+    - text: "|"
+    - link "GitHub" [ref=f14e45] [cursor=pointer]:
+      - /url: https://github.com/pschlan/cron-job.org
+    - generic [ref=f14e46]:
+      - text: © 2026
+      - link "cron-job.org" [ref=f14e47] [cursor=pointer]:
+        - /url: https://cron-job.org

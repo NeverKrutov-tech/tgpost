@@ -131,19 +131,69 @@ def run_ingest_and_publish() -> None:
     run_publish()
 
 
+def _run_with_lock(action: str, func, ttl_seconds: int = 3600) -> bool:
+    """Run a cron action with idempotency lock. Returns True if executed, False if skipped."""
+    from .config import load_settings
+    from .database import Database
+
+    settings = load_settings()
+    db = Database(settings.database_url or settings.database_path)
+    if not db.try_acquire_cron_lock(action, ttl_seconds):
+        logging.getLogger(__name__).info("Cron %s skipped (lock held)", action)
+        return False
+    try:
+        result = func()
+        logging.getLogger(__name__).info("Cron %s executed", action)
+        return True
+    except Exception:
+        logging.getLogger(__name__).exception("Cron %s failed", action)
+        return False
+
+
+def run_catchup() -> None:
+    """Run catch-up for any missed scheduled slots."""
+    from datetime import datetime, timezone, timedelta
+    from .config import load_settings
+    from .database import Database
+
+    settings = load_settings()
+    db = Database(settings.database_url or settings.database_path)
+    now = datetime.now(timezone.utc)
+
+    # Schedule: (action_name, hour, minute, function, ttl_seconds)
+    schedule = [
+        ("joke_10", 10, 0, lambda: _run_with_lock("joke_10", run_ingest_and_publish), 7200),
+        ("horoscope", 11, 30, lambda: _run_with_lock("horoscope", publish_horoscope), 7200),
+        ("joke_14", 14, 0, lambda: _run_with_lock("joke_14", run_ingest_and_publish), 7200),
+        ("meme", 17, 0, lambda: _run_with_lock("meme", publish_meme_image), 7200),
+        ("newsjacker", 20, 0, lambda: _run_with_lock("newsjacker", publish_newsjacker), 7200),
+        ("pin", 23, 0, lambda: _run_with_lock("pin", pin_best), 7200),
+    ]
+
+    for action, hour, minute, func, ttl in schedule:
+        # Calculate when this slot should have run today
+        slot_time = datetime(now.year, now.month, now.day, hour, minute, tzinfo=timezone.utc)
+        # If slot is in the past (more than 10 min ago) and lock not set, run it
+        if slot_time < now - timedelta(minutes=10):
+            lock_time = db.get_cron_lock_time(action)
+            if lock_time is None:
+                # No lock set, run catch-up
+                logging.getLogger(__name__).info("Catch-up: running missed %s", action)
+                func()
+            elif now.timestamp() - lock_time > ttl:
+                # Lock expired, run catch-up
+                logging.getLogger(__name__).info("Catch-up: lock expired for %s", action)
+                func()
+
+
 def run_scheduler() -> None:
     from apscheduler.schedulers.blocking import BlockingScheduler
     from datetime import datetime, timezone
 
     scheduler = BlockingScheduler(timezone="Europe/Moscow")
 
-    # reduced schedule — 5 posts/day MSK
-    scheduler.add_job(run_ingest_and_publish, "cron", hour=10, minute=0)      # Regular joke
-    scheduler.add_job(publish_horoscope, "cron", hour=11, minute=30)          # Horoscope
-    scheduler.add_job(run_ingest_and_publish, "cron", hour=14, minute=0)      # Regular joke
-    scheduler.add_job(publish_meme_image, "cron", hour=17, minute=0)          # Meme
-    scheduler.add_job(publish_newsjacker, "cron", hour=20, minute=0)          # Newsjacker (fallback: regular joke)
-    scheduler.add_job(pin_best, "cron", hour=23, minute=0)                    # Pin best
+    # NO cron jobs here — external cron (cron-job.org) handles scheduling via HTTP endpoints
+    # This scheduler only runs startup ingest and keeps the process alive
 
     # Run initial ingest as non-blocking background job so scheduler starts immediately
     def _startup_ingest():
@@ -155,15 +205,15 @@ def run_scheduler() -> None:
                 logging.getLogger(__name__).info("Marked %s existing meme_api jokes as published (disabled source)", marked)
             remaining = db.count_unpublished()
             logging.getLogger(__name__).info("Unpublished jokes remaining: %s", remaining)
+            # Run catch-up after startup
+            run_catchup()
         except Exception:
             logging.getLogger(__name__).exception("Startup ingest failed, scheduler will still start")
 
     scheduler.add_job(_startup_ingest, "date", run_date=datetime.now(timezone.utc))
 
     logger = logging.getLogger(__name__)
-    logger.info(
-        "Scheduler started — 5 posts/day: 2 jokes + horoscope + meme + newsjacker + pin",
-    )
+    logger.info("Scheduler started — external cron handles 5 posts/day via HTTP endpoints")
 
     scheduler.start()
 
