@@ -211,8 +211,11 @@ def run_scheduler() -> None:
                 logging.getLogger(__name__).info("Marked %s existing meme_api jokes as published (disabled source)", marked)
             remaining = db.count_unpublished()
             logging.getLogger(__name__).info("Unpublished jokes remaining: %s", remaining)
-            # Run catch-up after startup
-            run_catchup()
+            # NOTE: no automatic catch-up on startup. On Render free tier the
+            # SQLite DB is ephemeral and wiped on every deploy/restart, so locks
+            # are lost and catch-up would blindly re-publish slots that already
+            # went out (double posts). External cron is the source of truth.
+            # Use GET /cron/catchup?key=... manually when a slot was genuinely missed.
         except Exception:
             logging.getLogger(__name__).exception("Startup ingest failed, scheduler will still start")
 
