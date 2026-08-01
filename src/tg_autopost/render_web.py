@@ -1159,9 +1159,20 @@ def _run_cron(action: str) -> tuple:
         return jsonify({"error": "not ready"}), 503
     try:
         if action == "joke":
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
+
             from .app import _run_with_lock, run_ingest_and_publish
-            _run_with_lock("joke_10", run_ingest_and_publish)
-            return jsonify({"ok": True, "action": "joke"}), 200
+            slot = request.args.get("slot", "")
+            if slot in ("10", "14"):
+                lock_key = f"joke_{slot}"
+            else:
+                # Auto-detect slot by current MSK hour (external cron hits the
+                # same /cron/joke endpoint for both 10:00 and 14:00 slots).
+                hour = datetime.now(ZoneInfo("Europe/Moscow")).hour
+                lock_key = "joke_14" if hour >= 12 else "joke_10"
+            _run_with_lock(lock_key, run_ingest_and_publish)
+            return jsonify({"ok": True, "action": "joke", "slot": lock_key}), 200
         elif action == "horoscope":
             from .app import _run_with_lock, publish_horoscope
             _run_with_lock("horoscope", publish_horoscope)

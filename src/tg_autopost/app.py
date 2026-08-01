@@ -152,37 +152,43 @@ def _run_with_lock(action: str, func, ttl_seconds: int = 3600) -> bool:
 
 def run_catchup() -> None:
     """Run catch-up for any missed scheduled slots."""
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
     from .config import load_settings
     from .database import Database
 
     settings = load_settings()
     db = Database(settings.database_url or settings.database_path)
-    now = datetime.now(timezone.utc)
+    msk = ZoneInfo("Europe/Moscow")
+    now = datetime.now(msk)
+    today = now.date()
 
-    # Schedule: (action_name, hour, minute, function, ttl_seconds)
+    # Schedule in MSK: (action_name, hour, minute, function)
     schedule = [
-        ("joke_10", 10, 0, lambda: _run_with_lock("joke_10", run_ingest_and_publish), 7200),
-        ("horoscope", 11, 30, lambda: _run_with_lock("horoscope", publish_horoscope), 7200),
-        ("joke_14", 14, 0, lambda: _run_with_lock("joke_14", run_ingest_and_publish), 7200),
-        ("meme", 17, 0, lambda: _run_with_lock("meme", publish_meme_image), 7200),
-        ("newsjacker", 20, 0, lambda: _run_with_lock("newsjacker", publish_newsjacker), 7200),
-        ("pin", 23, 0, lambda: _run_with_lock("pin", pin_best), 7200),
+        ("joke_10", 10, 0, lambda: _run_with_lock("joke_10", run_ingest_and_publish)),
+        ("horoscope", 11, 30, lambda: _run_with_lock("horoscope", publish_horoscope)),
+        ("joke_14", 14, 0, lambda: _run_with_lock("joke_14", run_ingest_and_publish)),
+        ("meme", 17, 0, lambda: _run_with_lock("meme", publish_meme_image)),
+        ("newsjacker", 20, 0, lambda: _run_with_lock("newsjacker", publish_newsjacker)),
+        ("pin", 23, 0, lambda: _run_with_lock("pin", pin_best)),
     ]
 
-    for action, hour, minute, func, ttl in schedule:
-        # Calculate when this slot should have run today
-        slot_time = datetime(now.year, now.month, now.day, hour, minute, tzinfo=timezone.utc)
-        # If slot is in the past (more than 10 min ago) and lock not set, run it
-        if slot_time < now - timedelta(minutes=10):
-            lock_time = db.get_cron_lock_time(action)
-            if lock_time is None:
-                # No lock set, run catch-up
-                logging.getLogger(__name__).info("Catch-up: running missed %s", action)
-                func()
-            elif now.timestamp() - lock_time > ttl:
-                # Lock expired, run catch-up
-                logging.getLogger(__name__).info("Catch-up: lock expired for %s", action)
+    for action, hour, minute, func in schedule:
+        # Slot today in MSK
+        slot_time = datetime(now.year, now.month, now.day, hour, minute, tzinfo=msk)
+        # Only catch up if the slot is more than 10 min in the past
+        if slot_time > now - timedelta(minutes=10):
+            continue
+        lock_time = db.get_cron_lock_time(action)
+        if lock_time is None:
+            logging.getLogger(__name__).info("Catch-up: running missed %s", action)
+            func()
+        else:
+            # Compare by calendar day (MSK), not by TTL, to avoid double-posting
+            # a slot that already ran today.
+            lock_date = datetime.fromtimestamp(lock_time, tz=msk).date()
+            if lock_date < today:
+                logging.getLogger(__name__).info("Catch-up: running missed %s (last run %s)", action, lock_date)
                 func()
 
 
