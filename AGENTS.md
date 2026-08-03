@@ -17,7 +17,7 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 | 10:00 | Joke (`run_ingest_and_publish`) | `GET /cron/joke?key=CRON_SECRET` |
 | 11:30 | Horoscope | `GET /cron/horoscope?key=CRON_SECRET` |
 | 14:00 | Joke (`run_ingest_and_publish`) | `GET /cron/joke?key=CRON_SECRET` |
-| 17:00 | Meme (`publish_meme_image`) | `GET /cron/meme?key=CRON_SECRET` |
+| 17:00 | Meme, fallback to joke if no meme is available (`publish_meme_image`) | `GET /cron/meme?key=CRON_SECRET` |
 | 20:00 | Newsjacker (fallback: regular joke) | `GET /cron/newsjacker?key=CRON_SECRET` |
 | 23:00 | Pin best post | `GET /cron/pin?key=CRON_SECRET` |
 
@@ -60,12 +60,12 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 ## Critical architecture notes
 
 - **SQLite (`data/jokes.db`) is ephemeral on Render free tier** — wiped on every deploy/restart. Startup ingest refills DB.
-- **External cron (cron-job.org) is PRIMARY scheduler** — hits HTTP endpoints at schedule times. The request itself wakes Render if asleep. In-process APScheduler only runs startup ingest + catch-up.
+- **External cron (cron-job.org) is PRIMARY scheduler** — hits HTTP endpoints at schedule times. The request itself wakes Render if asleep. In-process APScheduler only runs startup ingest; catch-up is manual and must not be scheduled automatically.
 - **Idempotency locks** per action (via `channel_meta` table) prevent double posts if both external cron and catch-up fire.
 - **Ingest timeout**: 120s via `ThreadPoolExecutor`. Prevents hanging on blocked sources.
 - **`sendStory` Not supported in Bot API** — only `postStory` for Business accounts. Stories slot removed.
 - **Keepalive**: cron-job.org (`kru.kru.dih@mail.ru` / `350045008000Vfrcbv`) pings `/keepalive` every 10 min. Timestamp visible in `/debug`.
-- **Catch-up on startup**: after each deploy/wake, missed slots are published (within 2h TTL).
+- **Catch-up**: never runs automatically on startup. Render free tier wipes SQLite and its locks on restart, so automatic catch-up would duplicate already published posts. Use `/cron/catchup` only after verifying a slot was genuinely missed.
 
 ## On-page conversion tactics
 - **Sticky subscribe bar** — appears on scroll on all pages

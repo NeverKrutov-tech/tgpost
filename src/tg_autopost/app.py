@@ -97,7 +97,12 @@ def publish_anti_advice() -> bool:
 
 def publish_meme_image() -> bool:
     _, _, _, publisher = build_services()
-    return publisher._publish_meme()
+    # The former meme source is disabled. Keep the 17:00 slot productive by
+    # falling back to a regular joke instead of returning 200 without a post.
+    if publisher._publish_meme():
+        return True
+    logging.getLogger(__name__).info("No meme available, falling back to regular publish")
+    return run_publish()
 
 
 def pin_best() -> None:

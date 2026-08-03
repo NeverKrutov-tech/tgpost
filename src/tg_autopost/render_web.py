@@ -1175,12 +1175,12 @@ def _run_cron(action: str) -> tuple:
             return jsonify({"ok": True, "action": "joke", "slot": lock_key}), 200
         elif action == "horoscope":
             from .app import _run_with_lock, publish_horoscope
-            _run_with_lock("horoscope", publish_horoscope)
-            return jsonify({"ok": True, "action": "horoscope"}), 200
+            executed = _run_with_lock("horoscope", publish_horoscope)
+            return jsonify({"ok": True, "action": "horoscope", "executed": executed}), 200
         elif action == "meme":
             from .app import _run_with_lock, publish_meme_image
-            _run_with_lock("meme", publish_meme_image)
-            return jsonify({"ok": True, "action": "meme"}), 200
+            executed = _run_with_lock("meme", publish_meme_image)
+            return jsonify({"ok": True, "action": "meme", "executed": executed}), 200
         elif action == "newsjacker":
             from .app import _run_with_lock, publish_newsjacker
             _run_with_lock("newsjacker", publish_newsjacker)
