@@ -14,4 +14,8 @@ services:
         sync: false
       - key: ADMIN_ID
         sync: false
+      # Donor channels for the Telegram parser. Without this the whole
+      # Telegram ingest branch is skipped and only site sources feed the queue.
+      - key: TELEGRAM_SOURCES
+        value: platinum_aneks,baneksru,X0xoTyH,anekdot_x,sexxx_pornohumor_prikoly
 

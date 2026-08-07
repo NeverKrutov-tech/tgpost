@@ -199,6 +199,9 @@ def debug() -> tuple:
         info["bot_token_present"] = bool(_settings.bot_token)
         info["channel_id"] = _settings.channel_id
         info["admin_id"] = _settings.admin_id
+        # Silent failure mode: no TELEGRAM_SOURCES means the Telegram ingest
+        # branch is skipped entirely and only site sources feed the queue.
+        info["telegram_sources"] = list(_settings.telegram_sources) or "(none - telegram parsing OFF)"
         try:
             me = _api_call(_settings.bot_token, "getMe", timeout=10)
             info["getMe"] = me.get("result") if me else None
