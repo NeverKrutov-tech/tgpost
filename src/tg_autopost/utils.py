@@ -57,6 +57,43 @@ LOW_EFFORT_MARKERS = (
     "\u043f\u043e\u0434\u0431\u043e\u0440\u043a\u0430",
 )
 
+# ponytail: "а у тебя было такое?" only reads naturally under a first-person
+# situational story (the channel's own top posts: "Захожу вчера в маршрутку...",
+# "Я в семейном чате..."). Under a Stirlitz-style character joke or a one-liner
+# nobody has "had that happen to them", so the prompt would look bolted-on.
+FIRST_PERSON_RE = re.compile(
+    r"\b(\u044f|\u043c\u043d\u0435|\u043c\u0435\u043d\u044f|\u0441\u043e "
+    r"\u043c\u043d\u043e\u0439|\u0443 \u043c\u0435\u043d\u044f|\u043c\u043e\u0439|"
+    r"\u043c\u043e\u044f|\u043c\u043e\u0451|\u043d\u0430\u0441)\b"
+    # Vivid present-tense storytelling drops the pronoun and leans on the
+    # verb ("Захожу вчера в маршрутку...", "Сижу дома..."): match common
+    # first-person-singular openers instead of requiring "я" literally.
+    r"|\b\u0437\u0430\u0445\u043e\u0436\u0443|\b\u043f\u0440\u0438\u0445\u043e\u0436\u0443|"
+    r"\b\u0441\u0438\u0436\u0443|\b\u0438\u0434\u0443|\b\u0441\u0442\u043e\u044e|"
+    r"\b\u0432\u0438\u0436\u0443|\b\u0441\u043b\u044b\u0448\u0443|\b\u0435\u0434\u0443|"
+    r"\b\u0440\u0430\u0441\u0441\u043a\u0430\u0437\u044b\u0432\u0430\u043b|"
+    r"\b\u0432\u0441\u043f\u043e\u043c\u043d\u0438\u043b",
+    re.I,
+)
+
+
+def is_relatable_story(text: str) -> bool:
+    """True when a joke is a first-person situational story, not a character
+    bit (Shtirlitz, Vovochka) or a one-liner. Gates the "а у тебя было
+    такое?" comment prompt so it only appears where it fits.
+    """
+    if not text:
+        return False
+    body = normalize_text(text)
+    if len(body) < 100:
+        return False
+    low = body.lower()
+    if any(m in low for m in STALE_MARKERS):
+        return False
+    # The story has to frame itself as personal near the start, not just
+    # mention "we"/"my" somewhere deep in an unrelated punchline.
+    return bool(FIRST_PERSON_RE.search(low[:100]))
+
 
 def quality_score(text: str) -> float:
     """Rank an unpublished joke: higher means more likely to land well.

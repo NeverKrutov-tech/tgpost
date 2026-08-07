@@ -19,6 +19,7 @@ from .levels import get_level
 from .rubrics import classify_emoji, get_hashtags, get_preamble, get_today_rubric, is_jubilee
 from .shorts_maker import render_short, upload_short
 from .youtube import get_channel_stats, get_latest_videos
+from .utils import is_relatable_story
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +44,16 @@ SUNDAY_DIGEST_DAYS = [6]
 CTA_RATIO = 0.5
 CTA_LINES = [
     "\U0001F525 \u0421\u043C\u0435\u0448\u043D\u043E? \u0416\u043C\u0438 \u0440\u0435\u0430\u043A\u0446\u0438\u044E \u2014 \u0442\u0430\u043A \u044F \u043F\u043E\u0439\u043C\u0443, \u0447\u0442\u043E \u0437\u0430\u0445\u043E\u0434\u0438\u0442",
-    "\U0001F4AC \u0410 \u0443 \u0442\u0435\u0431\u044F \u0431\u044B\u043B\u043E \u0442\u0430\u043A\u043E\u0435? \u041F\u0438\u0448\u0438 \u0432 \u043A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u044F\u0445",
     "\U0001F914 \u0417\u0430\u0448\u043B\u043E \u0438\u043B\u0438 \u043D\u0435\u0442? \u041E\u0442\u043C\u0435\u0442\u044C \u0440\u0435\u0430\u043A\u0446\u0438\u0435\u0439 \U0001F44D \u0438\u043B\u0438 \U0001F44E",
     "\u270D\uFE0F \u0421\u0432\u043E\u0439 \u0430\u043D\u0435\u043A\u0434\u043E\u0442 \u043B\u0443\u0447\u0448\u0435? \u041F\u0440\u0438\u0441\u044B\u043B\u0430\u0439 \u0432 @postbotanekdodik_bot \u2014 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u043C",
+]
+
+# ponytail: this one only fires under a relatable first-person story
+# (see is_relatable_story) so "а у тебя было такое?" always matches the text
+# above it instead of looking bolted onto a random one-liner.
+RELATABLE_CTA_LINES = [
+    "\U0001F4AC \u0410 \u0443 \u0442\u0435\u0431\u044F \u0431\u044B\u043B\u043E \u0442\u0430\u043A\u043E\u0435? \u0420\u0430\u0441\u0441\u043A\u0430\u0436\u0438 \u0432 \u043A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u044F\u0445 \U0001F447",
+    "\U0001F440 \u0423\u0437\u043D\u0430\u043B \u0441\u0435\u0431\u044F? \u041F\u0438\u0448\u0438 \u0432 \u043A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u044F\u0445, \u0447\u0442\u043E \u0431\u044B\u043B\u043E \u0443 \u0442\u0435\u0431\u044F",
 ]
 
 
@@ -416,7 +424,8 @@ class TelegramPublisher:
         post_number = self.db.count_published() + 1
         text = _build_text(joke.text, rubric, post_number, preamble_override, is_part2, self.settings.channel_link)
         if not is_part2 and random.random() < CTA_RATIO:
-            text += "\n\n" + random.choice(CTA_LINES)
+            pool = RELATABLE_CTA_LINES if is_relatable_story(joke.text) else CTA_LINES
+            text += "\n\n" + random.choice(pool)
         payload = {
             "chat_id": self.settings.channel_id,
             "text": text,
