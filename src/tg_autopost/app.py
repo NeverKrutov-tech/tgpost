@@ -131,13 +131,20 @@ def publish_newsjacker() -> bool:
     return ok
 
 
-def run_ingest_and_publish() -> None:
+def run_ingest_and_publish() -> bool:
     run_ingest()
-    run_publish()
+    return run_publish()
 
 
 def _run_with_lock(action: str, func, ttl_seconds: int = 3600) -> bool:
-    """Run a cron action with idempotency lock. Returns True if executed, False if skipped."""
+    """Run a cron action with idempotency lock.
+
+    Returns True only if the slot actually posted something. False covers
+    three cases that used to look identical from outside: lock already held,
+    the action ran but had nothing to publish (empty queue), and a crash.
+    Callers that report status back to cron (e.g. /cron/joke) rely on this
+    to tell "silently did nothing" apart from "worked".
+    """
     from .config import load_settings
     from .database import Database
 
@@ -148,8 +155,9 @@ def _run_with_lock(action: str, func, ttl_seconds: int = 3600) -> bool:
         return False
     try:
         result = func()
-        logging.getLogger(__name__).info("Cron %s executed", action)
-        return True
+        posted = result is not False
+        logging.getLogger(__name__).info("Cron %s executed (posted=%s)", action, posted)
+        return posted
     except Exception:
         logging.getLogger(__name__).exception("Cron %s failed", action)
         return False

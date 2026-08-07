@@ -202,6 +202,12 @@ def debug() -> tuple:
         # Silent failure mode: no TELEGRAM_SOURCES means the Telegram ingest
         # branch is skipped entirely and only site sources feed the queue.
         info["telegram_sources"] = list(_settings.telegram_sources) or "(none - telegram parsing OFF)"
+        db = Database(_settings.database_url or _settings.database_path)
+        info["last_joke_results"] = {
+            slot: db.get_meta(f"cron_result_{slot}", "(no run yet)")
+            for slot in ("joke_10", "joke_14")
+        }
+        info["unpublished_jokes_in_queue"] = db.count_unpublished()
         try:
             me = _api_call(_settings.bot_token, "getMe", timeout=10)
             info["getMe"] = me.get("result") if me else None
@@ -1175,12 +1181,19 @@ def _run_cron(action: str) -> tuple:
                 hour = datetime.now(ZoneInfo("Europe/Moscow")).hour
                 lock_key = "joke_14" if hour >= 12 else "joke_10"
             # ponytail: ingest can take up to 120s, external cron times out at 30s.
-            # Run in background thread so the cron request returns immediately.
-            threading.Thread(
-                target=_run_with_lock,
-                args=(lock_key, run_ingest_and_publish),
-                daemon=True,
-            ).start()
+            # Run in background thread so the cron request returns immediately,
+            # but record the outcome so /debug can show what actually happened -
+            # a 200 OK here only ever meant "the thread was started".
+            def _run_and_record():
+                posted = _run_with_lock(lock_key, run_ingest_and_publish)
+                db = Database(_settings.database_url or _settings.database_path)
+                db.set_meta(f"cron_result_{lock_key}", f"posted={posted}")
+                if not posted:
+                    logging.getLogger(__name__).warning(
+                        "Cron %s did not post anything (queue empty or crash) - check /debug", lock_key
+                    )
+
+            threading.Thread(target=_run_and_record, daemon=True).start()
             return jsonify({"ok": True, "action": "joke", "slot": lock_key, "async": True}), 200
         elif action == "horoscope":
             from .app import _run_with_lock, publish_horoscope
@@ -1305,7 +1318,11 @@ if __name__ == "__main__":
     from .app import configure_logging
     configure_logging()
     ensure_bot_started()
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "10000")))
+    # ponytail: default Werkzeug dev server handles one request at a time.
+    # A slow request (image render, telegram API hiccup) blocked every other
+    # route including /cron/*, which cron-job.org then reports as a false
+    # "200 OK" once the queue finally freed up minutes later.
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "10000")), threaded=True)
 
 
 @app.get("/manifest.json")
