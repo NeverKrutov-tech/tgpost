@@ -1240,6 +1240,64 @@ Sitemap: {_BASE}/sitemap.xml
     return txt, 200, {"Content-Type": "text/plain; charset=utf-8"}
 
 
+# ponytail: IndexNow is the whole SEO submission story - one POST, no account,
+# no OAuth. Yandex + Bing pick it up; Google finds pages via the sitemap.
+INDEXNOW_KEY = "a7f3c9e21b8d4056a1e94c7b3d2f68e5"
+
+
+@app.get(f"/{INDEXNOW_KEY}.txt")
+def indexnow_key_file() -> tuple:
+    """Ownership proof: IndexNow fetches this before accepting submissions."""
+    return INDEXNOW_KEY, 200, {"Content-Type": "text/plain; charset=utf-8"}
+
+
+def submit_to_indexnow(urls: list[str]) -> bool:
+    """Tell Yandex/Bing about new pages. Silent no-op on failure."""
+    if not urls:
+        return False
+    host = _BASE.split("://", 1)[-1]
+    try:
+        resp = requests.post(
+            "https://api.indexnow.org/indexnow",
+            json={
+                "host": host,
+                "key": INDEXNOW_KEY,
+                "keyLocation": f"{_BASE}/{INDEXNOW_KEY}.txt",
+                "urlList": urls[:10000],
+            },
+            timeout=20,
+        )
+        logging.getLogger(__name__).info(
+            "IndexNow: submitted %d urls, status %s", len(urls), resp.status_code
+        )
+        return resp.status_code in (200, 202)
+    except Exception:
+        logging.getLogger(__name__).exception("IndexNow submission failed")
+        return False
+
+
+@app.get("/cron/indexnow")
+def cron_indexnow() -> tuple:
+    """Submit every joke page + landing to IndexNow. Run daily via cron."""
+    if not _cron_auth():
+        return jsonify({"error": "unauthorized"}), 401
+    urls = [f"{_BASE}/", f"{_BASE}/top", f"{_BASE}/search", f"{_BASE}/widget"]
+    urls += [f"{_BASE}/rubric/{slug}" for slug in _RUBRIC_SLUGS]
+    urls += [f"{_BASE}/{entry[0]}" for entry in _SEO_LANDING]
+    if _settings is not None:
+        try:
+            db = Database(_settings.database_url or _settings.database_path)
+            with db.connect() as conn:
+                rows = conn.execute(
+                    "SELECT id FROM jokes WHERE published_at IS NOT NULL ORDER BY published_at DESC"
+                ).fetchall()
+            urls += [f"{_BASE}/joke/{row['id']}" for row in rows]
+        except Exception:
+            logging.getLogger(__name__).exception("IndexNow: joke lookup failed")
+    ok = submit_to_indexnow(urls)
+    return jsonify({"ok": ok, "submitted": len(urls)}), 200
+
+
 if __name__ == "__main__":
     from .app import configure_logging
     configure_logging()
