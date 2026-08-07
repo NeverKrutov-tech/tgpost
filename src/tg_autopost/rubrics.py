@@ -2,6 +2,35 @@ import datetime
 import random
 import re
 
+# ponytail: plain "in" substring matching turned "который" into a false
+# "кот" (animal) hit - real post: an Africa/tribal-chief joke got tagged
+# #животные and prefaced "Мой питомец сегодня:". Left word-boundary handles
+# most keywords ("лицензия" no longer matches "цен"), but "кот" needs one
+# more exception since "который" also starts with it.
+_KEYWORD_EXCLUDE = {
+    "кот": ("котор",),
+    "пап": ("папер",),
+}
+
+
+def _keyword_hits(text_lower: str, keyword: str) -> bool:
+    kw = keyword.lower()
+    excludes = _KEYWORD_EXCLUDE.get(kw, ())
+    start = 0
+    while True:
+        idx = text_lower.find(kw, start)
+        if idx == -1:
+            return False
+        at_word_start = idx == 0 or not text_lower[idx - 1].isalpha()
+        if at_word_start and not any(text_lower.startswith(ex, idx) for ex in excludes):
+            return True
+        start = idx + 1
+
+
+def _any_keyword_hits(text_lower: str, keywords: list[str]) -> bool:
+    return any(_keyword_hits(text_lower, kw) for kw in keywords)
+
+
 RUBRICS = [
     {
         "name": "Семейное",
@@ -204,13 +233,13 @@ def matches_rubric(text: str, keywords: list[str]) -> bool:
     if not keywords:
         return True
     lower = text.lower()
-    return any(kw.lower() in lower for kw in keywords)
+    return _any_keyword_hits(lower, keywords)
 
 
 def get_preamble(text: str) -> str:
     lower = text.lower()
     for keywords, options in PREAMBLES:
-        if any(kw.lower() in lower for kw in keywords):
+        if _any_keyword_hits(lower, keywords):
             return random.choice(options)
     return ""
 
@@ -237,7 +266,7 @@ def get_hashtags(text: str) -> str:
     lower = text.lower()
     found = []
     for keywords, hashtag in KEYWORD_HASHTAGS:
-        if any(kw in lower for kw in keywords):
+        if _any_keyword_hits(lower, keywords):
             if hashtag not in found:
                 found.append(hashtag)
     if not found:
