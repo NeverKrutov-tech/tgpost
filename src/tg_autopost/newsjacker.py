@@ -11,6 +11,7 @@ import requests
 from .database import Database
 from .rubrics import RUBRICS
 from .utils import dedup_key
+from .content_filter import is_political
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,8 @@ def _find_joke(db: Database, keywords: List[str]) -> Optional[tuple]:
     for row in rows:
         if dedup_key(row["text"]) in published_keys:
             continue
+        if is_political(row["text"]):
+            continue
         text_lower = row["text"].lower()
         match_count = sum(1 for kw in keywords if kw.lower() in text_lower)
         if match_count >= 2:
@@ -96,6 +99,8 @@ def _find_joke(db: Database, keywords: List[str]) -> Optional[tuple]:
     if not candidates:
         for row in rows:
             if dedup_key(row["text"]) in published_keys:
+                continue
+            if is_political(row["text"]):
                 continue
             text_lower = row["text"].lower()
             match_count = sum(1 for kw in keywords if kw.lower() in text_lower)
@@ -114,7 +119,11 @@ def make_newsjacker_post(db: Database) -> Optional[tuple]:
         return None
 
     seen = _load_seen_news()
-    unseen = [n for n in news_list if n["title"] not in seen]
+    # ponytail: this pulls raw headlines from lenta.ru/tass.ru straight into
+    # a humor channel. War/politics headlines (e.g. "Zelensky vs Zaluzhny")
+    # slipped through with no filter at all - is_flagged only ran on the
+    # matched joke text, never on the news title driving the whole post.
+    unseen = [n for n in news_list if n["title"] not in seen and not is_political(n["title"])]
     if not unseen:
         logger.info("All news already seen")
         return None

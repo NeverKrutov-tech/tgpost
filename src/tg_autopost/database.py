@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterator, Tuple
 
 from .models import Joke
+from .content_filter import is_flagged
 from .utils import build_hash, dedup_key, quality_score
 
 PUBLISHED_KEYS_FILE = "data/published_keys.txt"
@@ -298,9 +299,14 @@ class Database:
         # ponytail: pick the best of a random sample instead of the first hit.
         # Views only compare within one source, so quality_score ranks on the
         # text itself and keeps site jokes competing with Telegram ones.
+        # is_flagged used to only run on YouTube shorts - regular posts had
+        # zero content moderation, which is how a political headline and a
+        # "demographic crater / war" rant landed on the humor channel.
         best, best_score = None, -1.0
         for row in rows:
             if dedup_key(row["text"]) in published_keys:
+                continue
+            if is_flagged(row["text"]):
                 continue
             score = quality_score(row["text"])
             if score > best_score:
@@ -331,7 +337,7 @@ class Database:
                 """
             ).fetchall()
         for row in rows:
-            if dedup_key(row["text"]) not in published_keys:
+            if dedup_key(row["text"]) not in published_keys and not is_flagged(row["text"]):
                 return Joke(
                     text=row["text"],
                     source_name=row["source_name"],
@@ -360,6 +366,8 @@ class Database:
         best, best_score = None, -1.0
         for row in rows:
             if dedup_key(row["text"]) in published_keys:
+                continue
+            if is_flagged(row["text"]):
                 continue
             text_lower = row["text"].lower()
             if keywords and not any(kw.lower() in text_lower for kw in keywords):
