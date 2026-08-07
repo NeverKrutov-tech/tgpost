@@ -14,23 +14,51 @@ logger = logging.getLogger(__name__)
 
 TME_URL = "https://t.me/s/{channel}"
 
+# ponytail: almost every channel signs its posts with @username or a t.me link.
+# Rejecting those threw away most of the good jokes, so strip the signature
+# instead and judge what is left.
+NOISE_PATTERNS = [
+    re.compile(r"https?://\S+", re.I),
+    re.compile(r"tg://\S+", re.I),
+    re.compile(r"\bt\.me/\S+", re.I),
+    re.compile(r"@[A-Za-z]\w{3,}"),
+    re.compile(r"#\w+"),
+]
+
+# Only drop the post outright when there is no joke to salvage.
 SKIP_PATTERNS = [
-    re.compile(r"https?://", re.I),
-    re.compile(r"@\w+"),
-    re.compile(r"tg://"),
-    re.compile(r"t\.me/"),
     re.compile(r"^\d+$"),
 ]
 
+
+def strip_noise(text: str) -> str:
+    """Remove channel signatures, links and hashtags, keep the joke."""
+    for pattern in NOISE_PATTERNS:
+        text = pattern.sub(" ", text)
+    lines = [ln.strip() for ln in text.split("\n")]
+    # Trailing lines that were pure signature are now empty - drop them.
+    while lines and not lines[-1]:
+        lines.pop()
+    while lines and not lines[0]:
+        lines.pop(0)
+    return "\n".join(lines)
+
+# ponytail: "подпишись" alone is just a channel signature, not an ad - it gets
+# stripped by strip_noise. Only phrases that mean the post itself is an ad or
+# a teaser stay here.
 AD_PHRASES = [
     "\u0447\u0438\u0442\u0430\u0442\u044C \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435",
     "\u0447\u0438\u0442\u0430\u0439\u0442\u0435 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435",
     "\u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432",
-    "\u043F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C",
-    "\u043F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C \u043D\u0430",
     "\u0440\u0435\u043A\u043B\u0430\u043C\u0430",
     "\u0440\u0435\u043A\u043B\u0430\u043C\u043D\u044B\u0439 \u043F\u043E\u0441\u0442",
+    "\u0435\u0440\u0438\u0434",
+    "\u0440\u0435\u0444. \u0441\u0441\u044B\u043B\u043A\u0430",
+    "\u043F\u0440\u043E\u043C\u043E\u043A\u043E\u0434",
+    "\u0441\u043A\u0438\u0434\u043A\u0430 \u043F\u043E \u043F\u0440\u043E\u043C\u043E\u043A\u043E\u0434\u0443",
 ]
+
+CYRILLIC_RE = re.compile(r"[\u0430-\u044F\u0451]", re.I)
 
 MIN_LENGTH = 30
 MAX_LENGTH = 3000
@@ -81,16 +109,23 @@ class TelegramChannelSource(JokeSource):
                     continue
 
                 raw_text = text_div.get_text("\n", strip=True)
-                if not raw_text or len(raw_text) < MIN_LENGTH or len(raw_text) > MAX_LENGTH:
+                if not raw_text or len(raw_text) > MAX_LENGTH:
                     continue
-                if any(p.search(raw_text) for p in SKIP_PATTERNS):
-                    continue
+
                 raw_lower = raw_text.lower()
                 if any(phrase in raw_lower for phrase in AD_PHRASES):
                     continue
 
+                # Strip the channel signature first, then judge what remains.
+                raw_text = strip_noise(raw_text)
+                if any(p.search(raw_text) for p in SKIP_PATTERNS):
+                    continue
+
                 text = normalize_text(raw_text)
                 if not text or len(text) < MIN_LENGTH:
+                    continue
+                # Russian channel: drop posts that are not actually Russian.
+                if len(CYRILLIC_RE.findall(text)) < len(text) * 0.3:
                     continue
 
                 views_el = msg.select_one("span.tgme_widget_message_views")
