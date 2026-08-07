@@ -9,6 +9,13 @@ scripts/client_secret.json
 
 # Temp check scripts
 check_*.py
+_check.py
+
+# Local project brain: session protocols contain tokens/secrets, keep offline
+Мозг/
+
+# Browser automation artifacts
+.playwright-mcp/
 
 # Database
 data/*.db
