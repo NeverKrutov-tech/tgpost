@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Iterator, Tuple
 
 from .models import Joke
-from .utils import build_hash, dedup_key
+from .utils import build_hash, dedup_key, quality_score
 
 PUBLISHED_KEYS_FILE = "data/published_keys.txt"
 
@@ -291,21 +291,32 @@ class Database:
                 FROM jokes
                 WHERE published_at IS NULL
                 ORDER BY RANDOM()
+                LIMIT 400
                 """
             ).fetchall()
 
+        # ponytail: pick the best of a random sample instead of the first hit.
+        # Views only compare within one source, so quality_score ranks on the
+        # text itself and keeps site jokes competing with Telegram ones.
+        best, best_score = None, -1.0
         for row in rows:
-            if dedup_key(row["text"]) not in published_keys:
-                return Joke(
-                    text=row["text"],
-                    source_name=row["source_name"],
-                    source_url=row["source_url"],
-                    external_id=row["external_id"],
-                    content_hash=row["content_hash"],
-                    source_views=row["source_views"],
-                    created_at=datetime.fromisoformat(row["created_at"]),
-                    published_at=datetime.fromisoformat(row["published_at"]) if row["published_at"] else None,
-                )
+            if dedup_key(row["text"]) in published_keys:
+                continue
+            score = quality_score(row["text"])
+            if score > best_score:
+                best, best_score = row, score
+        if best is not None:
+            return Joke(
+                text=best["text"],
+                source_name=best["source_name"],
+                source_url=best["source_url"],
+                external_id=best["external_id"],
+                content_hash=best["content_hash"],
+                source_views=best["source_views"],
+                created_at=datetime.fromisoformat(best["created_at"]),
+                published_at=datetime.fromisoformat(best["published_at"]) if best["published_at"] else None,
+            )
+
         return None
 
     def get_next_popular_unpublished(self) -> Joke | None:
@@ -345,20 +356,27 @@ class Database:
                 (max_batch,),
             ).fetchall()
 
+        # Best match wins, not the first one that happens to contain a keyword.
+        best, best_score = None, -1.0
         for row in rows:
             if dedup_key(row["text"]) in published_keys:
                 continue
             text_lower = row["text"].lower()
-            if not keywords or any(kw.lower() in text_lower for kw in keywords):
-                return Joke(
-                    text=row["text"],
-                    source_name=row["source_name"],
-                    source_url=row["source_url"],
-                    external_id=row["external_id"],
-                    content_hash=row["content_hash"],
-                    source_views=row["source_views"],
-                )
-        return None
+            if keywords and not any(kw.lower() in text_lower for kw in keywords):
+                continue
+            score = quality_score(row["text"])
+            if score > best_score:
+                best, best_score = row, score
+        if best is None:
+            return None
+        return Joke(
+            text=best["text"],
+            source_name=best["source_name"],
+            source_url=best["source_url"],
+            external_id=best["external_id"],
+            content_hash=best["content_hash"],
+            source_views=best["source_views"],
+        )
 
     def get_unpublished_meme(self) -> Joke | None:
         published_keys = self._get_published_dedup_keys()
