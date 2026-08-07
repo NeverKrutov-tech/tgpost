@@ -1171,8 +1171,14 @@ def _run_cron(action: str) -> tuple:
                 # same /cron/joke endpoint for both 10:00 and 14:00 slots).
                 hour = datetime.now(ZoneInfo("Europe/Moscow")).hour
                 lock_key = "joke_14" if hour >= 12 else "joke_10"
-            _run_with_lock(lock_key, run_ingest_and_publish)
-            return jsonify({"ok": True, "action": "joke", "slot": lock_key}), 200
+            # ponytail: ingest can take up to 120s, external cron times out at 30s.
+            # Run in background thread so the cron request returns immediately.
+            threading.Thread(
+                target=_run_with_lock,
+                args=(lock_key, run_ingest_and_publish),
+                daemon=True,
+            ).start()
+            return jsonify({"ok": True, "action": "joke", "slot": lock_key, "async": True}), 200
         elif action == "horoscope":
             from .app import _run_with_lock, publish_horoscope
             executed = _run_with_lock("horoscope", publish_horoscope)

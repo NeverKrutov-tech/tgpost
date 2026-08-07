@@ -38,6 +38,14 @@ QUIZ_RATIO = 0.15
 FRIDAY_PROMPT_DAYS = [4]
 SUNDAY_DIGEST_DAYS = [6]
 
+CTA_RATIO = 0.6
+CTA_LINES = [
+    "\U0001F4A5 \u0421\u043C\u0435\u0448\u043D\u043E? \u0416\u043C\u0438 \u201C\u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F\u201D \u2014 \u043f\u0443\u0441\u0442\u044C \u0434\u0440\u0443\u0437\u044C\u044F \u0442\u043e\u0436\u0435 \u043f\u043e\u0441\u043c\u0435\u044e\u0442\u0441\u044f \U0001F604",
+    "\U0001F4C8 \u041F\u043E\u043D\u0440\u0430\u0432\u0438\u043B\u043E\u0441\u044C? \u041F\u043E\u0441\u0442\u0430\u0432\u044C \u0440\u0435\u0430\u043A\u0446\u0438\u044E \u2014 \u0442\u0430\u043A \u0430\u043B\u0433\u043E\u0440\u0438\u0442\u043C \u043F\u043E\u043A\u0430\u0436\u0435\u0442 \u0435\u0433\u043E \u0431\u043E\u043B\u044C\u0448\u0435\u043C\u0443 \u0447\u0438\u0441\u043B\u0443 \u043B\u044E\u0434\u0435\u0439",
+    "\U0001F4AD \u0425\u043E\u0447\u0435\u0448\u044C \u0435\u0449\u0451 \u0442\u0430\u043A\u043E\u0433\u043E? \u041F\u0435\u0440\u0435\u0448\u043B\u0438 \u044D\u0442\u043E\u0442 \u043F\u043E\u0441\u0442 \u0434\u0440\u0443\u0433\u0443 \u2014 \u0441\u043C\u0435\u0445 \u0437\u0430\u0440\u0430\u0437\u0438\u0442\u0435\u043B\u0435\u043D \U0001F602",
+    "\U0001F513 \u041F\u043E\u0434\u043F\u0438\u0448\u0438\u0441\u044C \u043D\u0430 \u043A\u0430\u043D\u0430\u043B \u2014 \u043A\u0430\u0436\u0434\u044B\u0439 \u0434\u0435\u043D\u044C \u0441\u0432\u0435\u0436\u0438\u0435 \u0430\u043D\u0435\u043A\u0434\u043E\u0442\u044B \u0431\u0435\u0437 \u0432\u043E\u0434\u044B \u0438 \u043F\u043E\u043B\u0438\u0442\u0438\u043A\u0438",
+]
+
 
 def _split_two_part(text: str) -> tuple[str, str] | None:
     parts = text.split("\n\n")
@@ -405,6 +413,8 @@ class TelegramPublisher:
     def _send_text(self, joke, rubric: dict, preamble_override: str = "", is_part2: bool = False, reply_to: int = 0) -> int:
         post_number = self.db.count_published() + 1
         text = _build_text(joke.text, rubric, post_number, preamble_override, is_part2, self.settings.channel_link)
+        if not is_part2 and random.random() < CTA_RATIO:
+            text += "\n\n" + random.choice(CTA_LINES)
         payload = {
             "chat_id": self.settings.channel_id,
             "text": text,
