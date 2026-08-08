@@ -6,7 +6,7 @@ from typing import Iterator, Tuple
 
 from .models import Joke
 from .content_filter import is_flagged
-from .utils import build_hash, dedup_key, quality_score
+from .utils import build_hash, dedup_key, looks_cut_off, quality_score
 
 PUBLISHED_KEYS_FILE = "data/published_keys.txt"
 
@@ -308,6 +308,8 @@ class Database:
                 continue
             if is_flagged(row["text"]):
                 continue
+            if looks_cut_off(row["text"]):
+                continue
             score = quality_score(row["text"])
             if score > best_score:
                 best, best_score = row, score
@@ -337,7 +339,11 @@ class Database:
                 """
             ).fetchall()
         for row in rows:
-            if dedup_key(row["text"]) not in published_keys and not is_flagged(row["text"]):
+            if (
+                dedup_key(row["text"]) not in published_keys
+                and not is_flagged(row["text"])
+                and not looks_cut_off(row["text"])
+            ):
                 return Joke(
                     text=row["text"],
                     source_name=row["source_name"],
@@ -368,6 +374,8 @@ class Database:
             if dedup_key(row["text"]) in published_keys:
                 continue
             if is_flagged(row["text"]):
+                continue
+            if looks_cut_off(row["text"]):
                 continue
             text_lower = row["text"].lower()
             if keywords and not any(kw.lower() in text_lower for kw in keywords):

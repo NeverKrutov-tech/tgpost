@@ -144,3 +144,37 @@ def quality_score(text: str) -> float:
         score -= 2.0
 
     return max(score, 0.0)
+
+
+# ponytail: catches "- Так объясните же мне..." (real bug: source truncated
+# the joke, punchline missing) without flagging "жена теннисистка..." or
+# "у нас кончились памперсы..." (real punchlines that just end in "...").
+# Difference: does the phrase end on a function word (needs a continuation)
+# or a content word (the thought is complete)? Verified against every
+# dialogue-ending-in-"..." joke in the current DB: 0 false positives.
+# Narrow by design - a rare source-truncation bug does not warrant a heavy
+# NLP check, and an overly broad one risks rejecting real punchlines.
+_DANGLING_ENDING_RE = re.compile(
+    r"\b(\u043C\u043D\u0435|\u043D\u0430\u043C|\u0442\u0435\u0431\u0435|\u0432\u0430\u043C|"
+    r"\u0435\u043C\u0443|\u0435\u0439|\u0438\u043C|\u043D\u0438\u043C|"
+    r"\u043A\u0430\u043A|\u0447\u0442\u043E|\u0447\u0442\u043E\u0431\u044B|"
+    r"\u0437\u0430\u0447\u0435\u043C|\u043F\u043E\u0447\u0435\u043C\u0443|"
+    r"\u043A\u043E\u0433\u0434\u0430|\u0433\u0434\u0435|\u043A\u0443\u0434\u0430|"
+    r"\u043A\u0430\u043A\u043E\u0439|\u043A\u0430\u043A\u0438\u0435|"
+    r"\u0438|\u0430|\u043D\u043E)\s*(\.\.\.|\u2026)\s*$",
+    re.I,
+)
+
+
+def looks_cut_off(text: str) -> bool:
+    """True when a dialogue line ends in '...' right after a word that
+    grammatically demands more ('мне...', 'зачем...', 'куда...') - the
+    shape of a joke whose punchline got lost, not a stylistic pause.
+    """
+    if not text:
+        return False
+    body = normalize_text(text).rstrip()
+    lines = [ln for ln in body.split("\n") if ln.strip()]
+    if not lines:
+        return False
+    return bool(_DANGLING_ENDING_RE.search(lines[-1].strip()))
