@@ -7,9 +7,44 @@ PUNCTUATION_RE = re.compile(r"[\u2010-\u2015]")
 QUOTES_RE = re.compile(r"[\u00AB\u00BB\u2018\u2019\u201A\u201B\u201C\u201D\u201E]")
 ALL_PUNCTUATION_RE = re.compile(r"[\u0021-\u002F\u003A-\u0040\u005B-\u0060\u007B-\u007E\u2010-\u2015\u2018-\u201D\u00AB\u00BB]")
 
+# ponytail: some source sites inject their own domain into the middle of a
+# joke as an anti-scraping watermark. It shipped to the channel verbatim:
+# "- Так почему я плачу сейчас, anekdotov.net, когда писаю?.." The injection
+# is intermittent (0 of 248 jokes in the local DB carry it), so the parser
+# cannot be tested into catching it - strip it centrally instead.
+# Only our own source domains are listed: a joke will never legitimately
+# mention them, so this cannot mangle real text the way a generic
+# "any domain" rule would ("зашёл на mail.ru" must survive).
+SOURCE_DOMAINS = [
+    "anekdotov.net", "anekdot.ru", "baneks.ru", "bash.im", "anekdoty.ru",
+]
+WATERMARK_RE = re.compile(
+    r"\s*,\s*(?:www\.)?(?:" + "|".join(d.replace(".", r"\.") for d in SOURCE_DOMAINS) + r")\s*,\s*"
+    r"|\s*\(?(?:www\.)?(?:" + "|".join(d.replace(".", r"\.") for d in SOURCE_DOMAINS) + r")\)?\s*",
+    re.I,
+)
+
+
+def strip_watermark(text: str) -> str:
+    """Remove injected source domains, keeping the sentence readable.
+
+    A mid-sentence injection carries surrounding commas ("плачу сейчас,
+    anekdotov.net, когда писаю") - those collapse to a single comma so the
+    clause still reads. Anywhere else the domain just disappears.
+    """
+    def _replace(match: re.Match) -> str:
+        chunk = match.group(0)
+        stripped = chunk.strip()
+        if stripped.startswith(",") and stripped.endswith(","):
+            return ", "
+        return " " if chunk.startswith((" ", "\t")) or chunk.endswith((" ", "\t")) else ""
+
+    return WATERMARK_RE.sub(_replace, text)
+
 
 def normalize_text(text: str) -> str:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = strip_watermark(text)
     text = PUNCTUATION_RE.sub("-", text)
     text = QUOTES_RE.sub("\u0022", text)
     lines = text.split("\n")
