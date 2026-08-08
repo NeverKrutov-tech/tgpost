@@ -84,7 +84,11 @@ def _split_headline(text: str) -> tuple[str, str] | None:
 
 def _build_text(joke_text: str, rubric: dict, post_number: int, preamble_override: str = "", is_part2: bool = False, channel_link: str = "") -> str:
     topic_emoji = rubric["emoji"]
-    content_emoji = classify_emoji(joke_text)
+    # ponytail: drop the content emoji when it repeats the rubric's own one,
+    # otherwise the header opened with the same icon twice.
+    content_emoji = " ".join(
+        e for e in classify_emoji(joke_text).split() if e != topic_emoji
+    )
     emoji_line = f"{topic_emoji} {content_emoji}".strip()
     safe_text = html.escape(joke_text)
     preamble = preamble_override or get_preamble(joke_text)

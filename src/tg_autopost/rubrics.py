@@ -194,22 +194,28 @@ PREAMBLES = [
     ]),
 ]
 
+# ponytail: these were \b(стем)\b regexes, and the trailing \b demanded an
+# exact word - so "кот" matched but "коты" did not, "пив" never matched
+# "пива", "работ" never matched "работа". Only 19% of jokes got an emoji,
+# almost all of them by accident. Stored as stem lists and matched with
+# _keyword_hits (left boundary + the shared exclusion list) so word forms
+# work and "барон"/"дедлайн"-style collisions stay excluded.
 EMOJI_PATTERNS = [
-    (re.compile(r"\b(жен|муж|дет|сын|доч|тещ|свекров|мам|пап|бабк|дед|семь)\b", re.I), "👨‍👩‍👧‍👦"),
-    (re.compile(r"\b(работ|начальник|офис|шеф|директор|зарплат|увол|босс)\b", re.I), "💼"),
-    (re.compile(r"\b(кот|кошк|собак|пёс|попуга|хомяк|животн|звер|лошад|коров)\b", re.I), "🐱"),
-    (re.compile(r"\b(арми|воен|солдат|офицер|служб)\b", re.I), "🎖️"),
-    (re.compile(r"\b(умер|смерт|похорон|гроб|труп|покойник|кладбищ|кров|уби|погиб)\b", re.I), "💀"),
-    (re.compile(r"\b(пив|водк|выпив|пьян|алкогол|бар|тост|налив|бутылк)\b", re.I), "🍻"),
-    (re.compile(r"\b(врач|больниц|доктор|медик|лекар|хирург)\b", re.I), "🏥"),
-    (re.compile(r"\b(деньг|цен|коп|миллионер|богат|бедн|финанс)\b", re.I), "💰"),
-    (re.compile(r"\b(любов|свидан|девушк|парн|ромаш|целова|свадьб|невест)\b", re.I), "❤️"),
-    (re.compile(r"\b(компьютер|интернет|телефон|гаджет|айфон|ноутбук)\b", re.I), "📱"),
-    (re.compile(r"\b(машин|автомобил|тачк|водител|гаи|дпс)\b", re.I), "🚗"),
-    (re.compile(r"\b(школ|учител|урок|студент|экзамен|ученик|класс)\b", re.I), "🎓"),
-    (re.compile(r"\b(полиц|мент|милиц)\b", re.I), "🚔"),
-    (re.compile(r"\b(спорт|футбол|хоккей|тренер|олимпиад|матч)\b", re.I), "⚽"),
-    (re.compile(r"\b(путин|депутат|президент|правительств|госдум|выбор)\b", re.I), "🏛️"),
+    (["жен", "муж", "дет", "сын", "доч", "тещ", "свекров", "мам", "пап", "бабк", "дед", "семь"], "👨‍👩‍👧‍👦"),
+    (["работ", "начальник", "офис", "шеф", "директор", "зарплат", "увол", "босс"], "💼"),
+    (["кот", "кошк", "собак", "пёс", "попуга", "хомяк", "животн", "звер", "лошад", "коров"], "🐱"),
+    (["арми", "воен", "солдат", "офицер", "служб"], "🎖️"),
+    (["умер", "смерт", "похорон", "гроб", "труп", "покойник", "кладбищ", "кров", "уби", "погиб"], "💀"),
+    (["пив", "водк", "выпив", "пьян", "алкогол", "бар", "тост", "налив", "бутылк"], "🍻"),
+    (["врач", "больниц", "доктор", "медик", "лекар", "хирург"], "🏥"),
+    (["деньг", "цен", "коп", "миллионер", "богат", "бедн", "финанс"], "💰"),
+    (["любов", "свидан", "девушк", "парн", "ромаш", "целова", "свадьб", "невест"], "❤️"),
+    (["компьютер", "интернет", "телефон", "гаджет", "айфон", "ноутбук"], "📱"),
+    (["машин", "автомобил", "тачк", "водител", "гаи", "дпс"], "🚗"),
+    (["школ", "учител", "урок", "студент", "экзамен", "ученик", "класс"], "🎓"),
+    (["полиц", "мент", "милиц"], "🚔"),
+    (["спорт", "футбол", "хоккей", "тренер", "олимпиад", "матч"], "⚽"),
+    (["путин", "депутат", "президент", "правительств", "госдум", "выбор"], "🏛️"),
 ]
 
 
@@ -228,10 +234,19 @@ def get_today_rubric() -> dict:
     return RUBRICS[-1]
 
 
-def classify_emoji(text: str) -> str:
+def classify_emoji(text: str, limit: int = 2) -> str:
+    """Up to `limit` topic emoji for a joke.
+
+    ponytail: unbounded before - a joke touching family, work, money, drink
+    and death rendered a five-emoji header, which reads as bot output. Two
+    is enough to signal the topic.
+    """
+    lower = text.lower()
     seen = []
-    for pattern, emoji in EMOJI_PATTERNS:
-        if pattern.search(text):
+    for keywords, emoji in EMOJI_PATTERNS:
+        if len(seen) >= limit:
+            break
+        if _any_keyword_hits(lower, keywords):
             if emoji not in seen:
                 seen.append(emoji)
     return " ".join(seen)
