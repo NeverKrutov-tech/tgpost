@@ -1210,9 +1210,15 @@ def _run_cron(action: str) -> tuple:
             executed = _run_with_lock("meme", publish_meme_image)
             return jsonify({"ok": True, "action": "meme", "executed": executed}), 200
         elif action == "newsjacker":
-            from .app import _run_with_lock, publish_newsjacker
-            _run_with_lock("newsjacker", publish_newsjacker)
-            return jsonify({"ok": True, "action": "newsjacker"}), 200
+            # ponytail: disabled per owner decision - the slot pulled raw
+            # headlines from lenta/tass and posted scam ads straight into the
+            # humor channel ("Клуб Первых", "+34% к депозиту"). Keeping this
+            # endpoint name so the existing cron-job for 20:00 still fires,
+            # but it now publishes a regular joke instead.
+            from .app import _run_with_lock, run_publish
+
+            executed = _run_with_lock("newsjacker_20", run_publish)
+            return jsonify({"ok": True, "action": "newsjacker", "type": "joke", "executed": executed}), 200
         elif action == "pin":
             from .app import _run_with_lock, pin_best
             _run_with_lock("pin", pin_best)
