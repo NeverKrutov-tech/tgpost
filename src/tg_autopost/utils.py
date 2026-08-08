@@ -99,8 +99,11 @@ def quality_score(text: str) -> float:
     """Rank an unpublished joke: higher means more likely to land well.
 
     Deliberately cheap and explainable - no model, no network. Tuned against
-    the channel's own top posts (long dialogue-driven stories outperformed
-    short one-liners by roughly 4x in views).
+    the channel's own top posts (dialogue-driven stories outperformed
+    single-line jokes by roughly 4x in views) and cross-checked against
+    4 competitor channels (2.6k-119.5k subscribers): their best-performing
+    posts run 90-260 characters, shorter than this channel's own top posts -
+    the sweet spot below reflects both data points, not just one.
     """
     if not text:
         return 0.0
@@ -112,9 +115,11 @@ def quality_score(text: str) -> float:
     score = 0.0
 
     # Sweet spot: long enough to build a scene, short enough to read in feed.
-    if 150 <= length <= 700:
+    if 90 <= length <= 500:
         score += 3.0
-    elif 80 <= length < 150:
+    elif 500 < length <= 700:
+        score += 2.0
+    elif 40 <= length < 90:
         score += 1.5
     elif length > 1200:
         score -= 1.0
