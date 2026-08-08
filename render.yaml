@@ -18,4 +18,11 @@ services:
       # Telegram ingest branch is skipped and only site sources feed the queue.
       - key: TELEGRAM_SOURCES
         value: platinum_aneks,baneksru,X0xoTyH,anekdot_x,sexxx_pornohumor_prikoly
+      # Cloudflare Workers AI - powers the truncated-joke check before
+      # publishing. Missing values make the check a silent no-op, exactly
+      # how TELEGRAM_SOURCES once disabled Telegram ingest unnoticed.
+      - key: CF_ACCOUNT_ID
+        sync: false
+      - key: CF_API_TOKEN
+        sync: false
 

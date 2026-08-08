@@ -202,6 +202,12 @@ def debug() -> tuple:
         # Silent failure mode: no TELEGRAM_SOURCES means the Telegram ingest
         # branch is skipped entirely and only site sources feed the queue.
         info["telegram_sources"] = list(_settings.telegram_sources) or "(none - telegram parsing OFF)"
+        # Same failure mode: no CF keys means the truncated-joke check
+        # silently passes everything through.
+        info["truncation_check"] = (
+            "ON" if (_settings.cf_account_id and _settings.cf_api_token)
+            else "(no CF keys - truncation check OFF)"
+        )
         db = Database(_settings.database_url or _settings.database_path)
         info["last_joke_results"] = {
             slot: db.get_meta(f"cron_result_{slot}", "(no run yet)")
