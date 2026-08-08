@@ -4,12 +4,22 @@ import re
 
 # ponytail: plain "in" substring matching turned "который" into a false
 # "кот" (animal) hit - real post: an Africa/tribal-chief joke got tagged
-# #животные and prefaced "Мой питомец сегодня:". Left word-boundary handles
-# most keywords ("лицензия" no longer matches "цен"), but "кот" needs one
-# more exception since "который" also starts with it.
+# #животные and prefaced "Мой питомец сегодня:". A left word-boundary fixes
+# most of it ("лицензия" no longer matches "цен"), but a short stem that also
+# opens an unrelated word still slips through, so those are listed here.
+# Audited 08.08.2026 against common Russian words; only genuine mismatches
+# are excluded - same-root hits ("раб" -> "работа") must keep matching.
 _KEYWORD_EXCLUDE = {
-    "кот": ("котор",),
-    "пап": ("папер",),
+    "кот": ("котор", "котлет"),
+    "пап": ("папер", "папк"),
+    "бар": ("барон", "барабан", "бармен", "барбекю", "бархат", "барыш"),
+    "вин": ("винт", "виноват"),
+    "дед": ("дедлайн",),
+    "дет": ("детектив", "детал"),
+    "лис": ("лист",),
+    "мам": ("мамонт", "мамб"),
+    "мыш": ("мышлен",),
+    "муж": ("мужеств", "мужик", "мужчин"),
 }
 
 
@@ -127,27 +137,30 @@ def get_season_keywords() -> list[str]:
         return SEASONAL_KEYWORDS["лето"]
     return SEASONAL_KEYWORDS["осень"]
 
+# ponytail: a preamble that asserts a scene ("Я в лифте с начальником:")
+# needs the joke to actually contain that scene, and keyword overlap only
+# proves the topic. Audit 08.08.2026: ~40% of posts got a preamble and most
+# contradicted the text under them - "Я в семейном чате:" over a joke about
+# a keyboard typo, "Кот говорит:" where no cat speaks. Three rounds of
+# tightening the keyword rules still left ~9 of 12 mismatched, because no
+# keyword rule can verify a scene.
+# So only neutral topic labels survive: they restate the subject rather than
+# invent a setting, which keyword matching *can* guarantee.
 PREAMBLES = [
     (["жен", "муж", "дет", "дочк", "тещ", "свекров", "семь"], [
-        "Я в семейном чате:",
-        "Мои родители в гостях:",
-        "Каждое утро в нашей семье:",
+        "Семейное, наболевшее:",
+        "Что никогда не меняется:",
     ]),
     (["работ", "начальник", "офис", "шеф", "директор", "коллег", "увол", "босс", "собесед"], [
-        "Я в лифте с начальником:",
-        "Понедельник в офисе:",
-        "Собеседование моей мечты:",
-        "Мозг в 9:00 утра:",
+        "Рабочие будни:",
+        "Про работу без прикрас:",
     ]),
     (["кот", "кошк", "собак", "пёс", "попуга", "хомяк", "животн", "звер"], [
-        "Мой питомец сегодня:",
         "Животные — это вам не шутки:",
-        "Кот говорит:",
-        "Собака бывает кусачей:",
+        "Про братьев наших меньших:",
     ]),
     (["арми", "воен", "солдат", "офицер", "казарм", "дембель", "призыв", "служб"], [
-        "Армия глазами срочника:",
-        "Записки из казармы:",
+        "Армейское:",
         "Что никогда не меняется:",
     ]),
     (["умер", "смерт", "похорон", "гроб", "труп", "покойник", "погиб"], [
@@ -155,34 +168,29 @@ PREAMBLES = [
     ]),
     (["пив", "водк", "выпив", "пьян", "алкогол", "бар", "тост", "бутылк", "самогон", "рюмк", "стопк"], [
         "За жизнь! Хотя бывает и такое:",
-        "Пятница, вечер, друзья:",
-        "После третьей рюмки:",
+        "Застольное:",
     ]),
     (["любов", "свидан", "девушк", "парн", "ромаш", "целова", "свадьб"], [
-        "Типичное свидание:",
         "Любовь — это:",
+        "Про отношения:",
     ]),
     (["врач", "больниц", "доктор", "медик", "лекар"], [
-        "На приёме у врача:",
-        "Больничная палата:",
+        "Медицинское:",
     ]),
     (["машин", "автомобил", "тачк", "водител", "гаи", "дпс"], [
-        "Про авто без купюры:",
-        "Типичный водитель:",
-        "История из гаи:",
+        "Про авто без купюр:",
+        "Дорожное:",
     ]),
     (["школ", "учител", "урок", "студент", "экзамен", "ученик"], [
-        "Школьные годы чудесные:",
         "Что не так с образованием:",
-        "Классика жанра на уроке:",
+        "Школьное:",
     ]),
     (["деньг", "цен", "миллионер", "богат", "бедн", "финанс"], [
-        "Моя финансовая подушка:",
-        "Как я копил:",
+        "Про деньги:",
     ]),
     (["компьютер", "интернет", "телефон", "гаджет", "айфон", "ноутбук"], [
         "Технологии будущего по-русски:",
-        "Я и мой гаджет:",
+        "Цифровое:",
     ]),
 ]
 
@@ -237,7 +245,17 @@ def matches_rubric(text: str, keywords: list[str]) -> bool:
 
 
 def get_preamble(text: str) -> str:
-    lower = text.lower()
+    """Neutral topic label for a joke, or "" when the topic is unclear.
+
+    See the PREAMBLES comment: scene-asserting headers were removed because
+    keyword matching cannot verify a scene. What is left only restates the
+    subject, so a keyword hit is enough to make it true - no first-person or
+    dialogue gating needed.
+    """
+    body = text.strip()
+    if not body:
+        return ""
+    lower = body.lower()
     for keywords, options in PREAMBLES:
         if _any_keyword_hits(lower, keywords):
             return random.choice(options)
