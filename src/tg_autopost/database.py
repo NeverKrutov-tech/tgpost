@@ -441,6 +441,16 @@ class Database:
                     (published_at, content_hash),
                 )
 
+    def discard_joke(self, content_hash: str) -> None:
+        """Drop a joke that must never be published (e.g. lost its punchline).
+
+        ponytail: deletes instead of flagging. A rejected joke has no use
+        later, and a status column would need migrating on a DB that Render
+        wipes on every deploy anyway.
+        """
+        with self.connect() as connection:
+            connection.execute("DELETE FROM jokes WHERE content_hash = ?", (content_hash,))
+
     def dedup_unpublished(self) -> int:
         now = datetime.now(timezone.utc).isoformat()
         removed = 0

@@ -16,6 +16,7 @@ from .anti_advice import generate_anti_advice
 from .crossposter import post_to_vk
 from .image_gen import fits_in_image, generate_joke_image, generate_repost_card
 from .levels import get_level
+from .llm_check import is_truncated
 from .rubrics import classify_emoji, get_hashtags, get_preamble, get_today_rubric, is_jubilee
 from .shorts_maker import render_short, upload_short
 from .youtube import get_channel_stats, get_latest_videos
@@ -1030,6 +1031,31 @@ class TelegramPublisher:
             logger.warning("Telegram Friday prompt check failed: %s", e)
             return False
 
+    def _pick_joke(self, pick, attempts: int = 4):
+        """Pull a joke from `pick`, discarding ones that lost their punchline.
+
+        ponytail: the LLM check runs here, on the single joke about to be
+        published, not across the candidate pool - that keeps it at ~1-2 API
+        calls per post instead of hundreds. A rejected joke is deleted, so the
+        cost of a false positive is one skipped joke out of 200 in the queue,
+        while a false negative is what the channel actually complained about.
+        """
+        for _ in range(attempts):
+            joke = pick()
+            if joke is None:
+                return None
+            if joke.text.startswith("MEME:"):
+                return joke
+            if not is_truncated(
+                joke.text,
+                self.settings.cf_account_id,
+                self.settings.cf_api_token,
+            ):
+                return joke
+            logger.info("Discarding truncated joke: %r", joke.text[-70:])
+            self.db.discard_joke(joke.content_hash)
+        return None
+
     def publish_next(self) -> bool:
         today = datetime.datetime.today()
         rubric = get_today_rubric()
@@ -1074,9 +1100,11 @@ class TelegramPublisher:
 
         if rubric["keywords"]:
             if random.random() < 0.8:
-                joke = self.db.get_next_unpublished_matching(rubric["keywords"])
+                joke = self._pick_joke(
+                    lambda: self.db.get_next_unpublished_matching(rubric["keywords"])
+                )
             else:
-                joke = self.db.get_next_unpublished()
+                joke = self._pick_joke(self.db.get_next_unpublished)
             if joke:
                 if joke.text.startswith("MEME:"):
                     if random.random() < MEME_ANALYSIS_RATIO:
@@ -1106,11 +1134,11 @@ class TelegramPublisher:
                 return self._send_text(joke, rubric)
 
         if random.random() < 0.8:
-            joke = self.db.get_next_popular_unpublished()
+            joke = self._pick_joke(self.db.get_next_popular_unpublished)
         else:
             joke = None
         if joke is None:
-            joke = self.db.get_next_unpublished()
+            joke = self._pick_joke(self.db.get_next_unpublished)
         if joke is None:
             logger.info("No unpublished jokes available")
             return False
