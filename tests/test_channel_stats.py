@@ -2,8 +2,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from bs4 import BeautifulSoup
+
 from src.tg_autopost.database import Database
 from src.tg_autopost.models import Joke
+from src.tg_autopost.sources.telegram_channel import _parse_subscribers
 
 
 class TestChannelStats(unittest.TestCase):
@@ -33,6 +36,24 @@ class TestChannelStats(unittest.TestCase):
         )
         self.assertEqual(joke.channel_subscribers, 0)
         self.assertEqual(joke.channel_name, "")
+
+
+class TestSubscriberParsing(unittest.TestCase):
+    def test_plain_number(self):
+        soup = BeautifulSoup('<div class="tgme_channel_info_count">2 600 subscribers</div>', "html.parser")
+        self.assertEqual(_parse_subscribers(soup), 2600)
+
+    def test_thousands_suffix(self):
+        soup = BeautifulSoup('<div class="tgme_channel_info_count">2.6K subscribers</div>', "html.parser")
+        self.assertEqual(_parse_subscribers(soup), 2600)
+
+    def test_russian_word(self):
+        soup = BeautifulSoup('<div class="tgme_channel_info_count">1.2М подписчиков</div>', "html.parser")
+        self.assertEqual(_parse_subscribers(soup), 1200000)
+
+    def test_no_count(self):
+        soup = BeautifulSoup('<div class="tgme_widget_message_wrap"></div>', "html.parser")
+        self.assertEqual(_parse_subscribers(soup), 0)
 
 
 if __name__ == "__main__":

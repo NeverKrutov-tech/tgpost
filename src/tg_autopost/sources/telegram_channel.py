@@ -107,6 +107,25 @@ MIN_LENGTH = 30
 MAX_LENGTH = 3000
 
 
+def _parse_subscribers(soup) -> int:
+    count_el = soup.select_one("div.tgme_channel_info_count")
+    if count_el is None:
+        return 0
+    text = count_el.get_text(" ", strip=True)
+    # "2 600 subscribers", "2.6K subscribers", "1.2М подписчиков"
+    match = re.search(r"([\d]+(?:[\s.,][\d]+)*)\s*([KkМм]?)\s*(?:subscribers?\b|подписчик\w*)", text)
+    if not match:
+        return 0
+    num_str = match.group(1).replace("\u00A0", "").replace(",", "").replace(" ", "")
+    num = float(num_str)
+    suffix = match.group(2).lower()
+    if suffix in ("k", "к"):
+        num *= 1000
+    elif suffix in ("m", "м"):
+        num *= 1_000_000
+    return int(num)
+
+
 class TelegramChannelSource(JokeSource):
     name = "telegram"
 
@@ -129,6 +148,7 @@ class TelegramChannelSource(JokeSource):
                 continue
 
             soup = BeautifulSoup(response.text, "html.parser")
+            subscribers = _parse_subscribers(soup)
             messages = soup.select("div.tgme_widget_message_wrap")
             if not messages:
                 logger.info("No messages found on t.me/s/%s", channel)
@@ -191,6 +211,8 @@ class TelegramChannelSource(JokeSource):
                     external_id=external_id,
                     content_hash=build_hash(text),
                     source_views=views,
+                    channel_name=channel,
+                    channel_subscribers=subscribers,
                 )
                 yielded += 1
                 if yielded >= limit:

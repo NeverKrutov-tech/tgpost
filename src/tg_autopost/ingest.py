@@ -20,6 +20,8 @@ class JokeIngestor:
                 for joke in source.fetch(limit_per_source):
                     if self.db.insert_joke(joke):
                         inserted += 1
+                    if joke.channel_name:
+                        self.db.upsert_channel_stats(joke.channel_name, joke.channel_subscribers)
             except Exception:
                 logger.exception("Failed to ingest jokes from source: %s", source.name)
         removed = self.db.dedup_unpublished()
