@@ -381,13 +381,15 @@ class TelegramPublisher:
             f"\u2193 \u041F\u0438\u0448\u0438 \u0441\u0432\u043E\u0439 \u0432\u0430\u0440\u0438\u0430\u043D\u0442 \u0431\u043E\u0442\u0443 @{bot_username}\n"
             f"\u041B\u0443\u0447\u0448\u0438\u0435 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u043C \u0432 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u043C \u0432\u044B\u043F\u0443\u0441\u043A\u0435!"
         )
-        self._post_message({
+        data = self._post_message({
             "chat_id": self.settings.channel_id,
             "text": text,
             "parse_mode": "HTML",
         })
+        msg_id = data["result"]["message_id"]
         self.db.save_quiz(truncated, joke.text, last_line)
-        self.db.mark_published(joke.content_hash)
+        self.db.mark_published(joke.content_hash, msg_id)
+        self._record_post_for_pin(msg_id)
         logger.info("Published quiz prompt for joke: %s", joke.external_id)
         return True
 

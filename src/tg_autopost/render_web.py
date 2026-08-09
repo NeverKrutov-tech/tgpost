@@ -1161,6 +1161,10 @@ def keepalive() -> tuple:
                 n = collect_performance(_settings, db)
                 if n:
                     db.set_meta("perf_last", now)
+                    try:
+                        db._load_effectiveness()
+                    except Exception:
+                        logging.getLogger(__name__).exception("Failed to refresh channel_effectiveness cache")
                     logging.getLogger(__name__).info("Collected metrics for %s posts", n)
         except Exception:
             pass
