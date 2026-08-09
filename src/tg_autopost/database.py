@@ -333,10 +333,18 @@ class Database:
                 continue
             if looks_cut_off(row["text"]):
                 continue
-            score = quality_score(row["text"])
+            channel = row["source_name"][3:] if row["source_name"].startswith("tg/") else ""
+            subscribers = self.get_channel_subscribers(channel) if channel else 0
+            demand = row["source_views"] / max(subscribers, 1)
+            if subscribers == 0:
+                demand *= 0.5
+            q = quality_score(row["text"])
+            score = demand * 0.6 + q * 0.4
             if score > best_score:
                 best, best_score = row, score
         if best is not None:
+            channel = best["source_name"][3:] if best["source_name"].startswith("tg/") else ""
+            subscribers = self.get_channel_subscribers(channel) if channel else 0
             return Joke(
                 text=best["text"],
                 source_name=best["source_name"],
@@ -346,6 +354,8 @@ class Database:
                 source_views=best["source_views"],
                 created_at=datetime.fromisoformat(best["created_at"]),
                 published_at=datetime.fromisoformat(best["published_at"]) if best["published_at"] else None,
+                channel_name=channel,
+                channel_subscribers=subscribers,
             )
 
         return None
@@ -357,25 +367,41 @@ class Database:
                 """
                 SELECT text, source_name, source_url, external_id, content_hash, source_views, created_at, published_at
                 FROM jokes
-                WHERE published_at IS NULL AND source_views > 0
-                ORDER BY source_views DESC, RANDOM()
+                WHERE published_at IS NULL
+                ORDER BY RANDOM()
+                LIMIT 400
                 """
             ).fetchall()
+        best, best_score = None, -1.0
         for row in rows:
-            if (
-                dedup_key(row["text"]) not in published_keys
-                and not is_flagged(row["text"])
-                and not looks_cut_off(row["text"])
-            ):
-                return Joke(
-                    text=row["text"],
-                    source_name=row["source_name"],
-                    source_url=row["source_url"],
-                    external_id=row["external_id"],
-                    content_hash=row["content_hash"],
-                    source_views=row["source_views"],
-                )
-        return None
+            if dedup_key(row["text"]) in published_keys:
+                continue
+            if is_flagged(row["text"]):
+                continue
+            if looks_cut_off(row["text"]):
+                continue
+            channel = row["source_name"][3:] if row["source_name"].startswith("tg/") else ""
+            subscribers = self.get_channel_subscribers(channel) if channel else 0
+            demand = row["source_views"] / max(subscribers, 1)
+            if subscribers == 0:
+                demand *= 0.5
+            if row["source_views"] == 0:
+                continue
+            score = demand * 0.6 + quality_score(row["text"]) * 0.4
+            if score > best_score:
+                best, best_score = row, score
+        if best is None:
+            return None
+        return Joke(
+            text=best["text"],
+            source_name=best["source_name"],
+            source_url=best["source_url"],
+            external_id=best["external_id"],
+            content_hash=best["content_hash"],
+            source_views=best["source_views"],
+            channel_name=best["source_name"][3:] if best["source_name"].startswith("tg/") else "",
+            channel_subscribers=self.get_channel_subscribers(best["source_name"][3:]) if best["source_name"].startswith("tg/") else 0,
+        )
 
     def get_next_unpublished_matching(self, keywords: list[str], max_batch: int = 200) -> Joke | None:
         published_keys = self._get_published_dedup_keys()
