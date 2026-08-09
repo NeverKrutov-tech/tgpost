@@ -464,6 +464,21 @@ class TelegramPublisher:
         ids.append(str(msg_id))
         self.db.set_meta("today_posts", ",".join(ids))
         self.db.set_meta("pin_date", today)
+        from .performance import PerformanceStore
+        channel = ""
+        with self.db.connect() as conn:
+            row = conn.execute(
+                "SELECT source_name FROM jokes WHERE telegram_msg_id = ?", (msg_id,)
+            ).fetchone()
+            if row:
+                channel = row["source_name"][3:] if row["source_name"].startswith("tg/") else ""
+        PerformanceStore("data/performance.json").append(msg_id, {
+            "views": 0,
+            "forwards": 0,
+            "reactions": 0,
+            "published_at": today,
+            "channel": channel,
+        })
 
     def _pin_best_post(self) -> None:
         today = datetime.datetime.today().strftime("%Y-%m-%d")

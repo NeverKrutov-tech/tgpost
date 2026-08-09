@@ -1154,6 +1154,14 @@ def keepalive() -> tuple:
         try:
             from datetime import datetime, timezone
             db.set_meta("keepalive_last", datetime.now(timezone.utc).isoformat())
+            last = db.get_meta("perf_last", "")
+            now = datetime.now(timezone.utc).isoformat()
+            if last < now[:13]:  # собирать не чаще раза в час
+                from .performance import collect_performance
+                n = collect_performance(_settings, db)
+                if n:
+                    db.set_meta("perf_last", now)
+                    logging.getLogger(__name__).info("Collected metrics for %s posts", n)
         except Exception:
             pass
     return jsonify({"ok": True}), 200, {"Cache-Control": "no-cache"}
