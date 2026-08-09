@@ -186,6 +186,13 @@ CREATE TABLE IF NOT EXISTS viral_challenges (
 );
 """
 
+CHANNEL_STATS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS channel_stats (
+    channel TEXT PRIMARY KEY,
+    subscribers INTEGER NOT NULL DEFAULT 0
+);
+"""
+
 
 class Database:
     def __init__(self, path: str) -> None:
@@ -223,6 +230,7 @@ class Database:
             connection.execute(USER_ACHIEVEMENTS_TABLE_SQL)
             connection.execute(USER_STATS_TABLE_SQL)
             connection.execute(VIRAL_CHALLENGES_TABLE_SQL)
+            connection.execute(CHANNEL_STATS_TABLE_SQL)
             self._migrate(connection)
 
     def _migrate(self, connection: sqlite3.Connection) -> None:
@@ -246,6 +254,21 @@ class Database:
                 (joke.text, joke.source_name, joke.source_url, joke.external_id, joke.content_hash, joke.source_views, now),
             )
             return cursor.rowcount > 0
+
+    def upsert_channel_stats(self, channel: str, subscribers: int) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                "INSERT INTO channel_stats (channel, subscribers) VALUES (?, ?) "
+                "ON CONFLICT(channel) DO UPDATE SET subscribers = excluded.subscribers",
+                (channel, subscribers),
+            )
+
+    def get_channel_subscribers(self, channel: str) -> int:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT subscribers FROM channel_stats WHERE channel = ?", (channel,)
+            ).fetchone()
+            return int(row["subscribers"]) if row else 0
 
     def _load_published_keys_file(self) -> set[str]:
         path = Path(PUBLISHED_KEYS_FILE)

@@ -10,5 +10,7 @@ class Joke:
     external_id: str
     content_hash: str
     source_views: int = 0
+    channel_subscribers: int = 0
+    channel_name: str = ""
     created_at: datetime | None = None
     published_at: datetime | None = None
