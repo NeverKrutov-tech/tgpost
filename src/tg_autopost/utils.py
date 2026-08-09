@@ -215,11 +215,24 @@ def looks_cut_off(text: str) -> bool:
     """True when a dialogue line ends in '...' right after a word that
     grammatically demands more ('мне...', 'зачем...', 'куда...') - the
     shape of a joke whose punchline got lost, not a stylistic pause.
+    Also flags short one-liners with no terminal punctuation as broken.
     """
     if not text:
         return False
+    # ponytail: by design, a long truncated joke (>=150 chars) without any
+    # finishing punctuation is an engagement format - the audience writes the
+    # punchline in the comments. Don't drop it from the pipeline.
+    if len(text) >= 150:
+        from .content_filter import is_truncated_joke
+        if is_truncated_joke(text):
+            return False
     body = normalize_text(text).rstrip()
     lines = [ln for ln in body.split("\n") if ln.strip()]
     if not lines:
         return False
-    return bool(_DANGLING_ENDING_RE.search(lines[-1].strip()))
+    last = lines[-1].strip()
+    # ponytail: short text without any sentence-ending punctuation is
+    # almost always an ingest artefact, not a real joke.
+    if len(text) < 150 and not re.search(r"[\.!?…»\"')\]]", last):
+        return True
+    return bool(_DANGLING_ENDING_RE.search(last))

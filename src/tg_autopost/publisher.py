@@ -9,7 +9,7 @@ from pathlib import Path
 import requests
 
 from .config import Settings
-from .content_filter import is_flagged
+from .content_filter import is_flagged, is_truncated_joke
 from .database import Database
 from .horoscope import generate_horoscope
 from .anti_advice import generate_anti_advice
@@ -47,6 +47,7 @@ CTA_LINES = [
     "\U0001F525 \u0421\u043C\u0435\u0448\u043D\u043E? \u0416\u043C\u0438 \u0440\u0435\u0430\u043A\u0446\u0438\u044E \u2014 \u0442\u0430\u043A \u044F \u043F\u043E\u0439\u043C\u0443, \u0447\u0442\u043E \u0437\u0430\u0445\u043E\u0434\u0438\u0442",
     "\U0001F914 \u0417\u0430\u0448\u043B\u043E \u0438\u043B\u0438 \u043D\u0435\u0442? \u041E\u0442\u043C\u0435\u0442\u044C \u0440\u0435\u0430\u043A\u0446\u0438\u0435\u0439 \U0001F44D \u0438\u043B\u0438 \U0001F44E",
     "\u270D\uFE0F \u0421\u0432\u043E\u0439 \u0430\u043D\u0435\u043A\u0434\u043E\u0442 \u043B\u0443\u0447\u0448\u0435? \u041F\u0440\u0438\u0441\u044B\u043B\u0430\u0439 \u0432 @postbotanekdodik_bot \u2014 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u043C",
+    "\u270D\uFE0F \u0414\u043E\u043F\u0438\u0448\u0438 \u0441\u0432\u043E\u0439 \u0444\u0438\u043D\u0430\u043B \u0432 \u043A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u044F\u0445 \U0001F447 \u2014 \u0441\u0430\u043C\u044B\u0435 \u0441\u043C\u0435\u0448\u043D\u044B\u0435 \u043E\u0442\u0432\u0435\u0442\u044B \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u043C",
 ]
 
 # ponytail: this one only fires under a relatable first-person story
@@ -434,8 +435,12 @@ class TelegramPublisher:
         post_number = self.db.count_published() + 1
         text = _build_text(joke.text, rubric, post_number, preamble_override, is_part2, self.settings.channel_link)
         if not is_part2 and random.random() < CTA_RATIO:
-            pool = RELATABLE_CTA_LINES if is_relatable_story(joke.text) else CTA_LINES
-            text += "\n\n" + random.choice(pool)
+            if is_truncated_joke(joke.text):
+                cta_text = "\u270D\uFE0F \u0414\u043E\u043F\u0438\u0448\u0438 \u0441\u0432\u043E\u0439 \u0444\u0438\u043D\u0430\u043B \u0432 \u043A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u044F\u0445 \U0001F447 \u2014 \u0441\u0430\u043C\u044B\u0435 \u0441\u043C\u0435\u0448\u043D\u044B\u0435 \u043E\u0442\u0432\u0435\u0442\u044B \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u043C"
+            else:
+                pool = RELATABLE_CTA_LINES if is_relatable_story(joke.text) else CTA_LINES
+                cta_text = random.choice(pool)
+            text += "\n\n" + cta_text
         payload = {
             "chat_id": self.settings.channel_id,
             "text": text,

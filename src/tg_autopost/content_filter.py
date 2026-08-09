@@ -95,5 +95,30 @@ def is_adult(text: str) -> bool:
     return bool(_ADULT_RE.search(text))
 
 
+# ponytail: detector for stories that stop mid-punchline on purpose - the
+# channel wants the audience to write the punchline in the comments (engagement
+# loop). Different from "looks_cut_off" which catches genuinely broken posts.
+_PUNCT_END = re.compile(r"[\.!?…»\"')\]]\s*$")
+
+
+def is_truncated_joke(text: str) -> bool:
+    """Returns True for a post that looks like a joke setup without a punchline.
+    Detected when length is meaningful, last line lacks sentence-ending
+    punctuation, and the post is not a short one-liner."""
+    if len(text) < 100:
+        return False
+    last_line = text.rstrip().split("\n")[-1].rstrip()
+    if not last_line:
+        return False
+    if _PUNCT_END.search(last_line):
+        return False
+    return True
+
+
 def is_flagged(text: str) -> bool:
     return is_political(text) or is_adult(text)
+
+
+# Re-export so callers can import the truncate detector and the cut-off check
+# from the same module.
+from .utils import looks_cut_off  # noqa: E402,F401
