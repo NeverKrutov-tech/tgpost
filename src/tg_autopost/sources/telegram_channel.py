@@ -30,6 +30,16 @@ SKIP_PATTERNS = [
     re.compile(r"^\d+$"),
 ]
 
+# ponytail: re-posting channels sign the joke with a bare channel name on the
+# last line ("Хохотун", "Жиза", "Смех") - no @, no link, so NOISE_PATTERNS
+# miss it and it ships to the channel as if it were part of the joke. It is
+# only safe to cut when the line is a standalone short word that cannot be a
+# punchline: a punchline either ends in punctuation or is a dialogue reply
+# (starts with "-"). A bare last word with no terminator is a signature.
+_CHANNEL_SIG_END_RE = re.compile(
+    r"[\w\u0400-\u04FF\u2014-]+(?:\s+[\w\u0400-\u04FF\u2014-]+)?\s*$"
+)
+
 
 def strip_noise(text: str) -> str:
     """Remove channel signatures, links and hashtags, keep the joke."""
@@ -41,6 +51,39 @@ def strip_noise(text: str) -> str:
         lines.pop()
     while lines and not lines[0]:
         lines.pop(0)
+
+    # Drop pure-decoration lines at the edges (emoji dividers, the "-" that
+    # survives a "— @channel" signature) - nothing but emoji/punctuation
+    # cannot be part of the joke. Never touch interior lines.
+    def _has_word(line: str) -> bool:
+        return any(ch.isalnum() for ch in line)
+
+    while lines and not _has_word(lines[-1]):
+        lines.pop()
+    while lines and not _has_word(lines[0]):
+        lines.pop(0)
+
+    # Drop a final bare-name channel signature (see comment above). Only
+    # when there is more than one line: a single-line aphorism IS the whole
+    # joke and must not be mistaken for a signature.
+    if len(lines) > 1:
+        while lines:
+            last = lines[-1]
+            if not last:
+                lines.pop()
+                continue
+            if last.startswith(("-", "\u2014", "\u2013")):
+                break
+            if re.search(r"[.!?…:»\")\]]\s*$", last):
+                break
+            if re.fullmatch(
+                r"[\w\u0400-\u04FF\u2014'-]+(?:\s+[\w\u0400-\u04FF\u2014'-]+)?",
+                last,
+            ):
+                lines.pop()
+                continue
+            break
+
     return "\n".join(lines)
 
 # ponytail: "подпишись" alone is just a channel signature, not an ad - it gets
