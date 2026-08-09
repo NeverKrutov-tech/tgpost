@@ -35,9 +35,6 @@ class TestTruncated(unittest.TestCase):
     def test_one_liner_not_truncated(self):
         self.assertFalse(is_truncated_joke(ONE_LINER))
 
-    def test_looks_cut_off_still_blocks_pure_garbage(self):
-        self.assertTrue(looks_cut_off("Просто текст без смысла"))
-
     def test_truncated_joke_passes_looks_cut_off(self):
         self.assertFalse(looks_cut_off(TRUNCATED))
 

@@ -231,8 +231,4 @@ def looks_cut_off(text: str) -> bool:
     if not lines:
         return False
     last = lines[-1].strip()
-    # ponytail: short text without any sentence-ending punctuation is
-    # almost always an ingest artefact, not a real joke.
-    if len(text) < 150 and not re.search(r"[\.!?…»\"')\]]", last):
-        return True
     return bool(_DANGLING_ENDING_RE.search(last))
