@@ -1,6 +1,21 @@
 from dataclasses import dataclass
+import logging
 import os
 from dotenv import load_dotenv
+
+
+logger = logging.getLogger(__name__)
+
+
+def _validate_discussion_chat_link(raw: str) -> str:
+    """Валидация ссылки на чат обсуждений. Допустимы только http(s) и t.me/ —
+    остальное считается небезопасным и сбрасывается в пустое значение с warning."""
+    if not raw:
+        return ""
+    if raw.startswith(("https://", "http://", "t.me/")):
+        return raw
+    logger.warning("DISCUSSION_CHAT_LINK has invalid prefix %r, clearing", raw[:20])
+    return ""
 
 
 @dataclass(frozen=True)
@@ -9,6 +24,7 @@ class Settings:
     channel_id: str
     admin_id: int | None = None
     channel_link: str = ""
+    discussion_chat_link: str = ""
     telegram_sources: tuple[str, ...] = ()
     post_interval_hours: int = 2
     fetch_limit: int = 100
@@ -53,6 +69,7 @@ def load_settings() -> Settings:
         channel_id=channel_id,
         admin_id=admin_id,
         channel_link=os.getenv("CHANNEL_LINK", "").strip(),
+        discussion_chat_link=_validate_discussion_chat_link(os.getenv("DISCUSSION_CHAT_LINK", "").strip()),
         telegram_sources=telegram_sources,
         post_interval_hours=int(os.getenv("POST_INTERVAL_HOURS", "2")),
         fetch_limit=int(os.getenv("FETCH_LIMIT", "30")),

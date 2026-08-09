@@ -84,7 +84,7 @@ def _split_headline(text: str) -> tuple[str, str] | None:
     return setup, last
 
 
-def _build_text(joke_text: str, rubric: dict, post_number: int, preamble_override: str = "", is_part2: bool = False, channel_link: str = "") -> str:
+def _build_text(joke_text: str, rubric: dict, post_number: int, preamble_override: str = "", is_part2: bool = False, channel_link: str = "", discussion_chat_link: str = "") -> str:
     topic_emoji = rubric["emoji"]
     # ponytail: drop the content emoji when it repeats the rubric's own one,
     # otherwise the header opened with the same icon twice.
@@ -106,7 +106,10 @@ def _build_text(joke_text: str, rubric: dict, post_number: int, preamble_overrid
     if channel_link:
         name = channel_link.rstrip("/").rsplit("/", 1)[-1]
         signature = f"\n— @{name}"
-    return f"<b>{emoji_line}</b>\n\n{body}\n\n{hashtags}{signature}"
+    text = f"<b>{emoji_line}</b>\n\n{body}\n\n{hashtags}{signature}"
+    if discussion_chat_link:
+        text += f"\n\n💬 Обсудить в чате → {discussion_chat_link}"
+    return text
 
 
 def _build_observation(text: str, channel_link: str = "") -> str:
@@ -175,6 +178,8 @@ class TelegramPublisher:
             buttons.append([{"text": "\uD83D\uDCE4 \u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F", "url": share_url}])
         if self.settings.channel_link:
             buttons.append([{"text": "\U0001F514 \u041F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F", "url": self.settings.channel_link}])
+        if self.settings.discussion_chat_link:
+            buttons.append([{"text": "\U0001F4AC \u041E\u0431\u0441\u0443\u0434\u0438\u0442\u044C", "url": self.settings.discussion_chat_link}])
         return {"inline_keyboard": buttons}
 
     def _edit_post_keyboard(self, chat_id: int | str, message_id: int) -> None:
@@ -433,7 +438,7 @@ class TelegramPublisher:
 
     def _send_text(self, joke, rubric: dict, preamble_override: str = "", is_part2: bool = False, reply_to: int = 0) -> int:
         post_number = self.db.count_published() + 1
-        text = _build_text(joke.text, rubric, post_number, preamble_override, is_part2, self.settings.channel_link)
+        text = _build_text(joke.text, rubric, post_number, preamble_override, is_part2, self.settings.channel_link, discussion_chat_link=self.settings.discussion_chat_link)
         if not is_part2 and random.random() < CTA_RATIO:
             if is_truncated_joke(joke.text):
                 cta_text = "\u270D\uFE0F \u0414\u043E\u043F\u0438\u0448\u0438 \u0441\u0432\u043E\u0439 \u0444\u0438\u043D\u0430\u043B \u0432 \u043A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u044F\u0445 \U0001F447 \u2014 \u0441\u0430\u043C\u044B\u0435 \u0441\u043C\u0435\u0448\u043D\u044B\u0435 \u043E\u0442\u0432\u0435\u0442\u044B \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u043C"
