@@ -22,21 +22,10 @@ def configure_logging() -> None:
 def build_services():
     from .ingest import JokeIngestor
     from .publisher import TelegramPublisher
-    from .sources.anekdot_ru import AnekdotRuSource
-    from .sources.anekdotov_net import AnekdotovNetSource
-    from .sources.baneks_ru import BaneksRuSource
-    from .sources.it_jokes import ItJokesSource
-    from .sources.reddit_jokes import RedditJokesSource
 
     settings = load_settings()
     db = Database(settings.database_url or settings.database_path)
-    sources: list = [
-        AnekdotRuSource(timeout=settings.http_timeout),
-        AnekdotovNetSource(timeout=settings.http_timeout),
-        BaneksRuSource(timeout=settings.http_timeout),
-        ItJokesSource(),
-        RedditJokesSource(),
-    ]
+    sources: list = []
     if settings.telegram_sources:
         if settings.telethon_api_id and settings.telethon_api_hash and settings.telethon_session_string:
             try:
