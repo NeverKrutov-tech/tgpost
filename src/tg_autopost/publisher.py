@@ -359,8 +359,11 @@ class TelegramPublisher:
         return True
 
     def _try_make_quiz(self, joke, rubric: dict) -> bool | None:
-        if random.random() >= QUIZ_RATIO:
+        # Квиз выходит не чаще 1 из 8 постов, чтобы не спамить
+        count = int(self.db.get_meta("quiz_counter", "0"))
+        if count % 8 != 0:
             return None
+        self.db.set_meta("quiz_counter", str(count + 1))
         lines = joke.text.strip().split("\n")
         if len(lines) < 3:
             return None

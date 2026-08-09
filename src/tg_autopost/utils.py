@@ -168,6 +168,11 @@ def quality_score(text: str) -> float:
     if len(lines) >= 2 and len(lines[-1]) < 120:
         score += 1.0
 
+    # Short dialogue (2-4 turns, 90-260 chars) is the format competitors'
+    # best posts use - it wins over long stories of equal quality.
+    if 2 <= turns <= 4 and 90 <= length <= 260 and len(lines) >= 2 and len(lines[-1]) < 120:
+        score += 1.0
+
     low = body.lower()
     # Heavy: these are the jokes everyone has heard a hundred times. Even a
     # well-built dialogue cannot save them, so the penalty has to outweigh it.
