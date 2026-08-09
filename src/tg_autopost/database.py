@@ -198,7 +198,9 @@ class Database:
     def __init__(self, path: str) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._channel_effectiveness_cache: dict[str, float] = {}
         self._initialize()
+        self._load_effectiveness()
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -232,6 +234,14 @@ class Database:
             connection.execute(VIRAL_CHALLENGES_TABLE_SQL)
             connection.execute(CHANNEL_STATS_TABLE_SQL)
             self._migrate(connection)
+
+    def _load_effectiveness(self) -> None:
+        try:
+            from .performance import PerformanceStore
+            store = PerformanceStore("data/performance.json")
+            self._channel_effectiveness_cache = store.channel_effectiveness()
+        except Exception:
+            self._channel_effectiveness_cache = {}
 
     def _migrate(self, connection: sqlite3.Connection) -> None:
         cols = [row[1] for row in connection.execute("PRAGMA table_info(jokes)").fetchall()]
@@ -338,6 +348,8 @@ class Database:
             demand = row["source_views"] / max(subscribers, 1)
             if subscribers == 0:
                 demand *= 0.5
+            eff = self._channel_effectiveness_cache.get(channel, 1.0) if channel else 1.0
+            demand *= eff
             q = quality_score(row["text"])
             score = demand * 0.6 + q * 0.4
             if score > best_score:
@@ -385,6 +397,8 @@ class Database:
             demand = row["source_views"] / max(subscribers, 1)
             if subscribers == 0:
                 demand *= 0.5
+            eff = self._channel_effectiveness_cache.get(channel, 1.0) if channel else 1.0
+            demand *= eff
             if row["source_views"] == 0:
                 continue
             score = demand * 0.6 + quality_score(row["text"]) * 0.4

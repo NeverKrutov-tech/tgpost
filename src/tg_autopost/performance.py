@@ -36,6 +36,30 @@ class PerformanceStore:
         except Exception:
             logger.exception("Failed to write %s", self.path)
 
+    def channel_effectiveness(self, data: dict | None = None, min_posts: int = 10) -> dict[str, float]:
+        data = data if data is not None else self.load()
+        by_channel: dict[str, list[float]] = {}
+        for m in data.values():
+            channel = m.get("channel", "")
+            views = int(m.get("views", 0))
+            forwards = int(m.get("forwards", 0))
+            if not channel or views <= 0:
+                continue
+            by_channel.setdefault(channel, []).append(forwards / views)
+        eff: dict[str, float] = {}
+        for channel, rates in by_channel.items():
+            if len(rates) < min_posts:
+                continue
+            eff[channel] = sum(rates) / len(rates)
+        if not eff:
+            return {}
+        if len(eff) > 1:
+            sorted_vals = sorted(eff.values())
+            median = sorted_vals[len(sorted_vals) // 2]
+        else:
+            median = next(iter(eff.values()))
+        return {ch: (rate / median if median else 1.0) for ch, rate in eff.items()}
+
 
 def collect_performance(settings, db, store=None) -> int:
     """Заполняет метрики (views/forwards/reactions) для записей performance.json,
