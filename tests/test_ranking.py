@@ -18,8 +18,11 @@ class TestRanking(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.db = Database(str(Path(self.tmp.name) / "test.db"))
+        # Канал A: 1000 подписчиков, пост с 500 views (охват 50%)
+        # Канал B: 100000 подписчиков, пост с 20000 views (охват 20%)
         self.db.upsert_channel_stats("small", 1000)
         self.db.upsert_channel_stats("big", 100000)
+        # Оба текста равнокачественные (проходной)
         self.db.insert_joke(_joke("Мужчина заходит в бар, садится и говорит бармену:\n- Дай пива!\n- Пожалуйста.", "small", 500))
         self.db.insert_joke(_joke("Мужчина заходит в бар, садится и говорит бармену:\n- Дай водки!\n- Пожалуйста.", "big", 20000))
 
