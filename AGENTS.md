@@ -10,15 +10,21 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 | Run scheduler + polling | `python -m src.tg_autopost run` |
 | `ADMIN_ID` | Add your Telegram user ID in `.env` for submission moderation |
 
-## Schedule (MSK, 5 posts/day) — handled by **external cron (cron-job.org)**
+## Schedule (MSK, 7 posts/day) — handled by **external cron (cron-job.org)**
+
+Оптимизировано под развлекательные TG-каналы по smirnov.marketing 2026 + LiveDune:
+- 07:30–09:00 и 21:30–22:30 — окна с низкой конкуренцией;
+- 12–14 и 21–23:30 — пики просмотров для развлечений;
+- 10:00 утра в будни — худшее время (35% просмотров).
 
 | Time | Action | Endpoint |
 |------|--------|----------|
-| 10:00 | Joke (`run_ingest_and_publish`) | `GET /cron/joke?key=CRON_SECRET` |
-| 11:30 | Horoscope | `GET /cron/horoscope?key=CRON_SECRET` |
-| 14:00 | Joke (`run_ingest_and_publish`) | `GET /cron/joke?key=CRON_SECRET` |
+| 08:00 | Joke (`run_ingest_and_publish`) — утренний слот, сборы на работу | `GET /cron/joke?key=CRON_SECRET` |
+| 11:30 | Horoscope — дневной пре-обед | `GET /cron/horoscope?key=CRON_SECRET` |
+| 13:00 | Joke (`run_ingest_and_publish`) — обеденный пик | `GET /cron/joke?key=CRON_SECRET` |
 | 17:00 | Meme, fallback to joke if no meme is available (`publish_meme_image`) | `GET /cron/meme?key=CRON_SECRET` |
-| 20:00 | Newsjacker (fallback: regular joke) | `GET /cron/newsjacker?key=CRON_SECRET` |
+| 20:00 | Joke (`run_ingest_and_publish`) — старт вечернего окна | `GET /cron/joke?key=CRON_SECRET` |
+| 22:00 | Joke (`run_ingest_and_publish`) — пик развлекательных 21–23:30 | `GET /cron/joke?key=CRON_SECRET` |
 | 23:00 | Pin best post | `GET /cron/pin?key=CRON_SECRET` |
 
 ## Web Endpoints (Render)
@@ -87,6 +93,6 @@ Use CMD-compatible syntax for all commands (`del` instead of `Remove-Item`, `&&`
 - Workflow triggered manually for testing
 
 ## Cron setup (cron-job.org)
-- Add 6 jobs hitting the endpoints above at the schedule times
+- Add 7 jobs hitting the endpoints above at the schedule times
 - Use `key=CRON_SECRET` query param
 - Ensure job is active (free tier may pause after inactivity — check periodically)
