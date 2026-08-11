@@ -132,6 +132,18 @@ class QuizCounterEveryEighthPostTest(unittest.TestCase):
             self.assertEqual(state["quiz_counter"], "3")
 
 
+class ShortsCrashDoesNotTakeDownPostTest(unittest.TestCase):
+    def test_render_crash_is_contained(self):
+        p = _make_publisher(None)
+        p._make_short = mock.Mock(side_effect=RuntimeError("ffmpeg not found"))
+        self.assertFalse(p._maybe_make_short())  # no exception escapes
+
+    def test_success_passthrough(self):
+        p = _make_publisher(None)
+        p._make_short = mock.Mock(return_value=True)
+        self.assertTrue(p._maybe_make_short())
+
+
 class FridayMarkerCheckTest(unittest.TestCase):
     def setUp(self):
         self.marker = Path("data/friday_marker.txt")

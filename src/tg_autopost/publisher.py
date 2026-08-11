@@ -738,7 +738,11 @@ class TelegramPublisher:
 
     def _send_image(self, joke, rubric: dict) -> bool:
         post_number = self.db.count_published() + 1
-        image_path = generate_joke_image(joke.text, post_number, rubric_name=rubric.get("name"))
+        try:
+            image_path = generate_joke_image(joke.text, post_number, rubric_name=rubric.get("name"))
+        except Exception:
+            logger.exception("Image generation failed, falling back to text for %s", joke.external_id)
+            return False
         caption = _build_caption(post_number, self.settings.channel_link)
 
         with open(image_path, "rb") as f:
@@ -809,7 +813,12 @@ class TelegramPublisher:
             "text": battle_text,
             "parse_mode": "HTML",
         })
-        self._post_poll(joke1.text, joke2.text, post_number)
+        # The battle text is already live; a poll failure (e.g. Telegram 400
+        # when two truncated options collide) must not re-post the same jokes.
+        try:
+            self._post_poll(joke1.text, joke2.text, post_number)
+        except Exception:
+            logger.exception("Battle poll failed, text still posted")
         self.db.mark_published(joke1.content_hash)
         self.db.mark_published(joke2.content_hash)
         logger.info("Published battle: %s vs %s", joke1.external_id, joke2.external_id)
@@ -817,7 +826,11 @@ class TelegramPublisher:
 
     def _send_repost_card(self, joke) -> bool:
         post_number = self.db.count_published() + 1
-        image_path = generate_repost_card(joke.text)
+        try:
+            image_path = generate_repost_card(joke.text)
+        except Exception:
+            logger.exception("Repost card generation failed, falling back to text for %s", joke.external_id)
+            return False
         caption = _build_caption(post_number, self.settings.channel_link)
 
         with open(image_path, "rb") as f:
@@ -1004,6 +1017,16 @@ class TelegramPublisher:
             return True
         return False
 
+    def _maybe_make_short(self) -> bool:
+        """Shorts render must never take down the regular post that follows it:
+        a render crash (missing ffmpeg, music download failure, out of memory)
+        used to propagate out of publish_next and lose that day's post."""
+        try:
+            return self._make_short()
+        except Exception:
+            logger.exception("Short render failed, continuing with regular post")
+            return False
+
     def _friday_prompt_posted_today(self) -> bool:
         today_str = datetime.datetime.today().strftime("%Y-%m-%d")
         # Marker file is the source of truth (same pattern as the Sunday digest
@@ -1135,8 +1158,8 @@ class TelegramPublisher:
         if self._handle_youtube():
             return True
 
-        if True and self.db.count_shorts_candidates() > 0:
-            if self._make_short():
+        if self.db.count_shorts_candidates() > 0:
+            if self._maybe_make_short():
                 logger.info("Short posted, continuing with regular post")
 
         if rubric["keywords"]:
@@ -1164,14 +1187,22 @@ class TelegramPublisher:
                 quiz = self._try_make_quiz(joke, rubric)
                 if quiz is True:
                     return True
+                # ponytail: a generator (image/video/teaser) returning False
+                # means that format failed, not that the post should be lost.
+                # Fall through to the next format and finally to plain text,
+                # so a failed render can never take the post down with it.
                 if random.random() < REPOST_CARD_RATIO and fits_in_image(joke.text):
-                    return self._send_repost_card(joke)
+                    if self._send_repost_card(joke):
+                        return True
                 if random.random() < VIDEO_RATIO and len(joke.text) > 100:
-                    return self._send_video(joke)
+                    if self._send_video(joke):
+                        return True
                 if random.random() < IMAGE_RATIO and fits_in_image(joke.text):
-                    return self._send_image(joke, rubric)
+                    if self._send_image(joke, rubric):
+                        return True
                 if random.random() < TEASER_RATIO and len(joke.text) > 200:
-                    return self._send_teaser(joke, rubric)
+                    if self._send_teaser(joke, rubric):
+                        return True
                 return self._send_text(joke, rubric)
 
         if random.random() < 0.8:
@@ -1206,12 +1237,17 @@ class TelegramPublisher:
         if quiz is True:
             return True
 
+        # Same fall-through as above: a failed format must not lose the post.
         if random.random() < REPOST_CARD_RATIO and fits_in_image(joke.text):
-            return self._send_repost_card(joke)
+            if self._send_repost_card(joke):
+                return True
         if random.random() < VIDEO_RATIO and len(joke.text) > 100:
-            return self._send_video(joke)
+            if self._send_video(joke):
+                return True
         if random.random() < IMAGE_RATIO and fits_in_image(joke.text):
-            return self._send_image(joke, rubric)
+            if self._send_image(joke, rubric):
+                return True
         if random.random() < TEASER_RATIO and len(joke.text) > 200:
-            return self._send_teaser(joke, rubric)
+            if self._send_teaser(joke, rubric):
+                return True
         return self._send_text(joke, rubric)
