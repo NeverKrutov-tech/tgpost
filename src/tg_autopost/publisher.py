@@ -365,11 +365,13 @@ class TelegramPublisher:
         return True
 
     def _try_make_quiz(self, joke, rubric: dict) -> bool | None:
-        # Квиз выходит не чаще 1 из 8 постов, чтобы не спамить
-        count = int(self.db.get_meta("quiz_counter", "0"))
+        # Квиз выходит каждый 8-й пост, чтобы не спамить. Счётчик растёт на
+        # КАЖДОМ вызове, а не только при срабатывании: иначе он застревал на 1
+        # после первого квиза и больше никогда не наступал.
+        count = int(self.db.get_meta("quiz_counter", "0")) + 1
+        self.db.set_meta("quiz_counter", str(count))
         if count % 8 != 0:
             return None
-        self.db.set_meta("quiz_counter", str(count + 1))
         lines = joke.text.strip().split("\n")
         if len(lines) < 3:
             return None
@@ -412,7 +414,7 @@ class TelegramPublisher:
         content_id = self.db.save_locked_content(joke.content_hash, punch)
         post_number = self.db.count_published() + 1
         from .rubrics import get_hashtags
-        hashtag = get_hashtags(rubric)
+        hashtag = get_hashtags(joke.text)
         text = (
             f"\U0001F447 <b>\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432 \u0431\u043E\u0442\u0435!</b>\n\n"
             f"{prompt}\n\n"
@@ -464,7 +466,7 @@ class TelegramPublisher:
             if self.settings.vk_token:
                 from .rubrics import strip_html
                 clean_text = strip_html(text)
-                hashtags = " ".join(get_hashtags(rubric))
+                hashtags = get_hashtags(joke.text)
                 vk_msg = f"{clean_text}\n\n{hashtags}\n\n— Подпишись: t.me/{self.settings.channel_link.split('/')[-1]}"
                 post_to_vk(self.settings.vk_token, self.settings.vk_owner_id, vk_msg)
         return msg_id
@@ -1004,6 +1006,13 @@ class TelegramPublisher:
 
     def _friday_prompt_posted_today(self) -> bool:
         today_str = datetime.datetime.today().strftime("%Y-%m-%d")
+        # Marker file is the source of truth (same pattern as the Sunday digest
+        # and _send_friday_prompt itself). The Telegram getUpdates scan below is
+        # only a fallback for a DB wiped between the post and the check.
+        marker = Path("data/friday_marker.txt")
+        if marker.exists() and marker.read_text(encoding="utf-8").strip() == today_str:
+            logger.info("Friday prompt already posted (marker file)")
+            return True
         if os.environ.get("FRIDAY_MARKER") == today_str:
             logger.info("Friday prompt already posted (verified via repo marker file)")
             return True
@@ -1026,10 +1035,11 @@ class TelegramPublisher:
             today_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
             day_start = today_ts - (today_ts % 86400)
             logger.info("Scanning getUpdates for Friday prompt (day_start=%s)", day_start)
+            offset = 0
             for page in range(50):
                 resp = requests.post(
                     f"https://api.telegram.org/bot{self.settings.bot_token}/getUpdates",
-                    json={"allowed_updates": ["channel_post"], "limit": 100},
+                    json={"allowed_updates": ["channel_post"], "limit": 100, "offset": offset},
                     timeout=25,
                 )
                 data = resp.json()
@@ -1040,6 +1050,7 @@ class TelegramPublisher:
                 if not updates:
                     logger.info("getUpdates scan complete: no more updates after %d pages", page)
                     break
+                offset = updates[-1]["update_id"] + 1
                 logger.info("getUpdates page %d: got %d channel_post updates", page, len(updates))
                 for update in updates:
                     post = update.get("channel_post", {})

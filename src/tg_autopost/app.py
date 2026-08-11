@@ -120,6 +120,18 @@ def publish_newsjacker() -> bool:
     return ok
 
 
+# Schedule in MSK: (action_name, hour, minute, function). Single source of
+# truth for run_catchup - kept in sync with cron-job.org slots (08/11:30/13/17/21/23).
+CATCHUP_SCHEDULE = [
+    ("joke_08", 8, 0, lambda: _run_with_lock("joke_08", run_ingest_and_publish)),
+    ("horoscope", 11, 30, lambda: _run_with_lock("horoscope", publish_horoscope)),
+    ("joke_13", 13, 0, lambda: _run_with_lock("joke_13", run_ingest_and_publish)),
+    ("meme", 17, 0, lambda: _run_with_lock("meme", publish_meme_image)),
+    ("joke_21", 21, 0, lambda: _run_with_lock("joke_21", run_ingest_and_publish)),
+    ("pin", 23, 0, lambda: _run_with_lock("pin", pin_best)),
+]
+
+
 def run_ingest_and_publish() -> bool:
     run_ingest()
     return run_publish()
@@ -165,17 +177,7 @@ def run_catchup() -> None:
     now = datetime.now(msk)
     today = now.date()
 
-    # Schedule in MSK: (action_name, hour, minute, function)
-    schedule = [
-        ("joke_10", 10, 0, lambda: _run_with_lock("joke_10", run_ingest_and_publish)),
-        ("horoscope", 11, 30, lambda: _run_with_lock("horoscope", publish_horoscope)),
-        ("joke_14", 14, 0, lambda: _run_with_lock("joke_14", run_ingest_and_publish)),
-        ("meme", 17, 0, lambda: _run_with_lock("meme", publish_meme_image)),
-        ("newsjacker", 20, 0, lambda: _run_with_lock("newsjacker", publish_newsjacker)),
-        ("pin", 23, 0, lambda: _run_with_lock("pin", pin_best)),
-    ]
-
-    for action, hour, minute, func in schedule:
+    for action, hour, minute, func in CATCHUP_SCHEDULE:
         # Slot today in MSK
         slot_time = datetime(now.year, now.month, now.day, hour, minute, tzinfo=msk)
         # Only catch up if the slot is more than 10 min in the past
@@ -224,7 +226,7 @@ def run_scheduler() -> None:
     scheduler.add_job(_startup_ingest, "date", run_date=datetime.now(timezone.utc))
 
     logger = logging.getLogger(__name__)
-    logger.info("Scheduler started — external cron handles 5 posts/day via HTTP endpoints")
+    logger.info("Scheduler started — external cron handles 6 posts/day via HTTP endpoints")
 
     scheduler.start()
 

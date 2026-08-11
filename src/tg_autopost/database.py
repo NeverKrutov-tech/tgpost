@@ -585,17 +585,17 @@ class Database:
             return row is not None
 
     def get_recent_published(self, limit: int = 3, days: int = 7) -> list[Joke]:
-        cutoff = datetime.now(timezone.utc).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         with self.connect() as connection:
             rows = connection.execute(
                 """
                 SELECT text, source_name, source_url, external_id, content_hash, source_views
                 FROM jokes
-                WHERE published_at IS NOT NULL
+                WHERE published_at IS NOT NULL AND published_at >= ?
                 ORDER BY source_views DESC
                 LIMIT ?
                 """,
-                (limit * 3,),
+                (cutoff, limit * 3),
             ).fetchall()
         seen = set()
         result = []

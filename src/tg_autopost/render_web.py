@@ -211,7 +211,7 @@ def debug() -> tuple:
         db = Database(_settings.database_url or _settings.database_path)
         info["last_joke_results"] = {
             slot: db.get_meta(f"cron_result_{slot}", "(no run yet)")
-            for slot in ("joke_10", "joke_14")
+            for slot in DEBUG_JOKE_SLOTS
         }
         info["unpublished_jokes_in_queue"] = db.count_unpublished()
         try:
@@ -233,7 +233,7 @@ def debug() -> tuple:
         try:
             info["keepalive_last"] = db.get_meta("keepalive_last", "never")
             info["cron_locks"] = {}
-            for action in ["joke_10", "horoscope", "joke_14", "meme", "newsjacker", "pin"]:
+            for action in DEBUG_CRON_LOCKS:
                 ts = db.get_cron_lock_time(action)
                 info["cron_locks"][action] = ts if ts else "never"
         except Exception as e:
@@ -1178,6 +1178,22 @@ def _cron_auth() -> bool:
     return key == _settings.cron_secret
 
 
+# Current external-cron slots (MSK): 08:00, 13:00, 21:00 jokes + 11:30
+# horoscope + 17:00 meme + 23:00 pin. The /cron/joke endpoint maps the
+# current MSK hour to its lock key so idempotency locks and /debug stay
+# truthful (the old 10/14 mapping silently merged 13:00 and 21:00 into one).
+_CRON_JOKE_BY_HOUR = {8: "joke_08", 13: "joke_13", 21: "joke_21"}
+
+
+def _joke_lock_key(hour: int) -> str:
+    return _CRON_JOKE_BY_HOUR.get(hour, f"joke_{hour}")
+
+
+# Debug page shows only live slots.
+DEBUG_JOKE_SLOTS = ["joke_08", "joke_13", "joke_21"]
+DEBUG_CRON_LOCKS = ["joke_08", "horoscope", "joke_13", "meme", "joke_21", "pin"]
+
+
 def _run_cron(action: str) -> tuple:
     if not _cron_auth():
         return jsonify({"error": "unauthorized"}), 401
@@ -1191,13 +1207,13 @@ def _run_cron(action: str) -> tuple:
 
             from .app import _run_with_lock, run_ingest_and_publish
             slot = request.args.get("slot", "")
-            if slot in ("10", "14"):
+            if slot in ("08", "13", "21"):
                 lock_key = f"joke_{slot}"
             else:
                 # Auto-detect slot by current MSK hour (external cron hits the
-                # same /cron/joke endpoint for both 10:00 and 14:00 slots).
+                # same /cron/joke endpoint for all joke slots).
                 hour = datetime.now(ZoneInfo("Europe/Moscow")).hour
-                lock_key = "joke_14" if hour >= 12 else "joke_10"
+                lock_key = _joke_lock_key(hour)
             # ponytail: ingest can take up to 120s, external cron times out at 30s.
             # Run in background thread so the cron request returns immediately,
             # but record the outcome so /debug can show what actually happened -
