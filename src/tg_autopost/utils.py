@@ -42,8 +42,37 @@ def strip_watermark(text: str) -> str:
     return WATERMARK_RE.sub(_replace, text)
 
 
+# ponytail: source channels swap Cyrillic letters for identical-looking Latin
+# ones as an anti-plagiarism trick ("Kaбинeт oкулиcтa" carries 52 Latin chars).
+# That silently defeated EVERY substring check in the project: is_political let
+# "укрaину" through, rubric matching missed "рaботу", and build_hash treated the
+# same joke as new, so a battle could post one joke twice. Folded here, at the
+# single point all sources already funnel through, so every consumer sees real
+# Cyrillic. Only letters that look identical are mapped - no transliteration.
+_HOMOGLYPHS = str.maketrans({
+    "A": "А", "B": "В", "C": "С", "E": "Е", "H": "Н", "K": "К", "M": "М",
+    "O": "О", "P": "Р", "T": "Т", "X": "Х", "Y": "У",
+    "a": "а", "c": "с", "e": "е", "o": "о", "p": "р", "x": "х", "y": "у",
+})
+_CYRILLIC_RE = re.compile(r"[\u0410-\u044F\u0401\u0451]")
+
+
+def fold_homoglyphs(text: str) -> str:
+    """Map Latin look-alike letters to Cyrillic, but only inside words that are
+    already partly Cyrillic. A pure-Latin token ("Python", "IT", "æ") is real
+    text, not obfuscation, and is left untouched."""
+    def _fold_token(match: re.Match) -> str:
+        token = match.group(0)
+        if not _CYRILLIC_RE.search(token):
+            return token
+        return token.translate(_HOMOGLYPHS)
+
+    return re.sub(r"\S+", _fold_token, text)
+
+
 def normalize_text(text: str) -> str:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = fold_homoglyphs(text)
     text = strip_watermark(text)
     text = PUNCTUATION_RE.sub("-", text)
     text = QUOTES_RE.sub("\u0022", text)

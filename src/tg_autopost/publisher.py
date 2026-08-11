@@ -791,7 +791,7 @@ class TelegramPublisher:
         joke1 = self.db.get_next_unpublished()
         if joke1 is None:
             return False
-        joke2 = self.db.get_next_unpublished()
+        joke2 = self.db.get_next_unpublished(exclude_hashes={joke1.content_hash})
         if joke2 is None:
             return False
         self.db.add_shorts_candidate(joke1.text)

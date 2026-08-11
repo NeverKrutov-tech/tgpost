@@ -316,7 +316,7 @@ class Database:
             keys |= self._load_published_keys_file()
         return keys
 
-    def get_next_unpublished(self) -> Joke | None:
+    def get_next_unpublished(self, exclude_hashes: set[str] | None = None) -> Joke | None:
         published_keys = self._get_published_dedup_keys()
         with self.connect() as connection:
             rows = connection.execute(
@@ -337,6 +337,11 @@ class Database:
         # "demographic crater / war" rant landed on the humor channel.
         best, best_score = None, -1.0
         for row in rows:
+            # ponytail: scoring is deterministic, so a second plain call hands
+            # back the same winner - that is how a battle posted one joke
+            # twice. Callers needing two distinct jokes pass the first hash in.
+            if exclude_hashes and row["content_hash"] in exclude_hashes:
+                continue
             if dedup_key(row["text"]) in published_keys:
                 continue
             if is_flagged(row["text"]):
