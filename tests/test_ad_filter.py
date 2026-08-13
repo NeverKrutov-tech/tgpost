@@ -3,12 +3,11 @@
 """
 import unittest
 
-from src.tg_autopost.sources.telegram_channel import AD_PHRASES as WEB_AD
+from src.tg_autopost.content_filter import is_ad
 
 
-def _is_ad(text: str, phrases) -> bool:
-    low = text.lower()
-    return any(p in low for p in phrases)
+def _is_ad(text: str) -> bool:
+    return is_ad(text)
 
 
 class AdVpnFunnelRejectedTest(unittest.TestCase):
@@ -23,26 +22,26 @@ class AdVpnFunnelRejectedTest(unittest.TestCase):
             "\u041E\u0431\u0445\u043E\u0434 \u0432\u0441\u0435\u0445 \u0431\u0435\u043B\u044B\u0445 \u0441\u043F\u0438\u0441\u043A\u043E\u0432.\n"
             "\u0412\u0441\u0435\u0433\u043E \u0437\u0430 99\u20BD \u0432 \u043C\u0435\u0441\u044F\u0446"
         )
-        self.assertTrue(_is_ad(post, WEB_AD), "web source must reject the funnel")
+        self.assertTrue(_is_ad(post), "web source must reject the funnel")
 
     def test_continuation_header_alone_rejected(self):
-        self.assertTrue(_is_ad("\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435:", WEB_AD))
+        self.assertTrue(_is_ad("\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435:"))
 
     def test_bare_vpn_word_is_not_enough_to_reject(self):
         # Решение: голое "впн"/"vpn" НЕ признак рекламы (ложные срабатывания на
         # шутках про VPN). Рекламная воронка всегда несёт специфичную фразу.
-        self.assertFalse(_is_ad("Скачал впн и всё работает", WEB_AD))
-        self.assertTrue(_is_ad("Skip VPN - обход всех белых списков", WEB_AD))
+        self.assertFalse(_is_ad("Скачал впн и всё работает"))
+        self.assertTrue(_is_ad("Skip VPN - обход всех белых списков"))
 
     def test_normal_joke_about_vpn_is_NOT_rejected(self):
         # Ложное срабатывание было бы бедой: юмор про VPN не является рекламой.
         joke = "- Ты как ВПН пользуешься?\n- А что это?\n- Ну, чтобы заблокированное открывать.\n- А, нет, у меня всё и так видно."
         # В этом тексте нет ни одной AD-фразы целиком (только слово "ВПН" внутри).
-        self.assertFalse(_is_ad(joke, WEB_AD))
+        self.assertFalse(_is_ad(joke))
 
     def test_vpn_word_as_substring_does_not_false_positive_on_random_words(self):
         # "впн" не должен ловить обычные слова - проверяем, что фраза именно рекламная.
-        self.assertFalse(_is_ad("Купил новые наушники, звук отличный", WEB_AD))
+        self.assertFalse(_is_ad("Купил новые наушники, звук отличный"))
 
 
 if __name__ == "__main__":

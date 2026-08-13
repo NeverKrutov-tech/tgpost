@@ -800,6 +800,16 @@ class TelegramPublisher:
         joke2 = self.db.get_next_unpublished(exclude_hashes={joke1.content_hash})
         if joke2 is None:
             return False
+        # Safety net: reject if either joke is flagged (political, adult, or ad).
+        # This catches ads that slipped into the DB before the ingestion filter
+        # was updated, or from sources without ad filtering.
+        from .content_filter import is_flagged
+        if is_flagged(joke1.text) or is_flagged(joke2.text):
+            logger.info("Battle skipped: flagged content (joke1=%s, joke2=%s)",
+                        is_flagged(joke1.text), is_flagged(joke2.text))
+            self.db.mark_published(joke1.content_hash)
+            self.db.mark_published(joke2.content_hash)
+            return False
         self.db.add_shorts_candidate(joke1.text)
         self.db.add_shorts_candidate(joke2.text)
         post_number = self.db.count_published() + 1

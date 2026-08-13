@@ -6,6 +6,7 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.tl.types import Message
 
+from ..content_filter import is_flagged, is_ad
 from ..models import Joke
 from ..utils import build_hash, normalize_text
 from .base import JokeSource
@@ -18,23 +19,6 @@ SKIP_PATTERNS = [
     re.compile(r"tg://"),
     re.compile(r"t\.me/"),
     re.compile(r"^\d+$"),
-]
-
-AD_PHRASES = [
-    "\u0447\u0438\u0442\u0430\u0442\u044c \u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0435\u043d\u0438\u0435",
-    "\u0447\u0438\u0442\u0430\u0439\u0442\u0435 \u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0435\u043d\u0438\u0435",
-    "\u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0435\u043d\u0438\u0435 \u0432",
-    "\u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0435\u043d\u0438\u0435:",
-    "\u043f\u043e\u0434\u043f\u0438\u0448\u0438\u0441\u044c",
-    "\u043f\u043e\u0434\u043f\u0438\u0448\u0438\u0441\u044c \u043d\u0430",
-    "\u0440\u0435\u043A\u043B\u0430\u043C\u0430",
-    "\u0440\u0435\u043A\u043B\u0430\u043C\u043D\u044B\u0439 \u043f\u043e\u0441\u0442",
-    "skip vpn",
-    "\u043e\u0431\u0445\u043e\u0434 \u0432\u0441\u0435\u0445",
-    "\u0431\u0435\u043b\u044b\u0445 \u0441\u043f\u0438\u0441\u043a\u043e\u0432",
-    "| \u043f\u043e\u0434\u043f\u0438\u0441\u0430\u0442\u044c\u0441\u044f",
-    "\u0443\u0437\u043d\u0430\u0442\u044c \u0431\u043e\u043b\u044c\u0448\u0435",
-    "\u043f\u0435\u0440\u0435\u0445\u043e\u0434\u0438 \u043f\u043e \u0441\u0441\u044b\u043b\u043a\u0435",
 ]
 
 MIN_LENGTH = 30
@@ -65,8 +49,7 @@ class TelethonChannelSource(JokeSource):
             return None
         if any(p.search(text) for p in SKIP_PATTERNS):
             return None
-        text_lower = text.lower()
-        if any(phrase in text_lower for phrase in AD_PHRASES):
+        if is_ad(text):
             return None
         normalized = normalize_text(text)
         if not normalized or len(normalized) < MIN_LENGTH:

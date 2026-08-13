@@ -86,33 +86,7 @@ def strip_noise(text: str) -> str:
 
     return "\n".join(lines)
 
-# ponytail: "подпишись" alone is just a channel signature, not an ad - it gets
-# stripped by strip_noise. Only phrases that mean the post itself is an ad or
-# a teaser stay here. "Продолжение:" (with colon) is the classic funnel header
-# of repost channels: a short setup + paid push (VPN, loan, promocode). The
-# ad link gets stripped by strip_noise, but the caption text survives, so the
-# whole post must be rejected on the words alone.
-AD_PHRASES = [
-    "\u0447\u0438\u0442\u0430\u0442\u044C \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435",
-    "\u0447\u0438\u0442\u0430\u0439\u0442\u0435 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435",
-    "\u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435 \u0432",
-    "\u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u0435:",
-    "\u0440\u0435\u043A\u043B\u0430\u043C\u0430",
-    "\u0440\u0435\u043A\u043B\u0430\u043C\u043D\u044B\u0439 \u043F\u043E\u0441\u0442",
-    "\u0435\u0440\u0438\u0434",
-    "\u0440\u0435\u0444. \u0441\u0441\u044B\u043B\u043A\u0430",
-    "\u043F\u0440\u043E\u043C\u043E\u043A\u043E\u0434",
-    "\u0441\u043A\u0438\u0434\u043A\u0430 \u043F\u043E \u043F\u0440\u043E\u043C\u043E\u043A\u043E\u0434\u0443",
-    # VPN / scam pushes (specific phrases only - the bare "впн"/"vpn" word is
-    # too common in legit jokes and caused false positives; ad funnels always
-    # carry a distinctive phrase like "skip vpn" or "обход всех")
-    "skip vpn",
-    "\u043E\u0431\u0445\u043E\u0434 \u0432\u0441\u0435\u0445",
-    "\u0431\u0435\u043B\u044B\u0445 \u0441\u043F\u0438\u0441\u043A\u043E\u0432",
-    "| \u043F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F",
-    "\u0443\u0437\u043D\u0430\u0442\u044C \u0431\u043E\u043B\u044C\u0448\u0435",
-    "\u043F\u0435\u0440\u0435\u0445\u043E\u0434\u0438 \u043F\u043E \u0441\u0441\u044B\u043B\u043A\u0435",
-]
+from ..content_filter import is_flagged, is_ad
 
 CYRILLIC_RE = re.compile(r"[\u0430-\u044F\u0451]", re.I)
 
@@ -188,8 +162,7 @@ class TelegramChannelSource(JokeSource):
                 if not raw_text or len(raw_text) > MAX_LENGTH:
                     continue
 
-                raw_lower = raw_text.lower()
-                if any(phrase in raw_lower for phrase in AD_PHRASES):
+                if is_ad(raw_text):
                     continue
 
                 # Strip the channel signature first, then judge what remains.
